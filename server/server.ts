@@ -39,8 +39,12 @@ app.get('/health', (req, res) => {
 
 // Serve static files from Expo web build or landing page
 const landingPagePath = path.join(__dirname, 'templates', 'landing-page.html');
+const distIndexPath = path.join(DIST_PATH, 'index.html');
 
-if (fs.existsSync(DIST_PATH)) {
+// Check if we have a complete frontend build
+const hasDistBuild = fs.existsSync(DIST_PATH) && fs.existsSync(distIndexPath);
+
+if (hasDistBuild) {
   app.use(express.static(DIST_PATH));
   
   // SPA fallback - serve index.html for non-API routes
@@ -48,23 +52,24 @@ if (fs.existsSync(DIST_PATH)) {
     if (req.path.startsWith('/api') || req.path === '/health') {
       return next();
     }
-    const indexPath = path.join(DIST_PATH, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(200).json({ status: 'ok', service: 'NEMY API' });
-    }
-  });
-} else if (fs.existsSync(landingPagePath)) {
-  // Serve landing page as fallback
-  app.get('/', (req, res) => {
-    res.sendFile(landingPagePath);
+    res.sendFile(distIndexPath);
   });
 } else {
-  // No frontend - serve API status
-  app.get('/', (req, res) => {
-    res.status(200).json({ status: 'ok', service: 'NEMY API' });
-  });
+  // Serve static assets from dist if they exist
+  if (fs.existsSync(DIST_PATH)) {
+    app.use(express.static(DIST_PATH));
+  }
+  
+  // Serve landing page
+  if (fs.existsSync(landingPagePath)) {
+    app.get('/', (req, res) => {
+      res.sendFile(landingPagePath);
+    });
+  } else {
+    app.get('/', (req, res) => {
+      res.status(200).json({ status: 'ok', service: 'NEMY API' });
+    });
+  }
 }
 
 // Error handling
