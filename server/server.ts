@@ -9,8 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Security middleware
-app.use(helmet());
+// Security middleware - disable CSP for SPA
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 app.use(cors({
   origin: true,
   credentials: true
