@@ -7,7 +7,7 @@ channel = "stable-23_11"
 packages = ["mysql80"]
 
 [deployment]
-run = ["sh", "-c", "npm run production:start"]
+run = ["sh", "-c", "npx tsx server/server.ts"]
 deploymentTarget = "cloudrun"
 
 [env]
