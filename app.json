@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "NEMY",
+    "slug": "nemy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "nemy",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nemy.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FF8C00",
+        "foregroundImage": "./assets/images/icon.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nemy.app"
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FF8C00",
+          "dark": {
+            "backgroundColor": "#1A1A1A",
+            "image": "./assets/images/splash-icon.png"
+          }
+        }
+      ],
+      "expo-web-browser",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "reactCompiler": true
+    }
+  }
+}

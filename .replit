@@ -1,0 +1,12 @@
+run = "npm run production:start"
+entrypoint = "server/server-demo.ts"
+
+[nix]
+channel = "stable-23_11"
+
+[deployment]
+run = ["sh", "-c", "npm run production:start"]
+deploymentTarget = "cloudrun"
+
+[env]
+NODE_ENV = "production"

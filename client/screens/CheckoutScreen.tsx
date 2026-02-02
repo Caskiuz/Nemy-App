@@ -1,0 +1,862 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+  TextInput,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import Constants from "expo-constants";
+
+import { ThemedText } from "@/components/ThemedText";
+import { Button } from "@/components/Button";
+import { useTheme } from "@/hooks/useTheme";
+import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
+import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { mockAddresses, mockBusinesses } from "@/data/mockData";
+import { apiRequest } from "@/lib/query-client";
+import { useToast } from "@/contexts/ToastContext";
+
+type SubstitutionOption = "refund" | "call" | "substitute";
+
+const isExpoGo = Constants.appOwnership === "expo";
+
+type CheckoutScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Checkout"
+>;
+
+export default function CheckoutScreen() {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<CheckoutScreenNavigationProp>();
+  const { theme } = useTheme();
+  const { cart, subtotal, clearCart } = useCart();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+
+  const [selectedAddress, setSelectedAddress] = useState(mockAddresses[0]);
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPaymentReady, setIsPaymentReady] = useState(false);
+  const [stripeModule, setStripeModule] = useState<any>(null);
+
+  // Preferencias de sustitución
+  const [globalSubstitution, setGlobalSubstitution] =
+    useState<SubstitutionOption>("refund");
+  const [itemSubstitutions, setItemSubstitutions] = useState<
+    Record<string, SubstitutionOption>
+  >({});
+  const [showItemSubstitutions, setShowItemSubstitutions] = useState(false);
+
+  // Pago en efectivo
+  const [cashPaymentAmount, setCashPaymentAmount] = useState("");
+  const [cashError, setCashError] = useState("");
+
+  const business = cart
+    ? mockBusinesses.find((b) => b.id === cart.businessId)
+    : null;
+  const deliveryFee = business?.deliveryFee || 0;
+  const total = subtotal + deliveryFee;
+
+  // Calcular cambio para efectivo
+  const cashAmountNumber = parseFloat(cashPaymentAmount) || 0;
+  const changeAmount = cashAmountNumber - total;
+  const isCashAmountValid =
+    paymentMethod === "cash" ? cashAmountNumber >= total : true;
+
+  useEffect(() => {
+    if (Platform.OS !== "web" && !isExpoGo) {
+      loadStripeModule();
+    }
+  }, []);
+
+  const loadStripeModule = async () => {
+    try {
+      const stripe = await import("@stripe/stripe-react-native");
+      setStripeModule(stripe);
+    } catch (error) {
+      console.log("Stripe native not available in this environment");
+    }
+  };
+
+  useEffect(() => {
+    if (
+      paymentMethod === "card" &&
+      cart &&
+      user &&
+      stripeModule &&
+      Platform.OS !== "web"
+    ) {
+      initializePaymentSheet();
+    }
+  }, [paymentMethod, cart, user, stripeModule]);
+
+  const initializePaymentSheet = async () => {
+    if (!cart || !user || !stripeModule) return;
+
+    try {
+      const response = await apiRequest(
+        "POST",
+        "/api/stripe/create-payment-intent",
+        {
+          amount: total,
+          userId: user.id,
+        },
+      );
+      const { clientSecret } = await response.json();
+
+      const { error } = await stripeModule.initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: "NEMY",
+        style: "automatic",
+        appearance: {
+          colors: {
+            primary: NemyColors.primary,
+          },
+        },
+      });
+
+      if (!error) {
+        setIsPaymentReady(true);
+      } else {
+        console.error("Error initializing payment sheet:", error);
+      }
+    } catch (error) {
+      console.error("Error creating payment intent:", error);
+    }
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!cart || !user) {
+      showToast("Error: Usuario no autenticado", "error");
+      return;
+    }
+
+    setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      if (paymentMethod === "card" && Platform.OS !== "web" && stripeModule) {
+        const { error } = await stripeModule.presentPaymentSheet();
+
+        if (error) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          if (error.code !== "Canceled") {
+            showToast(error.message || "Error en el pago", "error");
+          }
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Preparar preferencias de sustitución
+      const finalItemSubstitutions = showItemSubstitutions
+        ? itemSubstitutions
+        : {};
+
+      // Calcular el período de arrepentimiento (60 segundos desde ahora)
+      const regretPeriodEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
+
+      const orderResponse = await apiRequest("POST", "/api/orders", {
+        userId: user.id,
+        businessId: cart.businessId,
+        businessName: cart.businessName,
+        businessImage: business?.profileImage || "",
+        items: JSON.stringify(cart.items),
+        status: "pending_confirmation", // Nuevo estado durante período de arrepentimiento
+        subtotal: Math.round(subtotal * 100),
+        deliveryFee: Math.round(deliveryFee * 100),
+        total: Math.round(total * 100),
+        paymentMethod,
+        deliveryAddress: `${selectedAddress.street}, ${selectedAddress.city}`,
+        // Nuevos campos
+        substitutionPreference: globalSubstitution,
+        itemSubstitutionPreferences:
+          Object.keys(finalItemSubstitutions).length > 0
+            ? JSON.stringify(finalItemSubstitutions)
+            : null,
+        cashPaymentAmount:
+          paymentMethod === "cash" ? Math.round(cashAmountNumber * 100) : null,
+        cashChangeAmount:
+          paymentMethod === "cash" ? Math.round(changeAmount * 100) : null,
+      });
+
+      const order = await orderResponse.json();
+      console.log('📦 Order response:', order);
+
+      await clearCart();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsLoading(false);
+
+      // Navegar a la pantalla de confirmación con cronómetro de arrepentimiento
+      navigation.reset({
+        index: 0,
+        routes: [
+          { name: "Main" },
+          {
+            name: "OrderConfirmation",
+            params: { orderId: order.orderId || order.id, regretPeriodEndsAt },
+          },
+        ],
+      });
+    } catch (error: any) {
+      console.error("Error placing order:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showToast("No se pudo procesar tu pedido. Intenta de nuevo.", "error");
+      setIsLoading(false);
+    }
+  };
+
+  if (!cart) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      >
+        <ThemedText type="h2">No hay productos en el carrito</ThemedText>
+      </View>
+    );
+  }
+
+  const isWeb = Platform.OS === "web";
+  const canPlaceOrder =
+    (paymentMethod === "cash" ? isCashAmountValid : true) &&
+    (paymentMethod === "cash" ||
+      isWeb ||
+      (paymentMethod === "card" && isPaymentReady));
+
+  // Helper para obtener el icono y texto de sustitución
+  const getSubstitutionInfo = (option: SubstitutionOption) => {
+    switch (option) {
+      case "refund":
+        return {
+          icon: "dollar-sign" as const,
+          label: "Reembolsar",
+          desc: "Te devolvemos el dinero",
+        };
+      case "call":
+        return {
+          icon: "phone" as const,
+          label: "Llamarme",
+          desc: "El negocio te contactará",
+        };
+      case "substitute":
+        return {
+          icon: "refresh-cw" as const,
+          label: "Sustituir",
+          desc: "Producto similar",
+        };
+    }
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Feather name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
+        <ThemedText type="h2">Confirmar pedido</ThemedText>
+        <View style={{ width: 44 }} />
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
+        >
+          <View style={styles.sectionHeader}>
+            <Feather name="map-pin" size={20} color={NemyColors.primary} />
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Dirección de entrega
+            </ThemedText>
+          </View>
+          {mockAddresses.map((addr) => (
+            <Pressable
+              key={addr.id}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setSelectedAddress(addr);
+              }}
+              style={[
+                styles.addressCard,
+                {
+                  backgroundColor: theme.backgroundSecondary,
+                  borderColor:
+                    selectedAddress.id === addr.id
+                      ? NemyColors.primary
+                      : "transparent",
+                },
+              ]}
+            >
+              <View style={styles.addressContent}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>
+                  {addr.label}
+                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  {addr.street}, {addr.city}
+                </ThemedText>
+              </View>
+              {selectedAddress.id === addr.id ? (
+                <Feather
+                  name="check-circle"
+                  size={20}
+                  color={NemyColors.primary}
+                />
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+
+        <View
+          style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
+        >
+          <View style={styles.sectionHeader}>
+            <Feather name="credit-card" size={20} color={NemyColors.primary} />
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Método de pago
+            </ThemedText>
+          </View>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              setPaymentMethod("card");
+              setIsPaymentReady(false);
+            }}
+            style={[
+              styles.paymentOption,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                borderColor:
+                  paymentMethod === "card" ? NemyColors.primary : "transparent",
+              },
+            ]}
+          >
+            <View style={styles.paymentContent}>
+              <Feather name="credit-card" size={24} color={theme.text} />
+              <View style={styles.paymentText}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>
+                  Tarjeta
+                </ThemedText>
+                <ThemedText
+                  type="caption"
+                  style={{ color: theme.textSecondary }}
+                >
+                  {isWeb ? "Pago simulado en web" : "Visa, Mastercard, etc."}
+                </ThemedText>
+              </View>
+            </View>
+            {paymentMethod === "card" ? (
+              <Feather
+                name="check-circle"
+                size={20}
+                color={NemyColors.primary}
+              />
+            ) : null}
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              setPaymentMethod("cash");
+            }}
+            style={[
+              styles.paymentOption,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                borderColor:
+                  paymentMethod === "cash"
+                    ? NemyColors.primary
+                    : "transparent",
+              },
+            ]}
+          >
+            <View style={styles.paymentContent}>
+              <Feather name="dollar-sign" size={24} color={theme.text} />
+              <View style={styles.paymentText}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>
+                  Efectivo
+                </ThemedText>
+                <ThemedText
+                  type="caption"
+                  style={{ color: theme.textSecondary }}
+                >
+                  Paga al recibir
+                </ThemedText>
+              </View>
+            </View>
+            {paymentMethod === "cash" ? (
+              <Feather
+                name="check-circle"
+                size={20}
+                color={NemyColors.primary}
+              />
+            ) : null}
+          </Pressable>
+
+          {/* Input de efectivo */}
+          {paymentMethod === "cash" ? (
+            <View
+              style={[
+                styles.cashSection,
+                { backgroundColor: theme.backgroundSecondary },
+              ]}
+            >
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "600", marginBottom: Spacing.sm }}
+              >
+                ¿Con cuánto vas a pagar?
+              </ThemedText>
+              <View style={styles.cashInputContainer}>
+                <ThemedText type="h3" style={{ color: theme.textSecondary }}>
+                  $
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.cashInput,
+                    {
+                      color: theme.text,
+                      borderColor: cashError ? NemyColors.error : theme.border,
+                    },
+                  ]}
+                  value={cashPaymentAmount}
+                  onChangeText={(text) => {
+                    setCashPaymentAmount(text.replace(/[^0-9.]/g, ""));
+                    setCashError("");
+                  }}
+                  placeholder="0.00"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  testID="input-cash-amount"
+                />
+              </View>
+              {cashAmountNumber > 0 && cashAmountNumber >= total ? (
+                <View
+                  style={[
+                    styles.changeBox,
+                    { backgroundColor: NemyColors.success + "20" },
+                  ]}
+                >
+                  <Feather name="info" size={16} color={NemyColors.success} />
+                  <ThemedText
+                    type="body"
+                    style={{
+                      color: NemyColors.success,
+                      marginLeft: Spacing.sm,
+                    }}
+                  >
+                    El repartidor te dará ${changeAmount.toFixed(2)} de cambio
+                  </ThemedText>
+                </View>
+              ) : cashAmountNumber > 0 ? (
+                <View
+                  style={[
+                    styles.changeBox,
+                    { backgroundColor: NemyColors.error + "20" },
+                  ]}
+                >
+                  <Feather
+                    name="alert-circle"
+                    size={16}
+                    color={NemyColors.error}
+                  />
+                  <ThemedText
+                    type="small"
+                    style={{ color: NemyColors.error, marginLeft: Spacing.sm }}
+                  >
+                    El monto debe ser al menos ${total.toFixed(2)}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Sección de sustituciones */}
+        <View
+          style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
+        >
+          <View style={styles.sectionHeader}>
+            <Feather name="refresh-cw" size={20} color={NemyColors.primary} />
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Si algo no está disponible...
+            </ThemedText>
+          </View>
+          <ThemedText
+            type="small"
+            style={{ color: theme.textSecondary, marginBottom: Spacing.md }}
+          >
+            Elige qué hacer si un producto está agotado
+          </ThemedText>
+
+          {/* Opciones globales */}
+          <View style={styles.substitutionOptions}>
+            {(["refund", "call", "substitute"] as SubstitutionOption[]).map(
+              (option) => {
+                const info = getSubstitutionInfo(option);
+                const isSelected = globalSubstitution === option;
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setGlobalSubstitution(option);
+                    }}
+                    style={[
+                      styles.substitutionOption,
+                      {
+                        backgroundColor: isSelected
+                          ? NemyColors.primary + "15"
+                          : theme.backgroundSecondary,
+                        borderColor: isSelected
+                          ? NemyColors.primary
+                          : "transparent",
+                      },
+                    ]}
+                    testID={`option-substitution-${option}`}
+                  >
+                    <Feather
+                      name={info.icon}
+                      size={20}
+                      color={
+                        isSelected ? NemyColors.primary : theme.textSecondary
+                      }
+                    />
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: isSelected ? NemyColors.primary : theme.text,
+                        marginTop: Spacing.xs,
+                        fontWeight: isSelected ? "600" : "400",
+                      }}
+                    >
+                      {info.label}
+                    </ThemedText>
+                  </Pressable>
+                );
+              },
+            )}
+          </View>
+
+          {/* Toggle para preferencias por ítem */}
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              setShowItemSubstitutions(!showItemSubstitutions);
+            }}
+            style={styles.itemSubstitutionToggle}
+          >
+            <ThemedText type="small" style={{ color: NemyColors.primary }}>
+              {showItemSubstitutions
+                ? "Usar misma opción para todos"
+                : "Elegir por producto"}
+            </ThemedText>
+            <Feather
+              name={showItemSubstitutions ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={NemyColors.primary}
+            />
+          </Pressable>
+
+          {/* Preferencias por ítem */}
+          {showItemSubstitutions && cart ? (
+            <View style={styles.itemSubstitutionList}>
+              {cart.items.map((item) => (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.itemSubstitutionRow,
+                    { borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText
+                    type="small"
+                    style={{ flex: 1 }}
+                    numberOfLines={1}
+                  >
+                    {item.product.name}
+                  </ThemedText>
+                  <View style={styles.itemSubstitutionButtons}>
+                    {(
+                      ["refund", "call", "substitute"] as SubstitutionOption[]
+                    ).map((option) => {
+                      const currentOption =
+                        itemSubstitutions[item.id] || globalSubstitution;
+                      const isSelected = currentOption === option;
+                      const info = getSubstitutionInfo(option);
+                      return (
+                        <Pressable
+                          key={option}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setItemSubstitutions({
+                              ...itemSubstitutions,
+                              [item.id]: option,
+                            });
+                          }}
+                          style={[
+                            styles.itemSubstitutionButton,
+                            {
+                              backgroundColor: isSelected
+                                ? NemyColors.primary
+                                : theme.backgroundSecondary,
+                            },
+                          ]}
+                        >
+                          <Feather
+                            name={info.icon}
+                            size={14}
+                            color={isSelected ? "#FFF" : theme.textSecondary}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
+        >
+          <View style={styles.sectionHeader}>
+            <Feather name="shopping-bag" size={20} color={NemyColors.primary} />
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Resumen del pedido
+            </ThemedText>
+          </View>
+          <ThemedText
+            type="body"
+            style={{ color: theme.textSecondary, marginBottom: Spacing.md }}
+          >
+            {cart.businessName}
+          </ThemedText>
+          {cart.items.map((item) => (
+            <View key={item.id} style={styles.summaryItem}>
+              <ThemedText type="small">
+                {item.quantity}x {item.product.name}
+              </ThemedText>
+              <ThemedText type="small">
+                ${(item.product.price * item.quantity).toFixed(2)}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.backgroundRoot,
+            paddingBottom: insets.bottom + Spacing.lg,
+          },
+        ]}
+      >
+        <View style={styles.totalRow}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            Subtotal
+          </ThemedText>
+          <ThemedText type="body">${subtotal.toFixed(2)}</ThemedText>
+        </View>
+        <View style={styles.totalRow}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            Envío
+          </ThemedText>
+          <ThemedText type="body">${deliveryFee.toFixed(2)}</ThemedText>
+        </View>
+        <View style={[styles.totalRow, styles.grandTotal]}>
+          <ThemedText type="h3">Total</ThemedText>
+          <ThemedText type="h2" style={{ color: NemyColors.primary }}>
+            ${total.toFixed(2)}
+          </ThemedText>
+        </View>
+        <Button
+          onPress={handlePlaceOrder}
+          disabled={isLoading || !canPlaceOrder}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : paymentMethod === "card" && !isWeb && !isPaymentReady ? (
+            "Preparando pago..."
+          ) : (
+            "Confirmar pedido"
+          )}
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing["4xl"],
+  },
+  section: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    marginLeft: Spacing.sm,
+  },
+  addressCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    marginBottom: Spacing.sm,
+  },
+  addressContent: {
+    flex: 1,
+  },
+  paymentOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    marginBottom: Spacing.sm,
+  },
+  paymentContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  paymentText: {
+    marginLeft: Spacing.md,
+  },
+  summaryItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.xs,
+  },
+  footer: {
+    padding: Spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
+  },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+  },
+  grandTotal: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
+    paddingTop: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  // Estilos para efectivo
+  cashSection: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  cashInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  cashInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  changeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.md,
+  },
+  // Estilos para sustituciones
+  substitutionOptions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  substitutionOption: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+  },
+  itemSubstitutionToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  itemSubstitutionList: {
+    marginTop: Spacing.sm,
+  },
+  itemSubstitutionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+  },
+  itemSubstitutionButtons: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  itemSubstitutionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

@@ -1,0 +1,469 @@
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  Alert,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { Audio } from "expo-av";
+
+import { ThemedText } from "@/components/ThemedText";
+import { Badge } from "@/components/Badge";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
+import { apiRequest } from "@/lib/query-client";
+
+export default function BusinessOrdersScreen() {
+  const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const [orders, setOrders] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<"all" | "pending" | "active">("pending");
+  const previousPendingCount = useRef(0);
+
+  const playNotificationSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" },
+        { shouldPlay: true }
+      );
+      await sound.playAsync();
+    } catch (error) {
+      console.log("Could not play sound", error);
+    }
+  };
+
+  const loadOrders = async () => {
+    try {
+      const response = await apiRequest("GET", "/api/business/orders");
+      const data = await response.json();
+      if (data.success) {
+        const newOrders = data.orders;
+        const pendingCount = newOrders.filter((o: any) => o.status === "pending").length;
+        
+        if (pendingCount > previousPendingCount.current && previousPendingCount.current > 0) {
+          playNotificationSound();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        
+        previousPendingCount.current = pendingCount;
+        setOrders(newOrders);
+      }
+    } catch (error) {
+      console.error("Error loading orders:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadOrders();
+    const interval = setInterval(loadOrders, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadOrders();
+    setRefreshing(false);
+  };
+
+  const updateOrderStatus = async (orderId: string, status: string) => {
+    try {
+      await apiRequest("PUT", `/api/business/orders/${orderId}/status`, {
+        status,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      loadOrders();
+    } catch (error) {
+      console.error("Error updating order:", error);
+      Alert.alert("Error", "No se pudo actualizar el pedido");
+    }
+  };
+
+  const handleAccept = (orderId: string) => {
+    console.log("handleAccept called:", orderId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    
+    if (typeof window !== 'undefined' && window.confirm) {
+      // Web
+      if (window.confirm('¿Confirmar este pedido?')) {
+        updateOrderStatus(orderId, "confirmed");
+      }
+    } else {
+      // Native
+      Alert.alert("Aceptar Pedido", "¿Confirmar este pedido?", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Aceptar",
+          onPress: () => updateOrderStatus(orderId, "confirmed"),
+        },
+      ]);
+    }
+  };
+
+  const handleReject = (orderId: string) => {
+    console.log("handleReject called:", orderId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    
+    if (typeof window !== 'undefined' && window.confirm) {
+      // Web
+      if (window.confirm('¿Rechazar este pedido?')) {
+        updateOrderStatus(orderId, "cancelled");
+      }
+    } else {
+      // Native
+      Alert.alert("Rechazar Pedido", "¿Estás seguro?", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Rechazar",
+          style: "destructive",
+          onPress: () => updateOrderStatus(orderId, "cancelled"),
+        },
+      ]);
+    }
+  };
+
+  const handleStartPreparing = (orderId: string) => {
+    updateOrderStatus(orderId, "preparing");
+  };
+
+  const handleMarkReady = async (orderId: string) => {
+    try {
+      await updateOrderStatus(orderId, "ready");
+      
+      try {
+        const assignResponse = await apiRequest("POST", `/api/orders/${orderId}/assign-driver`);
+        const assignData = await assignResponse.json();
+        
+        if (assignData.success) {
+          Alert.alert("Pedido Listo", `Repartidor asignado: ${assignData.driver?.name || "Automático"}`);
+        }
+      } catch (assignError) {
+        console.log("Auto-assign pending");
+      }
+    } catch (error) {
+      console.error("Error marking ready:", error);
+      Alert.alert("Error", "No se pudo marcar el pedido como listo");
+    }
+  };
+
+  const filteredOrders = orders.filter((order: any) => {
+    if (filter === "pending") return order.status === "pending";
+    if (filter === "active")
+      return ["confirmed", "preparing", "ready"].includes(order.status);
+    return true;
+  });
+
+  const renderOrder = ({ item }: { item: any }) => {
+    const items = typeof item.items === "string" ? JSON.parse(item.items) : item.items;
+
+    return (
+      <View
+        style={[styles.orderCard, { backgroundColor: theme.card }, Shadows.sm]}
+      >
+        <View style={styles.orderHeader}>
+          <View>
+            <ThemedText type="h4">Pedido #{item.id.slice(-6)}</ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              {new Date(item.createdAt).toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </ThemedText>
+          </View>
+          <Badge
+            text={item.status}
+            variant={
+              item.status === "pending"
+                ? "warning"
+                : item.status === "ready"
+                ? "success"
+                : "primary"
+            }
+          />
+        </View>
+
+        <View style={styles.itemsList}>
+          {items.map((orderItem: any, index: number) => (
+            <View key={index} style={styles.item}>
+              <ThemedText type="body">
+                {orderItem.quantity}x {orderItem.product?.name || "Producto"}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.orderFooter}>
+          <ThemedText type="h4" style={{ color: NemyColors.primary }}>
+            ${(item.total / 100).toFixed(2)}
+          </ThemedText>
+          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+            {item.paymentMethod === "cash" ? "Efectivo" : "Tarjeta"}
+          </ThemedText>
+        </View>
+
+        <View style={styles.actions}>
+          {item.status === "pending" && (
+            <>
+              <Pressable
+                onPress={() => {
+                  console.log("Reject button pressed", item.id);
+                  handleReject(item.id);
+                }}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  { 
+                    backgroundColor: theme.backgroundSecondary,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="x" size={18} color={NemyColors.error} />
+                <ThemedText
+                  type="small"
+                  style={{ color: NemyColors.error, marginLeft: Spacing.xs }}
+                >
+                  Rechazar
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  console.log("Accept button pressed", item.id);
+                  handleAccept(item.id);
+                }}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  { 
+                    backgroundColor: NemyColors.primary,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Feather name="check" size={18} color="#FFF" />
+                <ThemedText
+                  type="small"
+                  style={{ color: "#FFF", marginLeft: Spacing.xs }}
+                >
+                  Aceptar
+                </ThemedText>
+              </Pressable>
+            </>
+          )}
+
+          {item.status === "confirmed" && (
+            <Pressable
+              onPress={() => handleStartPreparing(item.id)}
+              style={[
+                styles.actionButton,
+                { backgroundColor: NemyColors.primary, flex: 1 },
+              ]}
+            >
+              <Feather name="clock" size={18} color="#FFF" />
+              <ThemedText
+                type="small"
+                style={{ color: "#FFF", marginLeft: Spacing.xs }}
+              >
+                Iniciar Preparación
+              </ThemedText>
+            </Pressable>
+          )}
+
+          {item.status === "preparing" && (
+            <Pressable
+              onPress={() => handleMarkReady(item.id)}
+              style={[
+                styles.actionButton,
+                { backgroundColor: NemyColors.success, flex: 1 },
+              ]}
+            >
+              <Feather name="check-circle" size={18} color="#FFF" />
+              <ThemedText
+                type="small"
+                style={{ color: "#FFF", marginLeft: Spacing.xs }}
+              >
+                Marcar Listo
+              </ThemedText>
+            </Pressable>
+          )}
+
+          {item.status === "ready" && (
+            <View
+              style={[
+                styles.actionButton,
+                { backgroundColor: NemyColors.success + "20", flex: 1 },
+              ]}
+            >
+              <Feather name="package" size={18} color={NemyColors.success} />
+              <ThemedText
+                type="small"
+                style={{ color: NemyColors.success, marginLeft: Spacing.xs }}
+              >
+                Esperando Repartidor
+              </ThemedText>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <LinearGradient
+      colors={[theme.gradientStart, theme.gradientEnd]}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <ThemedText type="h2">Pedidos</ThemedText>
+      </View>
+
+      <View style={styles.filters}>
+        <Pressable
+          onPress={() => setFilter("pending")}
+          style={[
+            styles.filterButton,
+            {
+              backgroundColor:
+                filter === "pending" ? NemyColors.primary : theme.card,
+            },
+          ]}
+        >
+          <ThemedText
+            type="small"
+            style={{ color: filter === "pending" ? "#FFF" : theme.text }}
+          >
+            Pendientes
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={() => setFilter("active")}
+          style={[
+            styles.filterButton,
+            {
+              backgroundColor:
+                filter === "active" ? NemyColors.primary : theme.card,
+            },
+          ]}
+        >
+          <ThemedText
+            type="small"
+            style={{ color: filter === "active" ? "#FFF" : theme.text }}
+          >
+            Activos
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={() => setFilter("all")}
+          style={[
+            styles.filterButton,
+            {
+              backgroundColor: filter === "all" ? NemyColors.primary : theme.card,
+            },
+          ]}
+        >
+          <ThemedText
+            type="small"
+            style={{ color: filter === "all" ? "#FFF" : theme.text }}
+          >
+            Todos
+          </ThemedText>
+        </Pressable>
+      </View>
+
+      <FlatList
+        data={filteredOrders}
+        keyExtractor={(item: any) => item.id}
+        renderItem={renderOrder}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={NemyColors.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Feather name="inbox" size={64} color={theme.textSecondary} />
+            <ThemedText
+              type="h4"
+              style={{ color: theme.textSecondary, marginTop: Spacing.lg }}
+            >
+              No hay pedidos
+            </ThemedText>
+          </View>
+        }
+      />
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
+  filters: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  filterButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  listContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing["4xl"],
+  },
+  orderCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  itemsList: {
+    marginBottom: Spacing.md,
+  },
+  item: {
+    paddingVertical: Spacing.xs,
+  },
+  orderFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: Spacing["4xl"],
+  },
+});

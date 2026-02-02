@@ -1,0 +1,324 @@
+import React, { createContext, useContext, useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as LocalAuthentication from "expo-local-authentication";
+import { Platform } from "react-native";
+import { apiRequest } from "@/lib/query-client";
+import { User, UserRole } from "@/types";
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  pendingVerificationPhone: string | null;
+  biometricAvailable: boolean;
+  biometricType: string | null;
+  requestPhoneLogin: (
+    phone: string,
+  ) => Promise<{ userNotFound?: boolean; requiresVerification?: boolean }>;
+  signup: (
+    name: string,
+    role: UserRole,
+    phone: string,
+  ) => Promise<{ requiresVerification: boolean }>;
+  verifyPhone: (phone: string, code: string) => Promise<void>;
+  resendVerification: (phone: string) => Promise<void>;
+  loginWithBiometric: () => Promise<boolean>;
+  enableBiometric: () => Promise<boolean>;
+  disableBiometric: () => Promise<void>;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const STORAGE_KEY = "@nemy_user";
+const PENDING_PHONE_KEY = "@nemy_pending_phone";
+const BIOMETRIC_PHONE_KEY = "@nemy_biometric_phone";
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingVerificationPhone, setPendingVerificationPhone] = useState<
+    string | null
+  >(null);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadUser();
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    try {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      setBiometricAvailable(compatible && enrolled);
+
+      if (compatible && enrolled) {
+        const types =
+          await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (
+          types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
+        ) {
+          setBiometricType("fingerprint");
+        } else if (
+          types.includes(
+            LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION,
+          )
+        ) {
+          setBiometricType("face");
+        } else if (
+          types.includes(LocalAuthentication.AuthenticationType.IRIS)
+        ) {
+          setBiometricType("iris");
+        }
+      }
+    } catch (error) {
+      console.log("Biometric check error:", error);
+      setBiometricAvailable(false);
+    }
+  };
+
+  const loadUser = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setUser(JSON.parse(stored));
+      }
+      const pendingPhone = await AsyncStorage.getItem(PENDING_PHONE_KEY);
+      if (pendingPhone) {
+        setPendingVerificationPhone(pendingPhone);
+      }
+    } catch (error) {
+      console.error("Error loading user:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const requestPhoneLogin = async (
+    phone: string,
+  ): Promise<{ userNotFound?: boolean; requiresVerification?: boolean }> => {
+    // First, send the code request
+    const response = await apiRequest("POST", "/api/auth/send-code", {
+      phone,
+    });
+    const data = await response.json();
+
+    if (data.userNotFound) {
+      return { userNotFound: true };
+    }
+
+    await AsyncStorage.setItem(PENDING_PHONE_KEY, phone);
+    setPendingVerificationPhone(phone);
+    return { requiresVerification: true };
+  };
+
+  const signup = async (
+    name: string,
+    role: UserRole,
+    phone: string,
+  ): Promise<{ requiresVerification: boolean }> => {
+    const response = await apiRequest("POST", "/api/auth/phone-signup", {
+      name,
+      role,
+      phone,
+    });
+    const data = await response.json();
+
+    if (data.requiresVerification) {
+      await AsyncStorage.setItem(PENDING_PHONE_KEY, phone);
+      setPendingVerificationPhone(phone);
+      return { requiresVerification: true };
+    }
+
+    return { requiresVerification: false };
+  };
+
+  const verifyPhone = async (phone: string, code: string) => {
+    const response = await apiRequest("POST", "/api/auth/verify-code", {
+      phone,
+      code,
+    });
+    const data = await response.json();
+
+    const newUser: User = {
+      id: data.user.id,
+      email: data.user.email || undefined,
+      name: data.user.name,
+      phone: data.user.phone,
+      role: data.user.role,
+      phoneVerified: true,
+      biometricEnabled: data.user.biometricEnabled || false,
+      stripeCustomerId: data.user.stripeCustomerId,
+      createdAt: new Date().toISOString(),
+      preferences: {
+        theme: "system",
+        accentColor: "#00C853",
+      },
+      token: data.token, // Save the JWT token
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+    await AsyncStorage.removeItem(PENDING_PHONE_KEY);
+    setUser(newUser);
+    setPendingVerificationPhone(null);
+  };
+
+  const resendVerification = async (phone: string) => {
+    await apiRequest("POST", "/api/auth/send-code", {
+      phone,
+    });
+  };
+
+  const loginWithBiometric = async (): Promise<boolean> => {
+    try {
+      const storedPhone = await AsyncStorage.getItem(BIOMETRIC_PHONE_KEY);
+      if (!storedPhone) {
+        return false;
+      }
+
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Inicia sesión con tu huella",
+        fallbackLabel: "Usar código SMS",
+        cancelLabel: "Cancelar",
+        disableDeviceFallback: false,
+      });
+
+      if (!authResult.success) {
+        return false;
+      }
+
+      const response = await apiRequest("POST", "/api/auth/biometric-login", {
+        phone: storedPhone,
+      });
+      const data = await response.json();
+
+      if (data.error) {
+        return false;
+      }
+
+      const newUser: User = {
+        id: data.user.id,
+        email: data.user.email || undefined,
+        name: data.user.name,
+        phone: data.user.phone,
+        role: data.user.role,
+        phoneVerified: data.user.phoneVerified,
+        biometricEnabled: data.user.biometricEnabled,
+        stripeCustomerId: data.user.stripeCustomerId,
+        createdAt: new Date().toISOString(),
+        token: data.token, // Save the JWT token
+        preferences: {
+          theme: "system",
+          accentColor: "#00C853",
+        },
+      };
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+      setUser(newUser);
+      return true;
+    } catch (error) {
+      console.error("Biometric login error:", error);
+      return false;
+    }
+  };
+
+  const enableBiometric = async (): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Confirma tu identidad para activar huella",
+        fallbackLabel: "Cancelar",
+        cancelLabel: "Cancelar",
+        disableDeviceFallback: true,
+      });
+
+      if (!authResult.success) {
+        return false;
+      }
+
+      const response = await apiRequest("POST", "/api/auth/enable-biometric", {
+        userId: user.id,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        await AsyncStorage.setItem(BIOMETRIC_PHONE_KEY, user.phone);
+        const updatedUser = { ...user, biometricEnabled: true };
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Enable biometric error:", error);
+      return false;
+    }
+  };
+
+  const disableBiometric = async () => {
+    if (!user) return;
+
+    try {
+      await apiRequest("POST", "/api/auth/disable-biometric", {
+        userId: user.id,
+      });
+      await AsyncStorage.removeItem(BIOMETRIC_PHONE_KEY);
+      const updatedUser = { ...user, biometricEnabled: false };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    } catch (error) {
+      console.error("Disable biometric error:", error);
+    }
+  };
+
+  const logout = async () => {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.removeItem(PENDING_PHONE_KEY);
+    setUser(null);
+    setPendingVerificationPhone(null);
+  };
+
+  const updateUser = async (updates: Partial<User>) => {
+    if (user) {
+      const updated = { ...user, ...updates };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      setUser(updated);
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        pendingVerificationPhone,
+        biometricAvailable,
+        biometricType,
+        requestPhoneLogin,
+        signup,
+        verifyPhone,
+        resendVerification,
+        loginWithBiometric,
+        enableBiometric,
+        disableBiometric,
+        logout,
+        updateUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+}
