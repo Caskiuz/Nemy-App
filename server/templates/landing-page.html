@@ -422,14 +422,21 @@
     <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
     <script>
       (function () {
+        console.log('[NEMY Debug] Script iniciado');
+        
         const ua = navigator.userAgent;
+        console.log('[NEMY Debug] User Agent:', ua);
+        
         const loadingEl = document.getElementById("loading");
         const contentEl = document.getElementById("content");
+        console.log('[NEMY Debug] loadingEl encontrado:', !!loadingEl);
+        console.log('[NEMY Debug] contentEl encontrado:', !!contentEl);
 
         const isAndroid = /Android/i.test(ua);
         const isIOS =
           /iPhone|iPad|iPod/i.test(ua) ||
           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        console.log('[NEMY Debug] isAndroid:', isAndroid, 'isIOS:', isIOS);
 
         const deepLink = "exps://EXPS_URL_PLACEHOLDER";
 
@@ -437,48 +444,60 @@
         const appStoreBtn = document.getElementById("app-store-btn");
         const playStoreBtn = document.getElementById("play-store-btn");
         const storeButtonsContainer = document.getElementById("store-buttons");
+        console.log('[NEMY Debug] Botones encontrados - appStore:', !!appStoreBtn, 'playStore:', !!playStoreBtn, 'container:', !!storeButtonsContainer);
 
         if (isIOS) {
+          console.log('[NEMY Debug] Ajustando para iOS');
           playStoreBtn.className = "store-link";
           storeButtonsContainer.appendChild(playStoreBtn);
         } else if (isAndroid) {
+          console.log('[NEMY Debug] Ajustando para Android');
           appStoreBtn.className = "store-link";
           storeButtonsContainer.insertBefore(playStoreBtn, appStoreBtn);
         }
 
-        const qrCode = new QRCodeStyling({
-          width: 400,
-          height: 400,
-          data: deepLink,
-          image: "assets/images/icon.png",
-          dotsOptions: {
-            color: "#333333",
-            type: "rounded",
-          },
-          backgroundOptions: {
-            color: "#ffffff",
-          },
-          imageOptions: {
-            crossOrigin: "anonymous",
-            margin: 6,
-            imageSize: 0.35,
-          },
-          cornersSquareOptions: {
-            type: "extra-rounded",
-          },
-          cornersDotOptions: {
-            type: "dot",
-          },
-          qrOptions: {
-            errorCorrectionLevel: "H",
-          },
-        });
+        console.log('[NEMY Debug] Creando QR code...');
+        try {
+          const qrCode = new QRCodeStyling({
+            width: 400,
+            height: 400,
+            data: deepLink,
+            image: "assets/images/icon.png",
+            dotsOptions: {
+              color: "#333333",
+              type: "rounded",
+            },
+            backgroundOptions: {
+              color: "#ffffff",
+            },
+            imageOptions: {
+              crossOrigin: "anonymous",
+              margin: 6,
+              imageSize: 0.35,
+            },
+            cornersSquareOptions: {
+              type: "extra-rounded",
+            },
+            cornersDotOptions: {
+              type: "dot",
+            },
+            qrOptions: {
+              errorCorrectionLevel: "H",
+            },
+          });
+          console.log('[NEMY Debug] QR code creado exitosamente');
 
-        qrCode.append(document.getElementById("qr-code"));
+          qrCode.append(document.getElementById("qr-code"));
+          console.log('[NEMY Debug] QR code agregado al DOM');
+        } catch (err) {
+          console.error('[NEMY Debug] Error creando QR:', err);
+        }
 
         // Show content directly without auto-redirect
-        loadingEl.style.display = "none";
-        contentEl.style.display = "block";
+        console.log('[NEMY Debug] Mostrando contenido...');
+        if (loadingEl) loadingEl.style.display = "none";
+        if (contentEl) contentEl.style.display = "block";
+        console.log('[NEMY Debug] Contenido mostrado - loadingEl.display:', loadingEl?.style?.display, 'contentEl.display:', contentEl?.style?.display);
       })();
     </script>
   </body>
