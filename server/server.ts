@@ -33,17 +33,31 @@ app.use(express.urlencoded({ extended: true }));
 // API routes
 app.use('/api', apiRoutes);
 
-// Serve landing page
-const landingPagePath = path.join(__dirname, 'templates', 'landing-page.html');
-if (fs.existsSync(landingPagePath)) {
-  app.get('/', (req, res) => {
-    res.sendFile(landingPagePath);
-  });
-} else {
-  app.get('/', (req, res) => {
-    res.status(200).json({ status: 'ok', service: 'NEMY API' });
-  });
+// Serve static files from public directory
+const publicPath = path.join(__dirname, '..', 'public');
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
 }
+
+// Serve dist/client for Expo web build if exists
+const distPath = path.join(__dirname, '..', 'dist', 'client');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
+
+// Serve index.html for root
+app.get('/', (req, res) => {
+  const distIndex = path.join(distPath, 'index.html');
+  const publicIndex = path.join(publicPath, 'index.html');
+  
+  if (fs.existsSync(distIndex)) {
+    res.sendFile(distIndex);
+  } else if (fs.existsSync(publicIndex)) {
+    res.sendFile(publicIndex);
+  } else {
+    res.status(200).json({ status: 'ok', service: 'NEMY API' });
+  }
+});
 
 // Health check
 app.get('/health', (req, res) => {
