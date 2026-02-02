@@ -12,8 +12,26 @@ import {
 import { eq, and } from "drizzle-orm";
 import { getCommissionRates } from "./systemSettingsService";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-12-18.acacia",
+// Lazy-loaded Stripe instance
+let stripeInstance: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeInstance) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new Error("Stripe is not configured. Please add STRIPE_SECRET_KEY.");
+    }
+    stripeInstance = new Stripe(key, {
+      apiVersion: "2024-12-18.acacia",
+    });
+  }
+  return stripeInstance;
+}
+
+const stripe = new Proxy({} as Stripe, {
+  get(_, prop) {
+    return (getStripe() as any)[prop];
+  }
 });
 
 interface CreatePaymentIntentParams {

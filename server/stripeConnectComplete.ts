@@ -5,9 +5,21 @@ import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { AppError } from "./errors";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-12-18.acacia",
-});
+// Lazy-loaded Stripe instance
+let stripeInstance: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeInstance) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new AppError(500, "Stripe is not configured. Please add STRIPE_SECRET_KEY.");
+    }
+    stripeInstance = new Stripe(key, {
+      apiVersion: "2024-12-18.acacia",
+    });
+  }
+  return stripeInstance;
+}
 
 export async function createConnectAccount(
   userId: string,
@@ -27,7 +39,7 @@ export async function createConnectAccount(
     .limit(1);
   if (existing) return existing.stripeAccountId;
 
-  const account = await stripe.accounts.create({
+  const account = await getStripe().accounts.create({
     type: "express",
     country: "MX",
     email: user.email || undefined,
@@ -65,7 +77,7 @@ export async function createOnboardingLink(userId: string): Promise<string> {
     .limit(1);
   if (!account) throw new AppError(404, "Connect account not found");
 
-  const accountLink = await stripe.accountLinks.create({
+  const accountLink = await getStripe().accountLinks.create({
     account: account.stripeAccountId,
     refresh_url: `${process.env.FRONTEND_URL}/onboarding/refresh`,
     return_url: `${process.env.FRONTEND_URL}/onboarding/complete`,
@@ -88,7 +100,7 @@ export async function getAccountStatus(userId: string): Promise<any> {
     .limit(1);
   if (!account) return null;
 
-  const stripeAccount = await stripe.accounts.retrieve(account.stripeAccountId);
+  const stripeAccount = await getStripe().accounts.retrieve(account.stripeAccountId);
 
   return {
     accountId: account.stripeAccountId,
@@ -113,7 +125,7 @@ export async function createPayout(
   if (!account.payoutsEnabled)
     throw new AppError(400, "Payouts not enabled for this account");
 
-  const transfer = await stripe.transfers.create({
+  const transfer = await getStripe().transfers.create({
     amount,
     currency: "mxn",
     destination: account.stripeAccountId,
@@ -141,7 +153,7 @@ export async function distributeOrderCommissions(
     .limit(1);
 
   if (businessAccount && businessAccount.payoutsEnabled) {
-    await stripe.transfers.create({
+    await getStripe().transfers.create({
       amount: amounts.business,
       currency: "mxn",
       destination: businessAccount.stripeAccountId,
@@ -157,7 +169,7 @@ export async function distributeOrderCommissions(
       .limit(1);
 
     if (driverAccount && driverAccount.payoutsEnabled) {
-      await stripe.transfers.create({
+      await getStripe().transfers.create({
         amount: amounts.driver,
         currency: "mxn",
         destination: driverAccount.stripeAccountId,

@@ -44,7 +44,25 @@ function getStripeInstance(): Stripe {
   return stripeInstance;
 }
 
-export const stripe = getStripeInstance();
+// Lazy getter - only throws when actually used
+export function getStripe(): Stripe {
+  return getStripeInstance();
+}
+
+// For backwards compatibility - will throw if Stripe not configured
+let _stripeProxy: Stripe | null = null;
+export const stripe = new Proxy({} as Stripe, {
+  get(_, prop) {
+    if (!_stripeProxy) {
+      try {
+        _stripeProxy = getStripeInstance();
+      } catch {
+        throw new Error("Stripe is not configured. Please add STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, and STRIPE_WEBHOOK_SECRET.");
+      }
+    }
+    return (_stripeProxy as any)[prop];
+  }
+});
 
 export async function getConnectedAccountId(
   businessId: string,

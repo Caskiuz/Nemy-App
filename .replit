@@ -4,6 +4,7 @@ modules = ["nodejs-20"]
 
 [nix]
 channel = "stable-23_11"
+packages = ["mysql80"]
 
 [deployment]
 run = ["sh", "-c", "npm run production:start"]
@@ -35,3 +36,7 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
