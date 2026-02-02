@@ -2,7 +2,7 @@
   "apps": [
     {
       "name": "nemy-api",
-      "script": "server/server-production.ts",
+      "script": "server/server.ts",
       "interpreter": "node",
       "interpreter_args": "--loader tsx",
       "instances": 2,
