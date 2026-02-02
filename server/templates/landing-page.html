@@ -476,15 +476,9 @@
 
         qrCode.append(document.getElementById("qr-code"));
 
-        if (isAndroid || isIOS) {
-          loadingEl.style.display = "block";
-          contentEl.style.display = "none";
-          window.location.href = deepLink;
-          setTimeout(function () {
-            loadingEl.style.display = "none";
-            contentEl.style.display = "block";
-          }, 500);
-        }
+        // Show content directly without auto-redirect
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
       })();
     </script>
   </body>
