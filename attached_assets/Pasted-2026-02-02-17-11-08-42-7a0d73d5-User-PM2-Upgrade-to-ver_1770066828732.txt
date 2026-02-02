@@ -1,0 +1,80 @@
+2026-02-02 17:11:08.42
+7a0d73d5
+User
+[PM2] Upgrade to version 6.0.14
+2026-02-02 17:11:08.68
+7a0d73d5
+User
+[PM2] PM2 Successfully daemonized
+2026-02-02 17:11:08.78
+7a0d73d5
+User
+[PM2] cron restart at 0 3 * * *
+2026-02-02 17:11:08.78
+7a0d73d5
+User
+[PM2][WARN] Applications nemy-api, nemy-jobs not running, starting...
+2026-02-02 17:11:08.82
+7a0d73d5
+User
+[PM2] App [nemy-jobs] launched (1 instances)
+2026-02-02 17:11:08.99
+7a0d73d5
+User
+[PM2] App [nemy-api] launched (2 instances)
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+│ 1 │ nemy-jobs │ default │ 1.0.0 │ fork │ 76 │ 0s │ 0 │ online │ 0% │ 52.6mb │ runner │ disabled │
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+│ id │ name │ namespace │ version │ mode │ pid │ uptime │ ↺ │ status │ cpu │ mem │ user │ watching │
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+┌────┬──────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+│ 0 │ nemy-api │ default │ 1.0.0 │ cluster │ 75 │ 0s │ 0 │ online │ 0% │ 52.6mb │ runner │ disabled │
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+└────┴──────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+├────┼──────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+2026-02-02 17:11:09.04
+7a0d73d5
+User
+│ 2 │ nemy-api │ default │ 1.0.0 │ cluster │ 89 │ 0s │ 0 │ online │ 0% │ 46.9mb │ runner │ disabled │
+2026-02-02 17:11:09.08
+7a0d73d5
+User
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.8.0
+2026-02-02 17:11:09.08
+7a0d73d5
+User
+npm notice New major version of npm available! 10.8.2 -> 11.8.0
+2026-02-02 17:11:09.08
+7a0d73d5
+User
+npm notice To update run: npm install -g npm@11.8.0
+2026-02-02 17:11:09.08
+7a0d73d5
+User
+npm notice
+2026-02-02 17:11:09.08
+7a0d73d5
+User
+npm notice
+2026-02-02 17:11:09.09
+7a0d73d5
+System
+command finished successfully with exit code 0
+2026-02-02 17:11:09.09
+7a0d73d5
+System
+main done, exiting

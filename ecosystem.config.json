@@ -2,11 +2,10 @@
   "apps": [
     {
       "name": "nemy-api",
-      "script": "server/server.ts",
-      "interpreter": "node",
-      "interpreter_args": "--loader tsx",
-      "instances": 2,
-      "exec_mode": "cluster",
+      "script": "npx",
+      "args": "tsx server/server.ts",
+      "instances": 1,
+      "exec_mode": "fork",
       "watch": false,
       "max_memory_restart": "500M",
       "env": {
@@ -20,28 +19,8 @@
       "autorestart": true,
       "max_restarts": 10,
       "min_uptime": "10s",
-      "listen_timeout": 3000,
+      "listen_timeout": 8000,
       "kill_timeout": 5000
-    },
-    {
-      "name": "nemy-jobs",
-      "script": "server/jobsRunner.ts",
-      "interpreter": "node",
-      "interpreter_args": "--loader tsx",
-      "instances": 1,
-      "exec_mode": "fork",
-      "watch": false,
-      "max_memory_restart": "300M",
-      "env": {
-        "NODE_ENV": "production"
-      },
-      "error_file": "./logs/jobs-error.log",
-      "out_file": "./logs/jobs-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
-      "autorestart": true,
-      "max_restarts": 10,
-      "min_uptime": "10s",
-      "cron_restart": "0 3 * * *"
     }
   ]
 }
