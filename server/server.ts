@@ -36,16 +36,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve static files in production
+// Serve static files in production (Expo web build)
 if (isProduction) {
-  app.use(express.static(path.join(process.cwd(), 'public')));
+  app.use(express.static(path.join(process.cwd(), 'dist')));
   
   // SPA fallback - serve index.html for all non-API routes
   app.use((req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/health') {
       return next();
     }
-    res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
   });
 } else {
   // Development: just show API is running
