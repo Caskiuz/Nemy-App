@@ -1,9 +1,8 @@
 run = "npm run production:start"
 entrypoint = "server/server-demo.ts"
-modules = ["nodejs-20", "web", "nix"]
 
 [nix]
-channel = "stable-25_05"
+channel = "stable-23_11"
 
 [deployment]
 run = ["sh", "-c", "npm run production:start"]
