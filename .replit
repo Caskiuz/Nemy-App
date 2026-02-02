@@ -1,5 +1,6 @@
 run = "npm run production:start"
 entrypoint = "server/server-demo.ts"
+modules = ["nodejs-20"]
 
 [nix]
 channel = "stable-23_11"
@@ -10,3 +11,27 @@ deploymentTarget = "cloudrun"
 
 [env]
 NODE_ENV = "production"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Backend"
+
+[[workflows.workflow]]
+name = "Start Backend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "tsx server/server.ts"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "console"
