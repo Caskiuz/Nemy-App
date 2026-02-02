@@ -1,28 +1,41 @@
 // API Configuration for NEMY Frontend
 import { Platform } from "react-native";
 
-// Determine the API base URL based on environment
-const getApiBaseUrl = () => {
-  // Always check for environment variable first
+// Get API base URL dynamically at runtime
+export const getApiBaseUrl = (): string => {
+  // For web in production, always use current origin (same domain)
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    // In production web, API is served from same origin
+    if (!__DEV__) {
+      return window.location.origin;
+    }
+  }
+
+  // Check for environment variable
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (envBackendUrl) {
     return envBackendUrl;
   }
 
+  // Check for Replit domain
+  const replitDomain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (replitDomain) {
+    return `https://${replitDomain}`;
+  }
+
+  // Development mode fallback
   if (__DEV__) {
-    // Development mode fallback
-    if (Platform.OS === "web") {
-      return "http://localhost:5000";
-    }
     return "http://localhost:5000";
   }
 
-  // Production mode
+  // Final fallback for native apps in production
   return "https://api.nemy.mx";
 };
 
 export const API_CONFIG = {
-  BASE_URL: getApiBaseUrl(),
+  get BASE_URL() {
+    return getApiBaseUrl();
+  },
   ENDPOINTS: {
     AUTH: {
       VERIFY_PHONE: "/api/auth/verify-phone",
