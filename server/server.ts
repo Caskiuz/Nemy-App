@@ -3,16 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
-import fs from 'fs';
 import apiRoutes from './apiRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
 
-// Security middleware - configured for Replit
-app.use(helmet({
-  contentSecurityPolicy: false // Disable CSP to allow landing page scripts
-}));
+// Security middleware
+app.use(helmet());
 app.use(cors({
   origin: true,
   credentials: true
@@ -33,36 +31,32 @@ app.use(express.urlencoded({ extended: true }));
 // API routes
 app.use('/api', apiRoutes);
 
-// Serve static files from public directory
-const publicPath = path.join(__dirname, '..', 'public');
-if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-}
-
-// Serve dist/client for Expo web build if exists
-const distPath = path.join(__dirname, '..', 'dist', 'client');
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-}
-
-// Serve index.html for root
-app.get('/', (req, res) => {
-  const distIndex = path.join(distPath, 'index.html');
-  const publicIndex = path.join(publicPath, 'index.html');
-  
-  if (fs.existsSync(distIndex)) {
-    res.sendFile(distIndex);
-  } else if (fs.existsSync(publicIndex)) {
-    res.sendFile(publicIndex);
-  } else {
-    res.status(200).json({ status: 'ok', service: 'NEMY API' });
-  }
-});
-
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Serve static files in production
+if (isProduction) {
+  app.use(express.static(path.join(process.cwd(), 'public')));
+  
+  // SPA fallback - serve index.html for all non-API routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+  });
+} else {
+  // Development: just show API is running
+  app.get('/', (req, res) => {
+    res.json({ 
+      message: 'NEMY API Server',
+      frontend: process.env.FRONTEND_URL || 'http://localhost:8081',
+      docs: '/api'
+    });
+  });
+}
 
 // Error handling
 app.use((err: any, req: any, res: any, next: any) => {
