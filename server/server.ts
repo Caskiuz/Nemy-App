@@ -29,6 +29,11 @@ app.use(express.urlencoded({ extended: true }));
 // API routes
 app.use('/api', apiRoutes);
 
+// Root endpoint for health checks
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'NEMY API' });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
