@@ -20,6 +20,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBusiness } from "@/contexts/BusinessContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -131,6 +132,7 @@ export default function BusinessDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { businesses, selectedBusiness } = useBusiness();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
   const [isOpen, setIsOpen] = useState(true);
@@ -272,11 +274,26 @@ export default function BusinessDashboardScreen() {
         }
       >
         <View style={styles.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <ThemedText type="h2">Dashboard</ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Panel de control de tu negocio
-            </ThemedText>
+            {businesses.length > 1 ? (
+              <Pressable
+                style={styles.businessSelector}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("MyBusinesses");
+                }}
+              >
+                <ThemedText type="caption" style={{ color: NemyColors.primary }}>
+                  {selectedBusiness?.name || "Seleccionar negocio"}
+                </ThemedText>
+                <Feather name="chevron-down" size={14} color={NemyColors.primary} />
+              </Pressable>
+            ) : (
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {selectedBusiness?.name || "Panel de control"}
+              </ThemedText>
+            )}
           </View>
           <View style={styles.statusToggle}>
             <ThemedText type="small" style={{ marginRight: Spacing.sm, color: isOpen ? "#4CAF50" : theme.textSecondary }}>
@@ -472,6 +489,12 @@ const styles = StyleSheet.create({
   statusToggle: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  businessSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
   },
   revenueCard: {
     padding: Spacing.lg,

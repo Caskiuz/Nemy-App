@@ -13,20 +13,27 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { useBusiness } from "@/contexts/BusinessContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export default function BusinessProductsScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const { selectedBusiness, businesses } = useBusiness();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [products, setProducts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -41,7 +48,10 @@ export default function BusinessProductsScreen() {
 
   const loadProducts = async () => {
     try {
-      const response = await apiRequest("GET", "/api/business/products");
+      const url = selectedBusiness 
+        ? `/api/business/products?businessId=${selectedBusiness.id}`
+        : "/api/business/products";
+      const response = await apiRequest("GET", url);
       const data = await response.json();
       if (data.success) {
         setProducts(data.products);
@@ -53,7 +63,7 @@ export default function BusinessProductsScreen() {
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [selectedBusiness?.id]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -243,7 +253,27 @@ export default function BusinessProductsScreen() {
       end={{ x: 1, y: 1 }}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText type="h2">Productos</ThemedText>
+        <View style={{ flex: 1 }}>
+          <ThemedText type="h2">Productos</ThemedText>
+          {businesses.length > 1 ? (
+            <Pressable
+              style={styles.businessSelector}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate("MyBusinesses");
+              }}
+            >
+              <ThemedText type="caption" style={{ color: NemyColors.primary }}>
+                {selectedBusiness?.name || "Seleccionar negocio"}
+              </ThemedText>
+              <Feather name="chevron-down" size={14} color={NemyColors.primary} />
+            </Pressable>
+          ) : selectedBusiness ? (
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              {selectedBusiness.name}
+            </ThemedText>
+          ) : null}
+        </View>
         <Pressable
           onPress={openAddModal}
           style={[styles.addButton, { backgroundColor: NemyColors.primary }]}
@@ -392,6 +422,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
+  },
+  businessSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
   },
   listContent: {
     padding: Spacing.lg,

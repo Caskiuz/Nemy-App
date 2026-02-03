@@ -2089,29 +2089,40 @@ router.get(
   requireRole("business_owner"),
   async (req, res) => {
     try {
-      const { products } = await import("@shared/schema-mysql");
+      const { products, businesses } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
+      const { eq, and, inArray } = await import("drizzle-orm");
 
-      // Get business ID for the user
-      const { businesses } = await import("@shared/schema-mysql");
-      const business = await db
+      const requestedBusinessId = req.query.businessId as string | undefined;
+
+      const ownerBusinesses = await db
         .select()
         .from(businesses)
-        .where(eq(businesses.ownerId, req.user!.id))
-        .limit(1);
+        .where(eq(businesses.ownerId, req.user!.id));
 
-      if (!business[0]) {
-        return res.status(404).json({ error: "Business not found" });
+      if (ownerBusinesses.length === 0) {
+        return res.status(404).json({ error: "No businesses found" });
+      }
+
+      const ownerBusinessIds = ownerBusinesses.map(b => b.id);
+
+      let targetBusinessId: string;
+      if (requestedBusinessId) {
+        if (!ownerBusinessIds.includes(requestedBusinessId)) {
+          return res.status(403).json({ error: "No tienes acceso a este negocio" });
+        }
+        targetBusinessId = requestedBusinessId;
+      } else {
+        targetBusinessId = ownerBusinesses[0].id;
       }
 
       const businessProducts = await db
         .select()
         .from(products)
-        .where(eq(products.businessId, business[0].id))
+        .where(eq(products.businessId, targetBusinessId))
         .orderBy(products.createdAt);
 
-      res.json({ success: true, products: businessProducts });
+      res.json({ success: true, products: businessProducts, businessId: targetBusinessId });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
