@@ -160,8 +160,8 @@ export default function MyBusinessesScreen() {
     return `$${(amount / 100).toFixed(2)}`;
   };
 
-  const getImageUrl = (imagePath: string | undefined) => {
-    if (!imagePath) return null;
+  const getImageUrl = (imagePath: string | undefined): string | undefined => {
+    if (!imagePath) return undefined;
     if (imagePath.startsWith("http")) return imagePath;
     return `${getApiUrl()}${imagePath}`;
   };
@@ -169,7 +169,7 @@ export default function MyBusinessesScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.theme.backgroundDefault,
     },
     header: {
       paddingTop: insets.top + Spacing.md,
@@ -200,7 +200,7 @@ export default function MyBusinessesScreen() {
       paddingHorizontal: Spacing.lg,
       borderRadius: BorderRadius.lg,
       marginBottom: Spacing.lg,
-      ...Shadows.medium,
+      ...Shadows.md,
     },
     addButtonText: {
       color: "#fff",
@@ -209,11 +209,11 @@ export default function MyBusinessesScreen() {
       marginLeft: Spacing.sm,
     },
     businessCard: {
-      backgroundColor: theme.colors.card,
+      backgroundColor: theme.theme.card,
       borderRadius: BorderRadius.lg,
       marginBottom: Spacing.md,
       overflow: "hidden",
-      ...Shadows.small,
+      ...Shadows.sm,
     },
     selectedCard: {
       borderWidth: 2,
@@ -222,12 +222,12 @@ export default function MyBusinessesScreen() {
     businessImage: {
       width: "100%",
       height: 120,
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.theme.border,
     },
     businessImagePlaceholder: {
       width: "100%",
       height: 120,
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.theme.border,
       justifyContent: "center",
       alignItems: "center",
     },
@@ -242,7 +242,7 @@ export default function MyBusinessesScreen() {
     businessName: {
       fontSize: 18,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.theme.text,
       flex: 1,
     },
     statusBadge: {
@@ -255,7 +255,7 @@ export default function MyBusinessesScreen() {
       backgroundColor: NemyColors.success + "20",
     },
     closedBadge: {
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.theme.border,
     },
     statusText: {
       fontSize: 12,
@@ -263,7 +263,7 @@ export default function MyBusinessesScreen() {
     },
     businessType: {
       fontSize: 14,
-      color: theme.colors.textSecondary,
+      color: theme.theme.textSecondary,
       marginTop: 2,
     },
     statsRow: {
@@ -271,7 +271,7 @@ export default function MyBusinessesScreen() {
       marginTop: Spacing.md,
       paddingTop: Spacing.md,
       borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
+      borderTopColor: theme.theme.border,
     },
     statItem: {
       flex: 1,
@@ -280,17 +280,17 @@ export default function MyBusinessesScreen() {
     statValue: {
       fontSize: 18,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.theme.text,
     },
     statLabel: {
       fontSize: 12,
-      color: theme.colors.textSecondary,
+      color: theme.theme.textSecondary,
       marginTop: 2,
     },
     actionsRow: {
       flexDirection: "row",
       borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
+      borderTopColor: theme.theme.border,
     },
     actionButton: {
       flex: 1,
@@ -301,7 +301,7 @@ export default function MyBusinessesScreen() {
     },
     actionButtonDanger: {
       borderLeftWidth: 1,
-      borderLeftColor: theme.colors.border,
+      borderLeftColor: theme.theme.border,
     },
     actionText: {
       fontSize: 14,
@@ -314,7 +314,7 @@ export default function MyBusinessesScreen() {
       justifyContent: "flex-end",
     },
     modalContent: {
-      backgroundColor: theme.colors.card,
+      backgroundColor: theme.theme.card,
       borderTopLeftRadius: BorderRadius.xl,
       borderTopRightRadius: BorderRadius.xl,
       padding: Spacing.lg,
@@ -324,25 +324,25 @@ export default function MyBusinessesScreen() {
     modalTitle: {
       fontSize: 20,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.theme.text,
       marginBottom: Spacing.lg,
       textAlign: "center",
     },
     inputLabel: {
       fontSize: 14,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.theme.text,
       marginBottom: Spacing.xs,
     },
     input: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.theme.backgroundDefault,
       borderRadius: BorderRadius.md,
       padding: Spacing.md,
       fontSize: 16,
-      color: theme.colors.text,
+      color: theme.theme.text,
       marginBottom: Spacing.md,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.theme.border,
     },
     textArea: {
       minHeight: 80,
@@ -360,9 +360,9 @@ export default function MyBusinessesScreen() {
       paddingHorizontal: Spacing.md,
       paddingVertical: Spacing.sm,
       borderRadius: BorderRadius.full,
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.theme.backgroundDefault,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.theme.border,
     },
     typeOptionSelected: {
       backgroundColor: NemyColors.primary + "20",
@@ -371,17 +371,17 @@ export default function MyBusinessesScreen() {
     typeOptionText: {
       fontSize: 14,
       marginLeft: Spacing.xs,
-      color: theme.colors.text,
+      color: theme.theme.text,
     },
     imagePickerButton: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.theme.backgroundDefault,
       borderRadius: BorderRadius.md,
       padding: Spacing.lg,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: Spacing.md,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.theme.border,
       borderStyle: "dashed",
       minHeight: 120,
     },
@@ -392,7 +392,7 @@ export default function MyBusinessesScreen() {
     },
     imagePickerText: {
       fontSize: 14,
-      color: theme.colors.textSecondary,
+      color: theme.theme.textSecondary,
       marginTop: Spacing.sm,
     },
     modalButtons: {
@@ -407,9 +407,9 @@ export default function MyBusinessesScreen() {
       alignItems: "center",
     },
     cancelButton: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.theme.backgroundDefault,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.theme.border,
     },
     confirmButton: {
       backgroundColor: NemyColors.primary,
@@ -422,7 +422,7 @@ export default function MyBusinessesScreen() {
       fontWeight: "600",
     },
     deleteModalContent: {
-      backgroundColor: theme.colors.card,
+      backgroundColor: theme.theme.card,
       borderRadius: BorderRadius.xl,
       padding: Spacing.lg,
       marginHorizontal: Spacing.lg,
@@ -439,20 +439,20 @@ export default function MyBusinessesScreen() {
     },
     deleteMessage: {
       fontSize: 16,
-      color: theme.colors.textSecondary,
+      color: theme.theme.textSecondary,
       textAlign: "center",
       marginTop: Spacing.sm,
     },
     emptyState: {
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: Spacing.xxl,
+      paddingVertical: Spacing["2xl"],
     },
     emptyIcon: {
       width: 80,
       height: 80,
       borderRadius: 40,
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.theme.border,
       justifyContent: "center",
       alignItems: "center",
       marginBottom: Spacing.lg,
@@ -460,11 +460,11 @@ export default function MyBusinessesScreen() {
     emptyText: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.theme.text,
     },
     emptySubtext: {
       fontSize: 14,
-      color: theme.colors.textSecondary,
+      color: theme.theme.textSecondary,
       marginTop: Spacing.xs,
     },
     loadingContainer: {
@@ -514,7 +514,7 @@ export default function MyBusinessesScreen() {
         {businesses.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Feather name="briefcase" size={36} color={theme.colors.textSecondary} />
+              <Feather name="briefcase" size={36} color={theme.theme.textSecondary} />
             </View>
             <ThemedText style={styles.emptyText}>Sin negocios</ThemedText>
             <ThemedText style={styles.emptySubtext}>
@@ -542,7 +542,7 @@ export default function MyBusinessesScreen() {
                   />
                 ) : (
                   <View style={styles.businessImagePlaceholder}>
-                    <Feather name="image" size={32} color={theme.colors.textSecondary} />
+                    <Feather name="image" size={32} color={theme.theme.textSecondary} />
                   </View>
                 )}
 
@@ -560,7 +560,7 @@ export default function MyBusinessesScreen() {
                       <ThemedText
                         style={[
                           styles.statusText,
-                          { color: business.isOpen ? NemyColors.success : theme.colors.textSecondary },
+                          { color: business.isOpen ? NemyColors.success : theme.theme.textSecondary },
                         ]}
                       >
                         {business.isOpen ? "Abierto" : "Cerrado"}
@@ -603,12 +603,12 @@ export default function MyBusinessesScreen() {
                     <Feather
                       name={selectedBusiness?.id === business.id ? "check-circle" : "circle"}
                       size={18}
-                      color={selectedBusiness?.id === business.id ? NemyColors.primary : theme.colors.textSecondary}
+                      color={selectedBusiness?.id === business.id ? NemyColors.primary : theme.theme.textSecondary}
                     />
                     <ThemedText
                       style={[
                         styles.actionText,
-                        { color: selectedBusiness?.id === business.id ? NemyColors.primary : theme.colors.textSecondary },
+                        { color: selectedBusiness?.id === business.id ? NemyColors.primary : theme.theme.textSecondary },
                       ]}
                     >
                       {selectedBusiness?.id === business.id ? "Seleccionado" : "Seleccionar"}
@@ -644,7 +644,7 @@ export default function MyBusinessesScreen() {
             <TextInput
               style={styles.input}
               placeholder="Nombre del negocio"
-              placeholderTextColor={theme.colors.textSecondary}
+              placeholderTextColor={theme.theme.textSecondary}
               value={newBusiness.name}
               onChangeText={(text) => setNewBusiness(prev => ({ ...prev, name: text }))}
             />
@@ -653,7 +653,7 @@ export default function MyBusinessesScreen() {
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Breve descripción de tu negocio"
-              placeholderTextColor={theme.colors.textSecondary}
+              placeholderTextColor={theme.theme.textSecondary}
               value={newBusiness.description}
               onChangeText={(text) => setNewBusiness(prev => ({ ...prev, description: text }))}
               multiline
@@ -673,7 +673,7 @@ export default function MyBusinessesScreen() {
                   <Feather
                     name={type.icon as any}
                     size={16}
-                    color={newBusiness.type === type.id ? NemyColors.primary : theme.colors.text}
+                    color={newBusiness.type === type.id ? NemyColors.primary : theme.theme.text}
                   />
                   <ThemedText style={styles.typeOptionText}>{type.name}</ThemedText>
                 </Pressable>
@@ -684,7 +684,7 @@ export default function MyBusinessesScreen() {
             <TextInput
               style={styles.input}
               placeholder="Dirección del negocio"
-              placeholderTextColor={theme.colors.textSecondary}
+              placeholderTextColor={theme.theme.textSecondary}
               value={newBusiness.address}
               onChangeText={(text) => setNewBusiness(prev => ({ ...prev, address: text }))}
             />
@@ -693,7 +693,7 @@ export default function MyBusinessesScreen() {
             <TextInput
               style={styles.input}
               placeholder="Número de contacto"
-              placeholderTextColor={theme.colors.textSecondary}
+              placeholderTextColor={theme.theme.textSecondary}
               value={newBusiness.phone}
               onChangeText={(text) => setNewBusiness(prev => ({ ...prev, phone: text }))}
               keyboardType="phone-pad"
@@ -709,7 +709,7 @@ export default function MyBusinessesScreen() {
                 />
               ) : (
                 <>
-                  <Feather name="camera" size={32} color={theme.colors.textSecondary} />
+                  <Feather name="camera" size={32} color={theme.theme.textSecondary} />
                   <ThemedText style={styles.imagePickerText}>
                     Toca para seleccionar imagen
                   </ThemedText>
@@ -722,7 +722,7 @@ export default function MyBusinessesScreen() {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowAddModal(false)}
               >
-                <ThemedText style={[styles.buttonText, { color: theme.colors.text }]}>
+                <ThemedText style={[styles.buttonText, { color: theme.theme.text }]}>
                   Cancelar
                 </ThemedText>
               </Pressable>
@@ -765,7 +765,7 @@ export default function MyBusinessesScreen() {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowDeleteModal(false)}
               >
-                <ThemedText style={[styles.buttonText, { color: theme.colors.text }]}>
+                <ThemedText style={[styles.buttonText, { color: theme.theme.text }]}>
                   Cancelar
                 </ThemedText>
               </Pressable>
