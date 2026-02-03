@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
   Linking,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -2536,26 +2537,34 @@ export default function AdminScreen() {
                       ]}
                     >
                       <View style={styles.listItemHeader}>
-                        <View
-                          style={[
-                            styles.orderIcon,
-                            {
-                              backgroundColor: p.isAvailable
-                                ? NemyColors.primaryLight
-                                : theme.backgroundSecondary,
-                            },
-                          ]}
-                        >
-                          <Feather
-                            name="box"
-                            size={20}
-                            color={
-                              p.isAvailable
-                                ? NemyColors.primary
-                                : theme.textSecondary
-                            }
+                        {p.image ? (
+                          <Image
+                            source={{ uri: p.image }}
+                            style={styles.productImage}
+                            resizeMode="cover"
                           />
-                        </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.orderIcon,
+                              {
+                                backgroundColor: p.isAvailable
+                                  ? NemyColors.primaryLight
+                                  : theme.backgroundSecondary,
+                              },
+                            ]}
+                          >
+                            <Feather
+                              name="box"
+                              size={20}
+                              color={
+                                p.isAvailable
+                                  ? NemyColors.primary
+                                  : theme.textSecondary
+                              }
+                            />
+                          </View>
+                        )}
                         <View style={styles.listItemContent}>
                           <ThemedText type="body" style={{ fontWeight: "600" }}>
                             {p.name}
@@ -3854,5 +3863,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     marginTop: Spacing.sm,
+  },
+  productImage: {
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.sm,
   },
 });
