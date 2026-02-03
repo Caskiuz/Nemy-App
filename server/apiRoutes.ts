@@ -1534,6 +1534,206 @@ router.get(
 // BUSINESS OWNER ROUTES
 // ============================================
 
+// Get all businesses owned by this user
+router.get(
+  "/business/my-businesses",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses, orders } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, inArray } = await import("drizzle-orm");
+
+      const ownerBusinesses = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.ownerId, req.user!.id));
+
+      const businessIds = ownerBusinesses.map(b => b.id);
+      
+      let allOrders: any[] = [];
+      if (businessIds.length > 0) {
+        allOrders = await db
+          .select()
+          .from(orders)
+          .where(inArray(orders.businessId, businessIds));
+      }
+
+      const businessesWithStats = ownerBusinesses.map(business => {
+        const businessOrders = allOrders.filter(o => o.businessId === business.id);
+        const today = new Date();
+        const todayOrders = businessOrders.filter(o => {
+          const orderDate = new Date(o.createdAt);
+          return orderDate.toDateString() === today.toDateString();
+        });
+        const todayRevenue = todayOrders
+          .filter(o => o.status === "delivered")
+          .reduce((sum, o) => sum + o.total, 0);
+        const pendingOrders = businessOrders.filter(o => 
+          ["pending", "confirmed", "preparing"].includes(o.status)
+        );
+
+        return {
+          ...business,
+          stats: {
+            pendingOrders: pendingOrders.length,
+            todayOrders: todayOrders.length,
+            todayRevenue: todayRevenue,
+            totalOrders: businessOrders.length,
+          },
+        };
+      });
+
+      res.json({ success: true, businesses: businessesWithStats });
+    } catch (error: any) {
+      console.error("Error loading businesses:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Create new business
+router.post(
+  "/business/create",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { v4: uuidv4 } = await import("uuid");
+
+      const { name, description, type, image, address, phone, categories } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "El nombre del negocio es requerido" });
+      }
+
+      const newBusiness = {
+        id: uuidv4(),
+        ownerId: req.user!.id,
+        name,
+        description: description || null,
+        type: type || "restaurant",
+        image: image || null,
+        address: address || null,
+        phone: phone || null,
+        categories: categories || null,
+        isActive: true,
+        isOpen: false,
+        rating: 0,
+        totalRatings: 0,
+        deliveryTime: "30-45 min",
+        deliveryFee: 2500,
+        minOrder: 5000,
+      };
+
+      await db.insert(businesses).values(newBusiness);
+
+      res.json({ success: true, business: newBusiness });
+    } catch (error: any) {
+      console.error("Error creating business:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update business
+router.put(
+  "/business/:id",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const business = await db
+        .select()
+        .from(businesses)
+        .where(and(
+          eq(businesses.id, req.params.id),
+          eq(businesses.ownerId, req.user!.id)
+        ))
+        .limit(1);
+
+      if (!business[0]) {
+        return res.status(404).json({ error: "Negocio no encontrado" });
+      }
+
+      const allowedFields = ["name", "description", "type", "image", "address", "phone", 
+                            "categories", "isOpen", "deliveryTime", "deliveryFee", "minOrder"];
+      const updates: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+
+      await db
+        .update(businesses)
+        .set(updates)
+        .where(eq(businesses.id, req.params.id));
+
+      res.json({ success: true, message: "Negocio actualizado" });
+    } catch (error: any) {
+      console.error("Error updating business:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Delete business
+router.delete(
+  "/business/:id",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses, orders } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const business = await db
+        .select()
+        .from(businesses)
+        .where(and(
+          eq(businesses.id, req.params.id),
+          eq(businesses.ownerId, req.user!.id)
+        ))
+        .limit(1);
+
+      if (!business[0]) {
+        return res.status(404).json({ error: "Negocio no encontrado" });
+      }
+
+      const activeOrders = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.businessId, req.params.id));
+
+      const hasActiveOrders = activeOrders.some(o => 
+        ["pending", "confirmed", "preparing", "ready", "picked_up", "on_the_way"].includes(o.status)
+      );
+
+      if (hasActiveOrders) {
+        return res.status(400).json({ 
+          error: "No se puede eliminar un negocio con pedidos activos" 
+        });
+      }
+
+      await db.delete(businesses).where(eq(businesses.id, req.params.id));
+
+      res.json({ success: true, message: "Negocio eliminado" });
+    } catch (error: any) {
+      console.error("Error deleting business:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // Get business dashboard data
 router.get(
   "/business/dashboard",

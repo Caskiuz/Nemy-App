@@ -20,6 +20,7 @@ import { queryClient } from "@/lib/query-client";
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { BusinessProvider } from "@/contexts/BusinessContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { ToastProvider } from "@/contexts/ToastContext";
@@ -113,11 +114,12 @@ export default function App() {
               <StripeProvider>
                 <AppProvider>
                   <AuthProvider>
-                    <CartProvider>
-                      <ToastProvider>
-                        <NavigationContainer>
-                          <RootStackNavigator />
-                        </NavigationContainer>
+                    <BusinessProvider>
+                      <CartProvider>
+                        <ToastProvider>
+                          <NavigationContainer>
+                            <RootStackNavigator />
+                          </NavigationContainer>
                         {showOnboarding && (
                           <OnboardingOverlay
                             onComplete={() => setShowOnboarding(false)}
@@ -128,8 +130,9 @@ export default function App() {
                           onAccept={handleAcceptNotifications}
                           onDecline={handleDeclineNotifications}
                         />
-                      </ToastProvider>
-                    </CartProvider>
+                        </ToastProvider>
+                      </CartProvider>
+                    </BusinessProvider>
                   </AuthProvider>
                 </AppProvider>
               </StripeProvider>
