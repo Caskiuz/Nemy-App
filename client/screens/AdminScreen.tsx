@@ -1565,6 +1565,7 @@ export default function AdminScreen() {
   };
 
   const openUserModal = (user: AdminUser) => {
+    console.log("Opening user modal for:", user.name);
     setSelectedUser(user);
     setUserRoleEdit(user.role);
     setShowUserModal(true);
@@ -1586,6 +1587,7 @@ export default function AdminScreen() {
   };
 
   const openOrderModal = (order: AdminOrder) => {
+    console.log("Opening order modal for:", order.id);
     setSelectedOrder(order);
     setShowOrderModal(true);
   };
@@ -3309,12 +3311,12 @@ export default function AdminScreen() {
                       </View>
                       <View style={styles.infoChip}>
                         <Feather
-                          name={selectedUser.phoneVerified ? "check-circle" : "x-circle"}
+                          name={(selectedUser as any).phoneVerified ? "check-circle" : "x-circle"}
                           size={14}
-                          color={selectedUser.phoneVerified ? NemyColors.success : NemyColors.error}
+                          color={(selectedUser as any).phoneVerified ? NemyColors.success : NemyColors.error}
                         />
                         <ThemedText type="caption" style={{ marginLeft: 4 }}>
-                          Tel {selectedUser.phoneVerified ? "verificado" : "sin verificar"}
+                          Tel {(selectedUser as any).phoneVerified ? "verificado" : "sin verificar"}
                         </ThemedText>
                       </View>
                     </View>
@@ -3622,6 +3624,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  modalBody: {
+    flex: 1,
     marginBottom: Spacing.md,
   },
   saveButton: {
