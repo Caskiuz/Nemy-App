@@ -100,16 +100,18 @@ export default function MainTabNavigator() {
           ),
         }}
       />
-      <Tab.Screen
-        name="FavoritesTab"
-        component={FavoritesStackNavigator}
-        options={{
-          title: "Favoritos",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="heart" size={size} color={color} />
-          ),
-        }}
-      />
+      {!isAdmin ? (
+        <Tab.Screen
+          name="FavoritesTab"
+          component={FavoritesStackNavigator}
+          options={{
+            title: "Favoritos",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="heart" size={size} color={color} />
+            ),
+          }}
+        />
+      ) : null}
       <Tab.Screen
         name="ProfileTab"
         component={ProfileStackNavigator}
