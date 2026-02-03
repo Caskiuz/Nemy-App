@@ -2054,6 +2054,44 @@ router.get(
   },
 );
 
+// Get delivery orders (combined endpoint for frontend)
+router.get(
+  "/delivery/orders",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { orders } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, desc } = await import("drizzle-orm");
+
+      // Get driver's assigned orders
+      const driverOrders = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.deliveryPersonId, req.user!.id))
+        .orderBy(desc(orders.createdAt));
+
+      // Get available orders (ready for pickup, no driver assigned)
+      const allReadyOrders = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.status, "ready"))
+        .orderBy(desc(orders.createdAt));
+
+      // Filter available orders that don't have a driver
+      const availableOrders = allReadyOrders.filter(o => !o.deliveryPersonId);
+
+      res.json({ 
+        success: true, 
+        orders: driverOrders,
+        availableOrders: availableOrders
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // Update order status (Driver)
 router.put(
   "/delivery/orders/:id/status",
