@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   TextInput,
@@ -2111,14 +2112,14 @@ export default function AdminScreen() {
         {activeTab === "users" ? (
           <View style={styles.listContainer}>
             {users.map((u) => (
-              <Pressable
+              <TouchableOpacity
                 key={u.id}
                 onPress={() => openUserModal(u)}
-                style={({ pressed }) => [
+                activeOpacity={0.7}
+                style={[
                   styles.listItem,
                   { backgroundColor: theme.card },
                   Shadows.sm,
-                  pressed && { opacity: 0.7 },
                 ]}
               >
                 <View style={styles.listItemHeader}>
@@ -2182,7 +2183,7 @@ export default function AdminScreen() {
                   </View>
                   <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                 </View>
-              </Pressable>
+              </TouchableOpacity>
             ))}
           </View>
         ) : null}
@@ -2203,14 +2204,14 @@ export default function AdminScreen() {
               </View>
             ) : (
               orders.map((order) => (
-                <Pressable
+                <TouchableOpacity
                   key={order.id}
                   onPress={() => openOrderModal(order)}
-                  style={({ pressed }) => [
+                  activeOpacity={0.7}
+                  style={[
                     styles.listItem,
                     { backgroundColor: theme.card },
                     Shadows.sm,
-                    pressed && { opacity: 0.7 },
                   ]}
                 >
                   <View style={styles.listItemHeader}>
@@ -2276,7 +2277,7 @@ export default function AdminScreen() {
                       <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </View>
                   </View>
-                </Pressable>
+                </TouchableOpacity>
               ))
             )}
           </View>
