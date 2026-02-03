@@ -9,17 +9,20 @@ import {
   TextInput,
   Modal,
   ScrollView,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 export default function BusinessProductsScreen() {
   const insets = useSafeAreaInsets();
@@ -28,6 +31,7 @@ export default function BusinessProductsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -127,7 +131,50 @@ export default function BusinessProductsScreen() {
         });
 
     if (!result.canceled) {
-      setForm({ ...form, image: result.assets[0].uri });
+      await uploadProductImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadProductImage = async (uri: string) => {
+    setIsUploadingImage(true);
+    try {
+      let imageData: string;
+      
+      if (Platform.OS === "web") {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        imageData = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const extension = uri.split(".").pop()?.toLowerCase() || "jpg";
+        const mimeType = extension === "png" ? "image/png" : "image/jpeg";
+        imageData = `data:${mimeType};base64,${base64}`;
+      }
+
+      const apiResponse = await apiRequest("POST", "/api/business/product-image", {
+        image: imageData,
+      });
+
+      const data = await apiResponse.json();
+
+      if (data.success && data.imageUrl) {
+        const fullUrl = `${getApiUrl()}${data.imageUrl}`;
+        setForm({ ...form, image: fullUrl });
+      } else {
+        throw new Error(data.error || "Error al subir imagen");
+      }
+    } catch (error: any) {
+      console.error("Error uploading product image:", error);
+      alert("No se pudo subir la imagen");
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -290,14 +337,19 @@ export default function BusinessProductsScreen() {
                   <ThemedText type="small" style={{ marginLeft: Spacing.xs }}>Galería</ThemedText>
                 </Pressable>
               </View>
-              {form.image && (
+              {isUploadingImage ? (
+                <View style={[styles.previewImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.backgroundSecondary }]}>
+                  <ActivityIndicator size="large" color={NemyColors.primary} />
+                  <ThemedText type="small" style={{ marginTop: Spacing.sm }}>Subiendo imagen...</ThemedText>
+                </View>
+              ) : form.image ? (
                 <Image source={{ uri: form.image }} style={styles.previewImage} contentFit="cover" />
-              )}
+              ) : null}
               <TextInput
                 value={form.image}
                 onChangeText={(text) => setForm({ ...form, image: text })}
                 style={[styles.input, { backgroundColor: theme.background, color: theme.text, marginTop: Spacing.sm }]}
-                placeholder="O pega una URL"
+                placeholder="O pega una URL de imagen"
                 placeholderTextColor={theme.textSecondary}
               />
             </ScrollView>
