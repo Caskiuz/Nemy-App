@@ -67,3 +67,4 @@ externalPort = 3000
 
 [agent]
 expertMode = true
+integrations = ["javascript_gemini_ai_integrations:2.0.0"]

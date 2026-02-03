@@ -1,11 +1,18 @@
-import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
 import { db } from './db';
 import { supportChats, supportMessages } from '../shared/schema-mysql';
 import { eq, desc } from 'drizzle-orm';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// Usando Replit AI Integrations para Gemini 2.5 Flash
+const genAI = new GoogleGenAI({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  httpOptions: {
+    apiVersion: "",
+    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+  },
 });
+
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 const NEMY_CONTEXT = `
 Eres un asistente de soporte para NEMY, una plataforma de delivery en Autlán, Jalisco, México.
@@ -125,28 +132,24 @@ export async function sendSupportMessage(
     .orderBy(desc(supportMessages.createdAt))
     .limit(10);
 
-  // Construir mensajes para OpenAI
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    {
-      role: 'system',
-      content: NEMY_CONTEXT + '\n\n' + FAQS,
-    },
-    ...history.reverse().map(msg => ({
-      role: (msg.isBot ? 'assistant' : 'user') as 'assistant' | 'user',
-      content: msg.message,
-    })),
-  ];
+  // Construir historial para Gemini
+  const chatMessages = history.reverse().map(msg => ({
+    role: msg.isBot ? 'model' : 'user',
+    parts: [{ text: msg.message }],
+  }));
 
   try {
-    // Generar respuesta con GPT
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages,
-      temperature: 0.7,
-      max_tokens: 500,
+    const chat = model.startChat({
+      history: chatMessages,
+      generationConfig: {
+        maxOutputTokens: 500,
+        temperature: 0.7,
+      },
+      systemInstruction: NEMY_CONTEXT + '\n\n' + FAQS,
     });
 
-    const botResponse = completion.choices[0]?.message?.content || 
+    const result = await chat.sendMessage(message);
+    const botResponse = result.response.text() || 
       'Lo siento, no pude procesar tu mensaje. ¿Puedes intentar de nuevo?';
 
     // Guardar respuesta del bot
