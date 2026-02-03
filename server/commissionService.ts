@@ -105,17 +105,20 @@ async function distributeToWallets(
     .where(eq(wallets.userId, businessUser.id))
     .limit(1);
   if (!businessWallet) {
+    await db.insert(wallets).values({
+      userId: businessUser.id,
+      balance: 0,
+      pendingBalance: 0,
+      totalEarned: 0,
+      totalWithdrawn: 0,
+    });
     [businessWallet] = await db
-      .insert(wallets)
-      .values({
-        userId: businessUser.id,
-        balance: 0,
-        pendingBalance: 0,
-        totalEarned: 0,
-        totalWithdrawn: 0,
-      })
-      .returning();
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, businessUser.id))
+      .limit(1);
   }
+  if (!businessWallet) return;
 
   await db
     .update(wallets)
@@ -143,17 +146,20 @@ async function distributeToWallets(
       .where(eq(wallets.userId, order.deliveryPersonId))
       .limit(1);
     if (!driverWallet) {
+      await db.insert(wallets).values({
+        userId: order.deliveryPersonId,
+        balance: 0,
+        pendingBalance: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+      });
       [driverWallet] = await db
-        .insert(wallets)
-        .values({
-          userId: order.deliveryPersonId,
-          balance: 0,
-          pendingBalance: 0,
-          totalEarned: 0,
-          totalWithdrawn: 0,
-        })
-        .returning();
+        .select()
+        .from(wallets)
+        .where(eq(wallets.userId, order.deliveryPersonId))
+        .limit(1);
     }
+    if (!driverWallet) return;
 
     await db
       .update(wallets)
