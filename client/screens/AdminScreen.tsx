@@ -1688,7 +1688,7 @@ export default function AdminScreen() {
 
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={true}
         style={styles.tabsScroll}
         contentContainerStyle={styles.tabs}
       >
@@ -3238,10 +3238,11 @@ const styles = StyleSheet.create({
   tab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
+    minWidth: 70,
   },
   scrollView: {
     flex: 1,
