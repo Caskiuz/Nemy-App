@@ -671,6 +671,119 @@ router.put(
   },
 );
 
+// Upload profile image
+router.post(
+  "/user/profile-image",
+  authenticateToken,
+  requirePhoneVerified,
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const fs = await import("fs");
+      const path = await import("path");
+
+      const { image } = req.body;
+      
+      if (!image) {
+        return res.status(400).json({ error: "No se proporcionó imagen" });
+      }
+
+      // Extract base64 data
+      const matches = image.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({ error: "Formato de imagen inválido" });
+      }
+
+      const extension = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, "base64");
+
+      // Create unique filename
+      const filename = `${req.user!.id}_${Date.now()}.${extension}`;
+      const uploadDir = path.join(__dirname, "uploads", "profiles");
+      const filepath = path.join(uploadDir, filename);
+
+      // Ensure directory exists
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      // Delete old profile image if exists
+      const [currentUser] = await db
+        .select({ profileImage: users.profileImage })
+        .from(users)
+        .where(eq(users.id, req.user!.id));
+
+      if (currentUser?.profileImage) {
+        const oldFilename = currentUser.profileImage.split("/").pop();
+        if (oldFilename) {
+          const oldPath = path.join(uploadDir, oldFilename);
+          if (fs.existsSync(oldPath)) {
+            fs.unlinkSync(oldPath);
+          }
+        }
+      }
+
+      // Save new image
+      fs.writeFileSync(filepath, buffer);
+
+      // Update user with new profile image URL
+      const imageUrl = `/uploads/profiles/${filename}`;
+      await db
+        .update(users)
+        .set({ profileImage: imageUrl })
+        .where(eq(users.id, req.user!.id));
+
+      res.json({ success: true, profileImage: imageUrl });
+    } catch (error: any) {
+      console.error("Error uploading profile image:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Delete profile image
+router.delete(
+  "/user/profile-image",
+  authenticateToken,
+  requirePhoneVerified,
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const fs = await import("fs");
+      const path = await import("path");
+
+      const [currentUser] = await db
+        .select({ profileImage: users.profileImage })
+        .from(users)
+        .where(eq(users.id, req.user!.id));
+
+      if (currentUser?.profileImage) {
+        const filename = currentUser.profileImage.split("/").pop();
+        if (filename) {
+          const filepath = path.join(__dirname, "uploads", "profiles", filename);
+          if (fs.existsSync(filepath)) {
+            fs.unlinkSync(filepath);
+          }
+        }
+      }
+
+      await db
+        .update(users)
+        .set({ profileImage: null })
+        .where(eq(users.id, req.user!.id));
+
+      res.json({ success: true, message: "Imagen eliminada" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // ============================================
 // USER ADDRESSES ROUTES
 // ============================================
