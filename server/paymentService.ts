@@ -216,25 +216,29 @@ async function updateWallet(
     .limit(1);
 
   if (!wallet) {
+    // Insert new wallet
+    await db.insert(wallets).values({
+      userId,
+      balance: 0,
+      pendingBalance: 0,
+      totalEarned: 0,
+    });
+    // Retrieve the newly created wallet
     [wallet] = await db
-      .insert(wallets)
-      .values({
-        userId,
-        balance: 0,
-        pendingBalance: 0,
-        totalEarnings: 0,
-        createdAt: new Date(),
-      })
-      .returning();
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId))
+      .limit(1);
   }
+
+  if (!wallet) return;
 
   // Update wallet balance
   await db
     .update(wallets)
     .set({
       balance: wallet.balance + amount,
-      totalEarnings: wallet.totalEarnings + amount,
-      updatedAt: new Date(),
+      totalEarned: wallet.totalEarned + amount,
     })
     .where(eq(wallets.userId, userId));
 
@@ -247,7 +251,6 @@ async function updateWallet(
     status: "completed",
     description: `${type} for order ${orderId}`,
     orderId,
-    createdAt: new Date(),
   });
 }
 

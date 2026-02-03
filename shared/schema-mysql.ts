@@ -29,6 +29,7 @@ export const users = mysqlTable("users", {
   stripePaymentMethodId: text("stripe_payment_method_id"),
   cardLast4: text("card_last4"),
   cardBrand: text("card_brand"),
+  stripeAccountId: text("stripe_account_id"), // Para repartidores con Stripe Connect
   isActive: boolean("is_active").notNull().default(true), // Para desactivar cuentas
   isOnline: boolean("is_online").notNull().default(false), // Para repartidores online/offline
   lastActiveAt: timestamp("last_active_at"), // Última actividad
@@ -97,6 +98,13 @@ export const orders = mysqlTable("orders", {
   // Llamada automática al negocio
   callAttempted: boolean("call_attempted").default(false), // Si ya se intentó llamar al negocio
   callAttemptedAt: timestamp("call_attempted_at"), // Cuando se intentó la llamada
+  // Campos adicionales de pago
+  stripePaymentIntentId: text("stripe_payment_intent_id"), // ID de PaymentIntent para webhooks
+  paidAt: timestamp("paid_at"), // Cuando se pagó
+  refundedAt: timestamp("refunded_at"), // Cuando se reembolsó
+  driverPaidAt: timestamp("driver_paid_at"), // Cuando se pagó al repartidor
+  driverPaymentStatus: text("driver_payment_status").default("pending"), // pending, completed, failed
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
 
 export const businesses = mysqlTable("businesses", {
@@ -142,6 +150,10 @@ export const businesses = mysqlTable("businesses", {
   isSlammed: boolean("is_slammed").notNull().default(false), // Negocio saturado
   slammedExtraMinutes: int("slammed_extra_minutes").default(20), // Minutos extra cuando está saturado
   slammedAt: timestamp("slammed_at"), // Cuando se activó el modo saturado
+  // Stripe Connect
+  stripeAccountId: text("stripe_account_id"), // ID de cuenta Stripe Connect
+  stripeAccountStatus: text("stripe_account_status").default("pending"), // pending, active, restricted
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
 
 // Wallets - billetera para cada usuario
@@ -165,17 +177,45 @@ export const transactions = mysqlTable("transactions", {
   id: varchar("id", { length: 255 })
     .primaryKey()
     .default(sql`(UUID())`),
-  walletId: varchar("wallet_id", { length: 255 }).notNull(),
+  walletId: varchar("wallet_id", { length: 255 }),
   orderId: varchar("order_id", { length: 255 }),
-  type: text("type").notNull(), // income, commission, withdrawal, refund, penalty, tip
+  businessId: varchar("business_id", { length: 255 }),
+  userId: varchar("user_id", { length: 255 }),
+  type: text("type").notNull(), // income, commission, withdrawal, refund, penalty, tip, payment, transfer, delivery_payment
   amount: int("amount").notNull(), // en centavos (positivo = ingreso, negativo = egreso)
-  balanceBefore: int("balance_before").notNull(),
-  balanceAfter: int("balance_after").notNull(),
-  description: text("description").notNull(),
+  balanceBefore: int("balance_before"),
+  balanceAfter: int("balance_after"),
+  description: text("description"),
   status: text("status").notNull().default("completed"), // pending, completed, failed, cancelled
   metadata: text("metadata"), // JSON con info adicional
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  stripeTransferId: text("stripe_transfer_id"),
+  stripeRefundId: text("stripe_refund_id"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
+
+// Payments - registro de pagos de Stripe
+export const payments = mysqlTable("payments", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  orderId: varchar("order_id", { length: 255 }).notNull(),
+  customerId: varchar("customer_id", { length: 255 }).notNull(),
+  businessId: varchar("business_id", { length: 255 }).notNull(),
+  driverId: varchar("driver_id", { length: 255 }),
+  amount: int("amount").notNull(), // en centavos
+  currency: text("currency").notNull().default("MXN"),
+  status: text("status").notNull().default("pending"), // pending, succeeded, failed, refunded
+  paymentMethod: text("payment_method").notNull().default("card"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+});
+
+// Alias para compatibilidad con paymentService.ts
+export const walletTransactions = transactions;
 
 // Base insert schema - phone and name are required, email/password are optional
 export const insertUserSchema = createInsertSchema(users)
@@ -344,6 +384,10 @@ export type StripeConnectAccount = typeof stripeConnectAccounts.$inferSelect;
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type DeliveryDriver = typeof deliveryDrivers.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type Payment = typeof payments.$inferSelect;
+
+// Alias para compatibilidad
+export const drivers = deliveryDrivers;
 
 // Refresh Tokens - Tokens de refresco para autenticación
 export const refreshTokens = mysqlTable("refresh_tokens", {
