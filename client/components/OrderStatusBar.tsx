@@ -26,13 +26,14 @@ const STATUS_STEPS = [
   { key: "delivered", label: "Entregado", icon: "package" as const },
 ];
 
-const STATUS_ORDER: Record<OrderStatus, number> = {
+const STATUS_ORDER: Record<string, number> = {
   pending: 0,
   confirmed: 1,
   preparing: 2,
   ready: 2,
   picked_up: 3,
   on_the_way: 3,
+  in_transit: 3,
   delivered: 4,
   cancelled: -1,
 };

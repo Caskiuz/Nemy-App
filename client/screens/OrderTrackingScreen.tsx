@@ -488,7 +488,9 @@ export default function OrderTrackingScreen() {
           {order.items && Array.isArray(order.items) && order.items.length > 0 ? (
             order.items.map((item, index) => {
               const itemName = item.product?.name || item.name || "Producto";
-              const itemPrice = item.product?.price || item.price || 0;
+              let itemPrice = item.product?.price || item.price || 0;
+              // Si el precio parece estar en centavos (mayor a 1000), dividir por 100
+              if (itemPrice > 1000) itemPrice = itemPrice / 100;
               const itemQty = item.quantity || 1;
               return (
                 <View key={item.id || `item-${index}`} style={styles.itemRow}>
