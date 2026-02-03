@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
-  FlatList,
+  ScrollView,
   Pressable,
   RefreshControl,
   Alert,
@@ -256,6 +256,46 @@ export default function DriverMyDeliveriesScreen() {
   );
   const completedOrders = orders.filter((o: any) => o.status === "delivered");
 
+  const renderCompletedOrder = ({ item }: { item: any }) => {
+    const displayAddress = parseDeliveryAddress(item.deliveryAddress);
+
+    return (
+      <View
+        style={[styles.orderCard, { backgroundColor: theme.card, opacity: 0.8 }, Shadows.sm]}
+      >
+        <View style={styles.orderHeader}>
+          <View>
+            <ThemedText type="h4">{item.businessName}</ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              Pedido #{item.id.slice(-6)}
+            </ThemedText>
+          </View>
+          <Badge text="Entregado" variant="success" />
+        </View>
+
+        <View style={styles.locationInfo}>
+          <Feather name="map-pin" size={16} color={theme.textSecondary} />
+          <ThemedText
+            type="small"
+            style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}
+            numberOfLines={2}
+          >
+            {displayAddress}
+          </ThemedText>
+        </View>
+
+        <View style={styles.orderFooter}>
+          <ThemedText type="h4" style={{ color: NemyColors.success }}>
+            +${((item.total * 0.15) / 100).toFixed(2)}
+          </ThemedText>
+          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+            Completado
+          </ThemedText>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <LinearGradient
       colors={[theme.gradientStart, theme.gradientEnd]}
@@ -267,10 +307,7 @@ export default function DriverMyDeliveriesScreen() {
         <ThemedText type="h2">Mis Entregas</ThemedText>
       </View>
 
-      <FlatList
-        data={activeOrders}
-        keyExtractor={(item: any) => item.id}
-        renderItem={renderOrder}
+      <ScrollView
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
@@ -279,7 +316,17 @@ export default function DriverMyDeliveriesScreen() {
             tintColor={NemyColors.primary}
           />
         }
-        ListEmptyComponent={
+      >
+        {activeOrders.length > 0 ? (
+          <>
+            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
+              Activas ({activeOrders.length})
+            </ThemedText>
+            {activeOrders.map((item: any) => (
+              <View key={item.id}>{renderOrder({ item })}</View>
+            ))}
+          </>
+        ) : (
           <View style={styles.emptyState}>
             <Feather name="truck" size={64} color={theme.textSecondary} />
             <ThemedText
@@ -289,8 +336,19 @@ export default function DriverMyDeliveriesScreen() {
               No tienes entregas activas
             </ThemedText>
           </View>
-        }
-      />
+        )}
+
+        {completedOrders.length > 0 && (
+          <>
+            <ThemedText type="h4" style={{ marginTop: Spacing.xl, marginBottom: Spacing.md }}>
+              Completadas ({completedOrders.length})
+            </ThemedText>
+            {completedOrders.map((item: any) => (
+              <View key={item.id}>{renderCompletedOrder({ item })}</View>
+            ))}
+          </>
+        )}
+      </ScrollView>
     </LinearGradient>
   );
 }

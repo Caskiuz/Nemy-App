@@ -37,6 +37,20 @@ type OrderTrackingNavigationProp = NativeStackNavigationProp<
 const ORDERS_KEY = "@nemy_orders";
 const { width } = Dimensions.get("window");
 
+const parseDeliveryAddress = (address: string | null): string => {
+  if (!address) return "Dirección no disponible";
+  try {
+    const parsed = JSON.parse(address);
+    if (typeof parsed === "object") {
+      const parts = [parsed.street, parsed.city, parsed.state, parsed.zipCode].filter(Boolean);
+      return parts.join(", ") || address;
+    }
+    return address;
+  } catch {
+    return address;
+  }
+};
+
 export default function OrderTrackingScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute<OrderTrackingRouteProp>();
@@ -161,7 +175,7 @@ export default function OrderTrackingScreen() {
             deliveryFee: apiOrder.deliveryFee / 100,
             total: apiOrder.total / 100,
             paymentMethod: apiOrder.paymentMethod,
-            deliveryAddress: apiOrder.deliveryAddress,
+            deliveryAddress: parseDeliveryAddress(apiOrder.deliveryAddress),
             createdAt: apiOrder.createdAt,
             estimatedDelivery: apiOrder.estimatedDelivery,
             deliveryPersonId: apiOrder.deliveryPersonId,
