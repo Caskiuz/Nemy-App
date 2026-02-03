@@ -124,6 +124,30 @@ export default function SupportScreen() {
               Nuevo ticket de soporte
             </ThemedText>
 
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate("SupportChat");
+              }}
+              style={[
+                styles.chatPromoCard,
+                { backgroundColor: NemyColors.primary + "10", borderColor: NemyColors.primary }
+              ]}
+            >
+              <View style={styles.chatPromoIcon}>
+                <Feather name="zap" size={24} color={NemyColors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="h4" style={{ color: NemyColors.primary }}>
+                  ¿Necesitas ayuda rápida?
+                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Prueba nuestro chat con IA para respuestas instantáneas.
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color={NemyColors.primary} />
+            </Pressable>
+
             <ThemedText type="body" style={styles.label}>
               Asunto
             </ThemedText>
@@ -368,6 +392,23 @@ const styles = StyleSheet.create({
   },
   newTicketContainer: {
     flex: 1,
+  },
+  chatPromoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  chatPromoIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
   },
   formContent: {
     padding: Spacing.lg,
