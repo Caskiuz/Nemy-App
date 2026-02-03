@@ -387,11 +387,11 @@ export default function ProfileScreen() {
           style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
         >
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Cuenta
+            Cuenta [CAMBIO DE PRUEBA]
           </ThemedText>
           <SettingsItem
             icon="user"
-            label="Editar perfil"
+            label="Editar mi perfil NUEVO"
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               navigation.navigate("EditProfile");
