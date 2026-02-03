@@ -117,8 +117,23 @@ export default function DriverMyDeliveriesScreen() {
     ]);
   };
 
+  const parseDeliveryAddress = (address: string | null): string => {
+    if (!address) return "Dirección no disponible";
+    try {
+      const parsed = JSON.parse(address);
+      if (typeof parsed === "object") {
+        const parts = [parsed.street, parsed.city, parsed.state, parsed.zipCode].filter(Boolean);
+        return parts.join(", ") || address;
+      }
+      return address;
+    } catch {
+      return address;
+    }
+  };
+
   const renderOrder = ({ item }: { item: any }) => {
     const items = typeof item.items === "string" ? JSON.parse(item.items) : item.items;
+    const displayAddress = parseDeliveryAddress(item.deliveryAddress);
 
     return (
       <View
@@ -152,7 +167,7 @@ export default function DriverMyDeliveriesScreen() {
             style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}
             numberOfLines={2}
           >
-            {item.deliveryAddress}
+            {displayAddress}
           </ThemedText>
         </View>
 
@@ -214,7 +229,7 @@ export default function DriverMyDeliveriesScreen() {
             </Pressable>
           )}
 
-          {item.status === "on_the_way" && (
+          {(item.status === "on_the_way" || item.status === "in_transit") && (
             <Pressable
               onPress={() => handleDelivered(item.id)}
               style={[
@@ -227,7 +242,7 @@ export default function DriverMyDeliveriesScreen() {
                 type="body"
                 style={{ color: "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}
               >
-                Entregado
+                Marcar Entregado
               </ThemedText>
             </Pressable>
           )}
