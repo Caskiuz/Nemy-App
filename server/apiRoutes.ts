@@ -344,19 +344,112 @@ router.post("/auth/send-code", async (req, res) => {
       return res.status(400).json({ error: "Phone number is required" });
     }
 
-    // For now, just return success (Twilio bypass)
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq, or, like } = await import("drizzle-orm");
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/[\s-()]/g, '');
+    const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
+
+    // Check if user exists
+    let user = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.phone, normalizedPhone),
+          eq(users.phone, phone),
+          like(users.phone, `%${phoneDigits.slice(-10)}`)
+        )
+      )
+      .limit(1);
+
+    if (user.length === 0) {
+      return res.json({ 
+        success: false, 
+        userNotFound: true,
+        message: "Usuario no encontrado. Debes registrarte primero."
+      });
+    }
+
+    // TODO: Integrate Twilio to send real SMS
+    // For test accounts, use code "1234"
     res.json({ 
       success: true, 
-      message: "Verification code sent",
-      // In development, always use code "1234"
-      ...(process.env.NODE_ENV === "development" && { code: "1234" })
+      message: "Código de verificación enviado"
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Verify code and login/register
+// Register new user (signup)
+router.post("/auth/phone-signup", async (req, res) => {
+  try {
+    const { phone, name, role } = req.body;
+    
+    if (!phone || !name) {
+      return res.status(400).json({ error: "Teléfono y nombre son requeridos" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq, or, like } = await import("drizzle-orm");
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/[\s-()]/g, '');
+    const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
+
+    // Check if user already exists
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.phone, normalizedPhone),
+          eq(users.phone, phone),
+          like(users.phone, `%${phoneDigits.slice(-10)}`)
+        )
+      )
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      return res.status(400).json({ 
+        error: "Este número ya está registrado. Intenta iniciar sesión.",
+        userExists: true
+      });
+    }
+
+    // Validate role
+    const validRoles = ['customer', 'business_owner', 'delivery_driver'];
+    const userRole = validRoles.includes(role) ? role : 'customer';
+
+    // Create new user (not verified yet)
+    await db
+      .insert(users)
+      .values({
+        phone: normalizedPhone,
+        name: name,
+        role: userRole,
+        phoneVerified: false,
+      });
+
+    console.log("✅ Usuario registrado:", normalizedPhone, name, userRole);
+
+    // TODO: Send verification SMS via Twilio
+    res.json({ 
+      success: true, 
+      requiresVerification: true,
+      message: "Usuario registrado. Verifica tu teléfono."
+    });
+  } catch (error: any) {
+    console.error("Signup error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Verify code and login (existing users only)
 router.post("/auth/verify-code", async (req, res) => {
   try {
     const { phone, code, name } = req.body;
@@ -411,35 +504,24 @@ router.post("/auth/verify-code", async (req, res) => {
     }
 
     if (user.length === 0) {
-      // Create new user
-      await db
-        .insert(users)
-        .values({
-          phone: normalizedPhone,
-          name: name || "Usuario",
-          role: "customer",
-          phoneVerified: true,
-        });
-
-      user = await db
-        .select()
-        .from(users)
-        .where(eq(users.phone, normalizedPhone))
-        .limit(1);
-      
-      console.log("✅ Usuario nuevo creado:", user[0].id);
-    } else {
-      // Update existing user
-      await db
-        .update(users)
-        .set({
-          phoneVerified: true,
-          ...(name && { name }),
-        })
-        .where(eq(users.id, user[0].id));
-      
-      console.log("✅ Usuario existente encontrado:", user[0].id, user[0].name, user[0].role);
+      // User not found - must register first
+      console.log("❌ Usuario no encontrado:", normalizedPhone);
+      return res.status(404).json({ 
+        error: "Usuario no encontrado. Debes registrarte primero.",
+        userNotFound: true 
+      });
     }
+    
+    // Update existing user
+    await db
+      .update(users)
+      .set({
+        phoneVerified: true,
+        ...(name && { name }),
+      })
+      .where(eq(users.id, user[0].id));
+    
+    console.log("✅ Usuario existente encontrado:", user[0].id, user[0].name, user[0].role);
 
     // Generate JWT token
     const token = jwt.default.sign(
