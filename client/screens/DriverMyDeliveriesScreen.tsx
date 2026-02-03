@@ -23,6 +23,14 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+const statusLabels: Record<string, string> = {
+  ready: "Listo para recoger",
+  picked_up: "Recogido",
+  on_the_way: "En camino",
+  in_transit: "En camino",
+  delivered: "Entregado",
+};
+
 export default function DriverMyDeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
@@ -124,13 +132,15 @@ export default function DriverMyDeliveriesScreen() {
             </ThemedText>
           </View>
           <Badge
-            text={item.status}
+            text={statusLabels[item.status] || item.status}
             variant={
               item.status === "picked_up"
                 ? "primary"
-                : item.status === "on_the_way"
+                : item.status === "on_the_way" || item.status === "in_transit"
                 ? "warning"
-                : "success"
+                : item.status === "delivered"
+                ? "success"
+                : "secondary"
             }
           />
         </View>
