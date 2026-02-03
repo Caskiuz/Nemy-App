@@ -341,11 +341,22 @@ router.post("/auth/verify-code", async (req, res) => {
     const normalizedPhone = phone.replace(/[\s-()]/g, '');
     console.log("📱 Phone normalized:", phone, "→", normalizedPhone);
 
-    // Check if user exists
+    // Check if user exists - search with both normalized and original format
+    const { or, like } = await import("drizzle-orm");
+    
+    // Create a pattern to match phone regardless of spacing
+    const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
+    
     let user = await db
       .select()
       .from(users)
-      .where(eq(users.phone, normalizedPhone))
+      .where(
+        or(
+          eq(users.phone, normalizedPhone),
+          eq(users.phone, phone),
+          like(users.phone, `%${phoneDigits.slice(-10)}`)
+        )
+      )
       .limit(1);
 
     if (user.length === 0) {
