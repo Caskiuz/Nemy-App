@@ -6,6 +6,8 @@ import {
   Pressable,
   RefreshControl,
   Alert,
+  Linking,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -131,6 +133,72 @@ export default function DriverMyDeliveriesScreen() {
     }
   };
 
+  const openGoogleMaps = (lat: number, lng: number, address: string) => {
+    const url = Platform.select({
+      ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+      android: `google.navigation:q=${lat},${lng}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+    });
+    
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`);
+      }
+    });
+  };
+
+  const openWaze = (lat: number, lng: number) => {
+    const url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+    Linking.openURL(url);
+  };
+
+  const openAppleMaps = (lat: number, lng: number, address: string) => {
+    const url = Platform.OS === "ios"
+      ? `maps:?daddr=${lat},${lng}&dirflg=d`
+      : `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+    
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`);
+      }
+    });
+  };
+
+  const showNavigationOptions = (order: any) => {
+    const lat = order.deliveryLat || order.latitude;
+    const lng = order.deliveryLng || order.longitude;
+    const address = parseDeliveryAddress(order.deliveryAddress);
+
+    if (!lat || !lng) {
+      Alert.alert("Error", "No hay coordenadas disponibles para este pedido");
+      return;
+    }
+
+    Alert.alert(
+      "Iniciar Navegación",
+      "Selecciona la aplicación de navegación",
+      [
+        {
+          text: "Google Maps",
+          onPress: () => openGoogleMaps(parseFloat(lat), parseFloat(lng), address),
+        },
+        {
+          text: "Waze",
+          onPress: () => openWaze(parseFloat(lat), parseFloat(lng)),
+        },
+        ...(Platform.OS === "ios" ? [{
+          text: "Apple Maps",
+          onPress: () => openAppleMaps(parseFloat(lat), parseFloat(lng), address),
+        }] : []),
+        { text: "Cancelar", style: "cancel" as const },
+      ]
+    );
+  };
+
   const renderOrder = ({ item }: { item: any }) => {
     const items = typeof item.items === "string" ? JSON.parse(item.items) : item.items;
     const displayAddress = parseDeliveryAddress(item.deliveryAddress);
@@ -175,21 +243,38 @@ export default function DriverMyDeliveriesScreen() {
           <ThemedText type="h4" style={{ color: NemyColors.success }}>
             +${((item.total * 0.15) / 100).toFixed(2)}
           </ThemedText>
-          <Pressable
-            onPress={() => navigation.navigate("OrderTracking", { orderId: item.id })}
-            style={[
-              styles.trackButton,
-              { backgroundColor: theme.backgroundSecondary },
-            ]}
-          >
-            <Feather name="map" size={16} color={NemyColors.primary} />
-            <ThemedText
-              type="small"
-              style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}
+          <View style={styles.mapButtons}>
+            <Pressable
+              onPress={() => navigation.navigate("OrderTracking", { orderId: item.id })}
+              style={[
+                styles.trackButton,
+                { backgroundColor: theme.backgroundSecondary },
+              ]}
             >
-              Ver Mapa
-            </ThemedText>
-          </Pressable>
+              <Feather name="map" size={16} color={NemyColors.primary} />
+              <ThemedText
+                type="small"
+                style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}
+              >
+                Ver
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => showNavigationOptions(item)}
+              style={[
+                styles.trackButton,
+                { backgroundColor: NemyColors.primary, marginLeft: Spacing.sm },
+              ]}
+            >
+              <Feather name="navigation" size={16} color="#FFF" />
+              <ThemedText
+                type="small"
+                style={{ color: "#FFF", marginLeft: Spacing.xs }}
+              >
+                Navegar
+              </ThemedText>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -387,6 +472,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: Spacing.md,
+  },
+  mapButtons: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   trackButton: {
     flexDirection: "row",
