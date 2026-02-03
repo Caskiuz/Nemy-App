@@ -1861,6 +1861,7 @@ router.post(
       const { products, businesses } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
+      const { v4: uuidv4 } = await import("uuid");
 
       // Get business ID
       const business = await db
@@ -1870,17 +1871,30 @@ router.post(
         .limit(1);
 
       if (!business[0]) {
-        return res.status(404).json({ error: "Business not found" });
+        return res.status(404).json({ error: "Business not found for this user" });
+      }
+
+      const { name, description, price, image, category } = req.body;
+      
+      if (!name || price === undefined) {
+        return res.status(400).json({ error: "Name and price are required" });
       }
 
       const productData = {
-        ...req.body,
+        id: uuidv4(),
         businessId: business[0].id,
+        name,
+        description: description || null,
+        price: parseInt(price) || 0,
+        image: image || null,
+        category: category || null,
+        isAvailable: true,
       };
 
-      const result = await db.insert(products).values(productData);
-      res.json({ success: true, productId: result.insertId });
+      await db.insert(products).values(productData);
+      res.json({ success: true, productId: productData.id });
     } catch (error: any) {
+      console.error("Error creating product:", error);
       res.status(500).json({ error: error.message });
     }
   },
