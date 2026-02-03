@@ -46,6 +46,44 @@ router.get("/health", (req, res) => {
   });
 });
 
+// List all test users with their roles (for development)
+router.get("/auth/test-users", async (req, res) => {
+  try {
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    
+    const allUsers = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        phone: users.phone,
+        role: users.role,
+      })
+      .from(users);
+    
+    res.json({ users: allUsers });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete duplicate user (for development cleanup)
+router.delete("/auth/cleanup-user/:userId", async (req, res) => {
+  try {
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
+    
+    const { userId } = req.params;
+    
+    await db.delete(users).where(eq(users.id, userId));
+    
+    res.json({ success: true, message: `User ${userId} deleted` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Development login for test users
 router.post("/auth/dev-login", async (req, res) => {
   try {
@@ -341,23 +379,36 @@ router.post("/auth/verify-code", async (req, res) => {
     const normalizedPhone = phone.replace(/[\s-()]/g, '');
     console.log("📱 Phone normalized:", phone, "→", normalizedPhone);
 
-    // Check if user exists - search with both normalized and original format
+    // Check if user exists - search with exact match first, then flexible match
     const { or, like } = await import("drizzle-orm");
     
     // Create a pattern to match phone regardless of spacing
     const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
     
+    // First try exact matches
     let user = await db
       .select()
       .from(users)
-      .where(
-        or(
-          eq(users.phone, normalizedPhone),
-          eq(users.phone, phone),
-          like(users.phone, `%${phoneDigits.slice(-10)}`)
-        )
-      )
+      .where(eq(users.phone, normalizedPhone))
       .limit(1);
+    
+    // If not found, try original format
+    if (user.length === 0) {
+      user = await db
+        .select()
+        .from(users)
+        .where(eq(users.phone, phone))
+        .limit(1);
+    }
+    
+    // If still not found, try LIKE with last 10 digits
+    if (user.length === 0) {
+      user = await db
+        .select()
+        .from(users)
+        .where(like(users.phone, `%${phoneDigits.slice(-10)}`))
+        .limit(1);
+    }
 
     if (user.length === 0) {
       // Create new user
