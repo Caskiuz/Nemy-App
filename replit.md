@@ -56,7 +56,15 @@ The NEMY application is built with a client-server architecture.
 *   Pedidos - Order management
 *   Negocios - Business management
 *   Productos - Product management
+*   Repartidores - Driver management (approval, strikes, status)
+*   Finanzas - Wallet management and withdrawal approvals
+*   Cupones - Coupon creation and management
+*   Soporte - Support ticket management
+*   Zonas - Delivery zone configuration
+*   Config - System settings (commissions, anti-fraud hold, etc.)
 *   Logs - Audit trail viewer
+
+**Note:** Admin users do not see the "Favoritos" tab in the bottom navigation.
 
 ## External Dependencies
 *   **Stripe**: For payment processing, including payment intents, webhooks, setup intents for card registration, and auto-charging on delivery. `stripe-replit-sync` is used for development.
