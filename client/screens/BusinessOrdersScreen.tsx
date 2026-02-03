@@ -159,6 +159,19 @@ export default function BusinessOrdersScreen() {
     return true;
   });
 
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pending: "Pendiente",
+      confirmed: "Confirmado",
+      preparing: "Preparando",
+      ready: "Listo",
+      picked_up: "Recogido",
+      delivered: "Entregado",
+      cancelled: "Cancelado",
+    };
+    return labels[status] || status;
+  };
+
   const renderOrder = ({ item }: { item: any }) => {
     const items = typeof item.items === "string" ? JSON.parse(item.items) : item.items;
 
@@ -167,32 +180,60 @@ export default function BusinessOrdersScreen() {
         style={[styles.orderCard, { backgroundColor: theme.card }, Shadows.sm]}
       >
         <View style={styles.orderHeader}>
-          <View>
+          <View style={{ flex: 1 }}>
             <ThemedText type="h4">Pedido #{item.id.slice(-6)}</ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
               {new Date(item.createdAt).toLocaleTimeString("es-MX", {
                 hour: "2-digit",
                 minute: "2-digit",
-              })}
+              })} - {new Date(item.createdAt).toLocaleDateString("es-MX")}
             </ThemedText>
+            {item.businessName ? (
+              <ThemedText type="small" style={{ color: NemyColors.primary, marginTop: 2 }}>
+                {item.businessName}
+              </ThemedText>
+            ) : null}
           </View>
           <Badge
-            text={item.status}
+            text={getStatusLabel(item.status)}
             variant={
               item.status === "pending"
                 ? "warning"
                 : item.status === "ready"
                 ? "success"
+                : item.status === "cancelled"
+                ? "error"
                 : "primary"
             }
           />
         </View>
 
+        {item.customer ? (
+          <View style={styles.customerInfo}>
+            <Feather name="user" size={14} color={theme.textSecondary} />
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+              {item.customer.name} - {item.customer.phone}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {item.address ? (
+          <View style={styles.customerInfo}>
+            <Feather name="map-pin" size={14} color={theme.textSecondary} />
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}>
+              {item.address.street}, {item.address.city}
+            </ThemedText>
+          </View>
+        ) : null}
+
         <View style={styles.itemsList}>
-          {items.map((orderItem: any, index: number) => (
+          {Array.isArray(items) && items.map((orderItem: any, index: number) => (
             <View key={index} style={styles.item}>
               <ThemedText type="body">
-                {orderItem.quantity}x {orderItem.product?.name || "Producto"}
+                {orderItem.quantity}x {orderItem.name || orderItem.product?.name || "Producto"}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                ${((orderItem.price || orderItem.product?.price || 0) / 100).toFixed(2)}
               </ThemedText>
             </View>
           ))}
@@ -438,10 +479,19 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: Spacing.md,
   },
+  customerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
   itemsList: {
+    marginTop: Spacing.sm,
     marginBottom: Spacing.md,
   },
   item: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.xs,
   },
   orderFooter: {

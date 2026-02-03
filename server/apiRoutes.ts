@@ -1596,28 +1596,69 @@ router.get(
   requireRole("business_owner"),
   async (req, res) => {
     try {
-      const { businesses, orders } = await import("@shared/schema-mysql");
+      const { businesses, orders, users, addresses } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq, desc } = await import("drizzle-orm");
+      const { eq, desc, inArray } = await import("drizzle-orm");
 
-      const business = await db
+      // Get ALL businesses for this owner
+      const ownerBusinesses = await db
         .select()
         .from(businesses)
-        .where(eq(businesses.ownerId, req.user!.id))
-        .limit(1);
+        .where(eq(businesses.ownerId, req.user!.id));
 
-      if (!business[0]) {
-        return res.status(404).json({ error: "Business not found" });
+      if (ownerBusinesses.length === 0) {
+        return res.status(404).json({ error: "No businesses found for this user" });
       }
 
+      const businessIds = ownerBusinesses.map(b => b.id);
+
+      // Get orders for all owner's businesses
       const businessOrders = await db
         .select()
         .from(orders)
-        .where(eq(orders.businessId, business[0].id))
+        .where(inArray(orders.businessId, businessIds))
         .orderBy(desc(orders.createdAt));
 
-      res.json({ success: true, orders: businessOrders });
+      // Enrich orders with customer info and business name
+      const enrichedOrders = await Promise.all(
+        businessOrders.map(async (order) => {
+          // Get customer info
+          let customer = null;
+          if (order.customerId) {
+            const customerResult = await db
+              .select({ id: users.id, name: users.name, phone: users.phone })
+              .from(users)
+              .where(eq(users.id, order.customerId))
+              .limit(1);
+            customer = customerResult[0] || null;
+          }
+
+          // Get delivery address
+          let address = null;
+          if (order.addressId) {
+            const addressResult = await db
+              .select()
+              .from(addresses)
+              .where(eq(addresses.id, order.addressId))
+              .limit(1);
+            address = addressResult[0] || null;
+          }
+
+          // Get business name
+          const business = ownerBusinesses.find(b => b.id === order.businessId);
+
+          return {
+            ...order,
+            customer,
+            address,
+            businessName: business?.name || 'Negocio',
+          };
+        })
+      );
+
+      res.json({ success: true, orders: enrichedOrders });
     } catch (error: any) {
+      console.error("Error loading business orders:", error);
       res.status(500).json({ error: error.message });
     }
   },
@@ -1630,9 +1671,9 @@ router.put(
   requireRole("business_owner"),
   async (req, res) => {
     try {
-      const { orders } = await import("@shared/schema-mysql");
+      const { orders, businesses } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
+      const { eq, inArray } = await import("drizzle-orm");
       const { status } = req.body;
 
       const validBusinessStatuses = ["confirmed", "preparing", "ready", "cancelled"];
@@ -1640,13 +1681,36 @@ router.put(
         return res.status(400).json({ error: "Invalid status for business" });
       }
 
+      // Verify order belongs to one of owner's businesses
+      const ownerBusinesses = await db
+        .select({ id: businesses.id })
+        .from(businesses)
+        .where(eq(businesses.ownerId, req.user!.id));
+
+      if (ownerBusinesses.length === 0) {
+        return res.status(403).json({ error: "No businesses found" });
+      }
+
+      const businessIds = ownerBusinesses.map(b => b.id);
+
+      const order = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, req.params.id))
+        .limit(1);
+
+      if (!order[0] || !businessIds.includes(order[0].businessId)) {
+        return res.status(403).json({ error: "Order does not belong to your business" });
+      }
+
       await db
         .update(orders)
-        .set({ status })
+        .set({ status, updatedAt: new Date() })
         .where(eq(orders.id, req.params.id));
 
       res.json({ success: true, message: "Order status updated" });
     } catch (error: any) {
+      console.error("Error updating order status:", error);
       res.status(500).json({ error: error.message });
     }
   },
