@@ -1659,7 +1659,7 @@ router.get(
   requireRole("business_owner"),
   async (req, res) => {
     try {
-      const { businesses, orders } = await import("@shared/schema-mysql");
+      const { businesses, orders, products } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
 
@@ -1678,21 +1678,76 @@ router.get(
         .from(orders)
         .where(eq(orders.businessId, business[0].id));
 
-      const totalRevenue = businessOrders
-        .filter(o => o.status === "delivered")
-        .reduce((sum, o) => sum + o.total, 0);
+      // Calculate date ranges
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfWeek = new Date(startOfToday);
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const stats = {
-        totalOrders: businessOrders.length,
-        totalRevenue: Math.round(totalRevenue),
-        averageOrderValue: businessOrders.length > 0 ? Math.round(totalRevenue / businessOrders.length) : 0,
-        completionRate: businessOrders.length > 0 ? 
-          Math.round((businessOrders.filter(o => o.status === "delivered").length / businessOrders.length) * 100) : 0,
-        monthlyRevenue: Math.round(totalRevenue * 0.7), // Business gets 70%
-        pendingOrders: businessOrders.filter(o => o.status === "pending").length,
-      };
+      // Filter orders by status and date
+      const deliveredOrders = businessOrders.filter(o => o.status === "delivered");
+      const cancelledOrders = businessOrders.filter(o => o.status === "cancelled");
+      
+      const todayOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfToday);
+      const weekOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfWeek);
+      const monthOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfMonth);
 
-      res.json({ success: true, stats });
+      // Calculate revenue
+      const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+      const weekRevenue = weekOrders.reduce((sum, o) => sum + o.total, 0);
+      const monthRevenue = monthOrders.reduce((sum, o) => sum + o.total, 0);
+      const totalRevenue = deliveredOrders.reduce((sum, o) => sum + o.total, 0);
+
+      // Calculate top products from order items
+      const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+      
+      for (const order of deliveredOrders) {
+        try {
+          const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              const productName = item.name || item.product?.name || 'Producto';
+              const productId = item.productId || item.id || productName;
+              const quantity = item.quantity || 1;
+              const price = item.price || item.product?.price || 0;
+              
+              if (!productSales[productId]) {
+                productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
+              }
+              productSales[productId].quantity += quantity;
+              productSales[productId].revenue += price * quantity;
+            }
+          }
+        } catch (e) {
+          // Skip malformed items
+        }
+      }
+
+      const topProducts = Object.values(productSales)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
+
+      const avgValue = deliveredOrders.length > 0 
+        ? Math.round(totalRevenue / deliveredOrders.length) 
+        : 0;
+
+      res.json({
+        success: true,
+        revenue: {
+          today: Math.round(todayRevenue),
+          week: Math.round(weekRevenue),
+          month: Math.round(monthRevenue),
+          total: Math.round(totalRevenue),
+        },
+        orders: {
+          total: businessOrders.length,
+          completed: deliveredOrders.length,
+          cancelled: cancelledOrders.length,
+          avgValue: avgValue,
+        },
+        topProducts,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
