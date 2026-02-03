@@ -758,28 +758,83 @@ export default function ProfileScreen() {
               paddingBottom: insets.bottom + Spacing.xl,
             }}
           >
-            <View
-              style={[styles.placeholderCard, { backgroundColor: theme.card }]}
-            >
-              <Feather name="file-text" size={48} color={theme.textSecondary} />
-              <ThemedText
-                type="h4"
-                style={{ marginTop: Spacing.lg, textAlign: "center" }}
-              >
-                Contenido de términos y condiciones próximamente...
-              </ThemedText>
-              <ThemedText
-                type="small"
-                style={{
-                  color: theme.textSecondary,
-                  marginTop: Spacing.sm,
-                  textAlign: "center",
-                }}
-              >
-                Estamos preparando los términos y condiciones de uso de NEMY.
-                Por favor, vuelve a consultar pronto.
-              </ThemedText>
-            </View>
+            <ThemedText type="h4" style={styles.legalTitle}>
+              Ultima actualizacion: Febrero 2026
+            </ThemedText>
+            
+            <ThemedText type="body" style={styles.legalText}>
+              Bienvenido a NEMY. Al utilizar nuestra aplicacion, aceptas estos terminos y condiciones. Por favor, leelos cuidadosamente.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              1. Aceptacion de Terminos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Al descargar, instalar o usar la aplicacion NEMY, confirmas que has leido, entendido y aceptas estar sujeto a estos Terminos y Condiciones. Si no estas de acuerdo, no uses la aplicacion.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              2. Descripcion del Servicio
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              NEMY es una plataforma de delivery local que conecta a clientes con negocios locales y repartidores en Autlan de Navarro, Jalisco, Mexico. Facilitamos la compra y entrega de alimentos, productos de mercado y otros articulos de negocios participantes.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              3. Registro y Cuenta
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Para usar NEMY debes registrarte con un numero de telefono valido. Eres responsable de mantener la confidencialidad de tu cuenta y de todas las actividades que ocurran bajo ella. Debes proporcionar informacion veraz y actualizada.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              4. Pedidos y Pagos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Los precios mostrados incluyen IVA. Los cargos de envio se calculan segun la distancia y se muestran antes de confirmar tu pedido. Aceptamos pagos con tarjeta de credito/debito y efectivo. Los pedidos pueden cancelarse sin penalizacion dentro de los primeros 60 segundos.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              5. Entregas
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Los tiempos de entrega son estimados y pueden variar segun la demanda, condiciones climaticas y trafico. NEMY no se hace responsable por retrasos fuera de nuestro control. Debes estar disponible para recibir tu pedido en la direccion indicada.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              6. Cancelaciones y Reembolsos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Puedes cancelar tu pedido sin cargo dentro de los primeros 60 segundos. Despues de este periodo, pueden aplicar cargos segun el estado del pedido. Los reembolsos se procesan en 5-10 dias habiles al metodo de pago original.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              7. Conducta del Usuario
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Te comprometes a usar NEMY de manera responsable y respetuosa. Esta prohibido el uso fraudulento, el acoso a repartidores o negocios, y cualquier actividad ilegal. NEMY se reserva el derecho de suspender cuentas que violen estas normas.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              8. Limitacion de Responsabilidad
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              NEMY actua como intermediario entre clientes, negocios y repartidores. No somos responsables por la calidad de los productos, alergenos no declarados, o problemas de salud derivados del consumo. Los negocios son responsables de la preparacion y calidad de sus productos.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              9. Modificaciones
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              NEMY puede modificar estos terminos en cualquier momento. Te notificaremos de cambios significativos. El uso continuado de la aplicacion constituye aceptacion de los nuevos terminos.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              10. Contacto
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Para dudas o comentarios sobre estos terminos, contactanos a traves de la seccion de Ayuda y Soporte en la aplicacion o al correo soporte@nemy.mx
+            </ThemedText>
           </ScrollView>
         </View>
       </Modal>
@@ -801,7 +856,7 @@ export default function ProfileScreen() {
               { borderBottomColor: theme.border },
             ]}
           >
-            <ThemedText type="h3">Política de privacidad</ThemedText>
+            <ThemedText type="h3">Politica de privacidad</ThemedText>
             <Pressable
               style={[
                 styles.closeButton,
@@ -819,28 +874,83 @@ export default function ProfileScreen() {
               paddingBottom: insets.bottom + Spacing.xl,
             }}
           >
-            <View
-              style={[styles.placeholderCard, { backgroundColor: theme.card }]}
-            >
-              <Feather name="shield" size={48} color={theme.textSecondary} />
-              <ThemedText
-                type="h4"
-                style={{ marginTop: Spacing.lg, textAlign: "center" }}
-              >
-                Política de privacidad próximamente...
-              </ThemedText>
-              <ThemedText
-                type="small"
-                style={{
-                  color: theme.textSecondary,
-                  marginTop: Spacing.sm,
-                  textAlign: "center",
-                }}
-              >
-                Estamos preparando nuestra política de privacidad. Tu
-                información está protegida.
-              </ThemedText>
-            </View>
+            <ThemedText type="h4" style={styles.legalTitle}>
+              Ultima actualizacion: Febrero 2026
+            </ThemedText>
+
+            <ThemedText type="body" style={styles.legalText}>
+              En NEMY, tu privacidad es nuestra prioridad. Esta politica describe como recopilamos, usamos y protegemos tu informacion personal.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              1. Informacion que Recopilamos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Recopilamos: nombre, numero de telefono, direcciones de entrega, historial de pedidos, datos de pago (procesados de forma segura por Stripe), ubicacion (solo cuando usas la app), y preferencias de usuario.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              2. Uso de la Informacion
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Usamos tu informacion para: procesar y entregar tus pedidos, verificar tu identidad, procesar pagos, enviarte notificaciones sobre tus pedidos, mejorar nuestros servicios, cumplir con obligaciones legales, y comunicarnos contigo sobre promociones (con tu consentimiento).
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              3. Compartir Informacion
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Compartimos informacion limitada con: negocios (nombre y direccion para preparar y entregar pedidos), repartidores (nombre, telefono y direccion de entrega), procesadores de pago (Stripe), y autoridades cuando la ley lo requiera.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              4. Seguridad de Datos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Implementamos medidas de seguridad incluyendo: encriptacion de datos en transito y reposo, autenticacion de dos factores via SMS, almacenamiento seguro de contrasenas, y acceso restringido a datos personales.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              5. Tus Derechos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Tienes derecho a: acceder a tus datos personales, corregir informacion inexacta, solicitar la eliminacion de tu cuenta y datos, oponerte al procesamiento de tus datos, y retirar tu consentimiento para comunicaciones promocionales.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              6. Retencion de Datos
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Conservamos tus datos mientras tu cuenta este activa y por el periodo requerido por ley. Puedes solicitar la eliminacion de tu cuenta contactando a soporte.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              7. Cookies y Tecnologias Similares
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Usamos cookies y tecnologias similares para mejorar tu experiencia, recordar preferencias, y analizar el uso de la aplicacion.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              8. Menores de Edad
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              NEMY no esta dirigido a menores de 18 anios. No recopilamos intencionalmente informacion de menores. Si eres padre y crees que tu hijo ha proporcionado informacion, contactanos.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              9. Cambios a esta Politica
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Podemos actualizar esta politica periodicamente. Te notificaremos de cambios significativos a traves de la aplicacion o por SMS.
+            </ThemedText>
+
+            <ThemedText type="h4" style={styles.legalTitle}>
+              10. Contacto
+            </ThemedText>
+            <ThemedText type="body" style={styles.legalText}>
+              Para ejercer tus derechos o resolver dudas sobre privacidad, contactanos a traves de Ayuda y Soporte o al correo privacidad@nemy.mx
+            </ThemedText>
           </ScrollView>
         </View>
       </Modal>
@@ -1131,5 +1241,13 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     borderRadius: BorderRadius.lg,
     alignItems: "center",
+  },
+  legalTitle: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  legalText: {
+    lineHeight: 22,
+    marginBottom: Spacing.sm,
   },
 });

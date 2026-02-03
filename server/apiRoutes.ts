@@ -431,6 +431,56 @@ router.put(
   },
 );
 
+// Update user by ID (for profile editing)
+router.put(
+  "/users/:id",
+  authenticateToken,
+  requirePhoneVerified,
+  auditAction("update_user", "user"),
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const userId = parseInt(req.params.id);
+      
+      // Users can only update their own profile unless admin
+      if (req.user!.id !== userId && req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+        return res.status(403).json({ error: "No tienes permiso para editar este perfil" });
+      }
+
+      const { name, phone, email } = req.body;
+      
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (email) updateData.email = email;
+
+      await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.id, userId));
+
+      // Return updated user data
+      const [updatedUser] = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          phone: users.phone,
+          email: users.email,
+          role: users.role,
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      res.json({ success: true, user: updatedUser });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // ============================================
 // SYSTEM CONFIGURATION ROUTES
 // ============================================
