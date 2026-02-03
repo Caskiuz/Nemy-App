@@ -46,6 +46,52 @@ router.get("/health", (req, res) => {
   });
 });
 
+// Development login for test users
+router.post("/auth/dev-login", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
+    const jwt = await import("jsonwebtoken");
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const token = jwt.default.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET || "production-secret",
+      { expiresIn: "7d" }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        phoneVerified: user.phoneVerified,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Public settings
 router.get("/settings/public", async (req, res) => {
   const result = await getPublicSettings();
