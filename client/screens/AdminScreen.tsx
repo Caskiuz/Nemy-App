@@ -2120,7 +2120,7 @@ export default function AdminScreen() {
                 }}
                 style={[
                   styles.listItem,
-                  { backgroundColor: theme.card },
+                  { backgroundColor: theme.card, borderWidth: 3, borderColor: '#FF0000' },
                   Shadows.sm,
                 ]}
               >
