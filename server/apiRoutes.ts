@@ -1725,22 +1725,26 @@ router.get(
     try {
       const { businesses, orders, products } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
+      const { eq, inArray } = await import("drizzle-orm");
 
-      const business = await db
+      // Get ALL businesses owned by this user
+      const ownerBusinesses = await db
         .select()
         .from(businesses)
-        .where(eq(businesses.ownerId, req.user!.id))
-        .limit(1);
+        .where(eq(businesses.ownerId, req.user!.id));
 
-      if (!business[0]) {
-        return res.status(404).json({ error: "Business not found" });
+      if (ownerBusinesses.length === 0) {
+        return res.status(404).json({ error: "No businesses found" });
       }
 
+      // Get all business IDs
+      const businessIds = ownerBusinesses.map(b => b.id);
+      
+      // Get orders from ALL owner's businesses
       const businessOrders = await db
         .select()
         .from(orders)
-        .where(eq(orders.businessId, business[0].id));
+        .where(inArray(orders.businessId, businessIds));
 
       // Calculate date ranges
       const now = new Date();
