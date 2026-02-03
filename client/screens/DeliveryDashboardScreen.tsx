@@ -50,6 +50,8 @@ interface DeliveryOrder {
 const statusLabels: Record<string, string> = {
   ready: "Listo para recoger",
   picked_up: "En camino",
+  on_the_way: "En camino",
+  in_transit: "En camino",
   delivered: "Entregado",
 };
 
@@ -96,6 +98,7 @@ function DeliveryOrderCard({
 
   const isReady = order.status === "ready";
   const isPickedUp = order.status === "picked_up";
+  const isOnTheWay = order.status === "on_the_way" || order.status === "in_transit";
 
   return (
     <Animated.View
@@ -107,19 +110,19 @@ function DeliveryOrderCard({
           style={[
             styles.statusBadge,
             {
-              backgroundColor: isPickedUp ? "#00BCD4" + "20" : "#4CAF50" + "20",
+              backgroundColor: (isPickedUp || isOnTheWay) ? "#00BCD4" + "20" : "#4CAF50" + "20",
             },
           ]}
         >
           <Feather
-            name={isPickedUp ? "truck" : "package"}
+            name={(isPickedUp || isOnTheWay) ? "truck" : "package"}
             size={14}
-            color={isPickedUp ? "#00BCD4" : "#4CAF50"}
+            color={(isPickedUp || isOnTheWay) ? "#00BCD4" : "#4CAF50"}
           />
           <ThemedText
             type="small"
             style={{
-              color: isPickedUp ? "#00BCD4" : "#4CAF50",
+              color: (isPickedUp || isOnTheWay) ? "#00BCD4" : "#4CAF50",
               marginLeft: 6,
               fontWeight: "600",
             }}
@@ -270,7 +273,7 @@ function DeliveryOrderCard({
             Pedido recogido
           </ThemedText>
         </Pressable>
-      ) : isPickedUp ? (
+      ) : isPickedUp || isOnTheWay ? (
         <Pressable
           onPress={handleDeliver}
           disabled={isUpdating}
@@ -437,7 +440,7 @@ export default function DeliveryDashboardScreen() {
   const orders: DeliveryOrder[] = ordersData?.orders || [];
   const availableOrders = ordersData?.availableOrders || [];
   const activeOrders = orders.filter((o) =>
-    ["ready", "picked_up"].includes(o.status),
+    ["ready", "picked_up", "on_the_way", "in_transit"].includes(o.status),
   );
   const historyOrders = orders.filter((o) => o.status === "delivered");
 
