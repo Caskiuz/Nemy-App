@@ -486,16 +486,21 @@ export default function OrderTrackingScreen() {
             Detalles del pedido
           </ThemedText>
           {order.items && Array.isArray(order.items) && order.items.length > 0 ? (
-            order.items.map((item) => (
-              <View key={item.id} style={styles.itemRow}>
-                <ThemedText type="body">
-                  {item.quantity}x {item.product.name}
-                </ThemedText>
-                <ThemedText type="body">
-                  ${(item.product.price * item.quantity).toFixed(2)}
-                </ThemedText>
-              </View>
-            ))
+            order.items.map((item, index) => {
+              const itemName = item.product?.name || item.name || "Producto";
+              const itemPrice = item.product?.price || item.price || 0;
+              const itemQty = item.quantity || 1;
+              return (
+                <View key={item.id || `item-${index}`} style={styles.itemRow}>
+                  <ThemedText type="body">
+                    {itemQty}x {itemName}
+                  </ThemedText>
+                  <ThemedText type="body">
+                    ${(itemPrice * itemQty).toFixed(2)}
+                  </ThemedText>
+                </View>
+              );
+            })
           ) : (
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
               No hay items en este pedido
