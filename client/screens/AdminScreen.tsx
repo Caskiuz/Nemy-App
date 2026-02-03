@@ -2114,10 +2114,11 @@ export default function AdminScreen() {
               <Pressable
                 key={u.id}
                 onPress={() => openUserModal(u)}
-                style={[
+                style={({ pressed }) => [
                   styles.listItem,
                   { backgroundColor: theme.card },
                   Shadows.sm,
+                  pressed && { opacity: 0.7 },
                 ]}
               >
                 <View style={styles.listItemHeader}>
@@ -2205,10 +2206,11 @@ export default function AdminScreen() {
                 <Pressable
                   key={order.id}
                   onPress={() => openOrderModal(order)}
-                  style={[
+                  style={({ pressed }) => [
                     styles.listItem,
                     { backgroundColor: theme.card },
                     Shadows.sm,
+                    pressed && { opacity: 0.7 },
                   ]}
                 >
                   <View style={styles.listItemHeader}>
