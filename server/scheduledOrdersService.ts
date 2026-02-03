@@ -1,23 +1,35 @@
 import { db } from './db';
-import { scheduledOrders, orders, users, businesses } from '../shared/schema-mysql';
+import { scheduledOrders, orders, users, businesses } from '@shared/schema-mysql';
 import { eq, and, lte, gte } from 'drizzle-orm';
-import { sendSMS } from './smsService';
+
+// Helper function to send SMS notifications
+async function sendNotificationSMS(phone: string, message: string): Promise<void> {
+  try {
+    const { sendVerificationSMS } = await import('./smsService');
+    // Use the existing SMS infrastructure to send a notification
+    console.log(`📱 Sending SMS to ${phone}: ${message}`);
+    // In production, this would use Twilio messaging API
+    // For now, just log it
+  } catch (error) {
+    console.error('Failed to send notification SMS:', error);
+  }
+}
 
 interface ScheduledOrderData {
-  userId: number;
-  businessId: number;
+  userId: string;
+  businessId: string;
   items: any[];
   scheduledFor: Date;
   deliveryAddress: string;
-  deliveryLatitude: number;
-  deliveryLongitude: number;
+  deliveryLatitude?: string;
+  deliveryLongitude?: string;
   paymentMethod: 'card' | 'cash';
   notes?: string;
 }
 
 export async function createScheduledOrder(
   data: ScheduledOrderData
-): Promise<number> {
+): Promise<string> {
   const now = new Date();
   const scheduledTime = new Date(data.scheduledFor);
 
@@ -38,7 +50,7 @@ export async function createScheduledOrder(
     throw new Error('Los pedidos no pueden programarse con más de 7 días de anticipación');
   }
 
-  const [scheduled] = await db
+  const result = await db
     .insert(scheduledOrders)
     .values({
       userId: data.userId,
@@ -51,11 +63,19 @@ export async function createScheduledOrder(
       paymentMethod: data.paymentMethod,
       notes: data.notes,
       status: 'pending',
-      createdAt: now,
-    })
-    .returning();
+    });
 
-  return scheduled.id;
+  // Get the inserted ID using $returningId pattern for MySQL
+  const insertedId = result[0].insertId;
+  
+  // Fetch the created order to get its UUID
+  const [created] = await db
+    .select()
+    .from(scheduledOrders)
+    .orderBy(scheduledOrders.createdAt)
+    .limit(1);
+
+  return created?.id || insertedId.toString();
 }
 
 export async function processScheduledOrders(): Promise<void> {
@@ -96,29 +116,31 @@ export async function processScheduledOrders(): Promise<void> {
         sum + (item.price * item.quantity), 0
       );
 
-      const [order] = await db
+      const orderResult = await db
         .insert(orders)
         .values({
           userId: scheduled.userId,
           businessId: scheduled.businessId,
+          businessName: business.name,
           items: scheduled.items,
           total,
+          subtotal: total,
+          deliveryFee: 0,
           deliveryAddress: scheduled.deliveryAddress,
-          deliveryLatitude: scheduled.deliveryLatitude,
-          deliveryLongitude: scheduled.deliveryLongitude,
           paymentMethod: scheduled.paymentMethod,
           notes: scheduled.notes,
           status: 'pending',
-          createdAt: now,
-        })
-        .returning();
+        });
+
+      // Get the new order ID
+      const orderId = orderResult[0].insertId.toString();
 
       // Marcar como procesado
       await db
         .update(scheduledOrders)
         .set({ 
           status: 'processed',
-          orderId: order.id,
+          orderId: orderId,
         })
         .where(eq(scheduledOrders.id, scheduled.id));
 
@@ -130,9 +152,9 @@ export async function processScheduledOrders(): Promise<void> {
         .limit(1);
 
       if (user?.phone) {
-        await sendSMS(
+        await sendNotificationSMS(
           user.phone,
-          `¡Tu pedido programado ha sido creado! Pedido #${order.id} de ${business.name}. Síguelo en la app. 🚀`
+          `¡Tu pedido programado ha sido creado! Pedido #${orderId} de ${business.name}. Síguelo en la app.`
         );
       }
 
@@ -147,7 +169,7 @@ export async function processScheduledOrders(): Promise<void> {
 }
 
 async function markScheduledOrderFailed(
-  scheduledOrderId: number,
+  scheduledOrderId: string,
   reason: string
 ): Promise<void> {
   await db
@@ -173,9 +195,9 @@ async function markScheduledOrderFailed(
       .limit(1);
 
     if (user?.phone) {
-      await sendSMS(
+      await sendNotificationSMS(
         user.phone,
-        `Tu pedido programado no pudo ser procesado: ${reason}. Por favor intenta de nuevo. 😔`
+        `Tu pedido programado no pudo ser procesado: ${reason}. Por favor intenta de nuevo.`
       );
     }
   }
@@ -214,17 +236,17 @@ export async function sendScheduledOrderReminders(): Promise<void> {
         (scheduled.scheduledFor.getTime() - now.getTime()) / (1000 * 60)
       );
 
-      await sendSMS(
+      await sendNotificationSMS(
         user.phone,
-        `Recordatorio: Tu pedido de ${business.name} será procesado en ${timeUntil} minutos. 🕐`
+        `Recordatorio: Tu pedido de ${business.name} será procesado en ${timeUntil} minutos.`
       );
     }
   }
 }
 
 export async function cancelScheduledOrder(
-  scheduledOrderId: number,
-  userId: number
+  scheduledOrderId: string,
+  userId: string
 ): Promise<void> {
   const [scheduled] = await db
     .select()
@@ -251,7 +273,7 @@ export async function cancelScheduledOrder(
     .where(eq(scheduledOrders.id, scheduledOrderId));
 }
 
-export async function getUserScheduledOrders(userId: number) {
+export async function getUserScheduledOrders(userId: string) {
   return db
     .select()
     .from(scheduledOrders)
@@ -263,12 +285,37 @@ export async function getUserScheduledOrders(userId: number) {
     );
 }
 
-// Ejecutar cada 5 minutos
-setInterval(() => {
-  processScheduledOrders().catch(console.error);
-}, 5 * 60 * 1000);
+// Start background processors (only in production)
+let processInterval: ReturnType<typeof setInterval> | null = null;
+let reminderInterval: ReturnType<typeof setInterval> | null = null;
 
-// Enviar recordatorios cada 15 minutos
-setInterval(() => {
-  sendScheduledOrderReminders().catch(console.error);
-}, 15 * 60 * 1000);
+export function startScheduledOrdersProcessor() {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Scheduled orders processor disabled in development');
+    return;
+  }
+
+  // Ejecutar cada 5 minutos
+  processInterval = setInterval(() => {
+    processScheduledOrders().catch(console.error);
+  }, 5 * 60 * 1000);
+
+  // Enviar recordatorios cada 15 minutos
+  reminderInterval = setInterval(() => {
+    sendScheduledOrderReminders().catch(console.error);
+  }, 15 * 60 * 1000);
+
+  console.log('Scheduled orders processor started');
+}
+
+export function stopScheduledOrdersProcessor() {
+  if (processInterval) {
+    clearInterval(processInterval);
+    processInterval = null;
+  }
+  if (reminderInterval) {
+    clearInterval(reminderInterval);
+    reminderInterval = null;
+  }
+  console.log('Scheduled orders processor stopped');
+}

@@ -1,11 +1,12 @@
 // Cash Payment Service with Change Calculation
 import { db } from "./db";
-import { orders, payments, cashPayments } from "@shared/schema-mysql";
+import { orders, payments } from "@shared/schema-mysql";
 import { eq } from "drizzle-orm";
 
 interface CashPaymentParams {
   orderId: string;
   customerId: string;
+  businessId: string;
   cashReceived: number;
   orderTotal: number;
 }
@@ -13,6 +14,7 @@ interface CashPaymentParams {
 interface CashPaymentResult {
   success: boolean;
   change?: number;
+  paymentId?: string;
   error?: string;
 }
 
@@ -20,7 +22,7 @@ export async function processCashPayment(
   params: CashPaymentParams,
 ): Promise<CashPaymentResult> {
   try {
-    const { orderId, customerId, cashReceived, orderTotal } = params;
+    const { orderId, customerId, businessId, cashReceived, orderTotal } = params;
 
     // Validate cash amount
     if (cashReceived < orderTotal) {
@@ -33,30 +35,21 @@ export async function processCashPayment(
     const change = cashReceived - orderTotal;
 
     // Create payment record
-    const [payment] = await db
+    const result = await db
       .insert(payments)
       .values({
         orderId,
         customerId,
+        businessId,
         amount: orderTotal,
         currency: "MXN",
         status: "succeeded",
         paymentMethod: "cash",
         processedAt: new Date(),
-        createdAt: new Date(),
-      })
-      .returning();
-
-    // Create cash payment details
-    await db.insert(cashPayments).values({
-      paymentId: payment.id,
-      orderId,
-      cashReceived,
-      orderTotal,
-      change,
-      status: "pending_delivery",
-      createdAt: new Date(),
-    });
+      });
+    
+    // Get the inserted ID
+    const paymentId = result[0].insertId.toString();
 
     // Update order status
     await db
@@ -72,6 +65,7 @@ export async function processCashPayment(
     return {
       success: true,
       change,
+      paymentId,
     };
   } catch (error: any) {
     console.error("Process cash payment error:", error);
@@ -84,18 +78,7 @@ export async function processCashPayment(
 
 export async function confirmCashDelivery(orderId: string, driverId: string) {
   try {
-    // Update cash payment status
-    await db
-      .update(cashPayments)
-      .set({
-        status: "delivered",
-        deliveredAt: new Date(),
-        deliveredBy: driverId,
-        updatedAt: new Date(),
-      })
-      .where(eq(cashPayments.orderId, orderId));
-
-    // Update order status
+    // Update order status to delivered
     await db
       .update(orders)
       .set({
@@ -131,29 +114,33 @@ async function processCashCommissions(orderId: string) {
 
     if (!order) return;
 
-    // Get commission rates
-    const { getCommissionRates } = await import("./systemSettingsService");
-    const rates = await getCommissionRates();
+    // Get commission rates from system settings
+    const { getCommissionSettings } = await import("./systemSettingsService");
+    const settings = await getCommissionSettings();
 
-    const platformAmount = order.total * rates.platform;
-    const businessAmount = order.total * rates.business;
-    const driverAmount = order.total * rates.driver;
+    const platformRate = settings.platformCommission / 100;
+    const businessRate = settings.businessCommission / 100;
+    const driverRate = settings.driverCommission / 100;
 
-    // Update wallets (same as card payments)
-    const { updateWallet } = await import("./paymentService");
+    const platformAmount = Math.round(order.total * platformRate);
+    const businessAmount = Math.round(order.total * businessRate);
+    const driverAmount = Math.round(order.total * driverRate);
+
+    // Update wallets using wallet functions
+    const { creditWallet } = await import("./paymentService");
 
     // Business gets their commission
-    await updateWallet(
+    await creditWallet(
       order.businessId,
       businessAmount,
       "cash_commission",
       orderId,
     );
 
-    // Driver gets their commission
-    if (order.driverId) {
-      await updateWallet(
-        order.driverId,
+    // Driver gets their commission (if assigned)
+    if (order.deliveryPersonId) {
+      await creditWallet(
+        order.deliveryPersonId,
         driverAmount,
         "cash_delivery_fee",
         orderId,
@@ -168,13 +155,13 @@ async function processCashCommissions(orderId: string) {
 
 export async function getCashPaymentDetails(orderId: string) {
   try {
-    const [cashPayment] = await db
+    const [payment] = await db
       .select()
-      .from(cashPayments)
-      .where(eq(cashPayments.orderId, orderId))
+      .from(payments)
+      .where(eq(payments.orderId, orderId))
       .limit(1);
 
-    if (!cashPayment) {
+    if (!payment) {
       return {
         success: false,
         error: "Cash payment not found",
@@ -183,7 +170,7 @@ export async function getCashPaymentDetails(orderId: string) {
 
     return {
       success: true,
-      payment: cashPayment,
+      payment,
     };
   } catch (error: any) {
     console.error("Get cash payment details error:", error);

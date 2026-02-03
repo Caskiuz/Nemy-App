@@ -59,13 +59,8 @@ async function checkAndCallPendingOrders() {
         `Initiating call to ${business.name} for order ${order.orderId}`,
       );
 
-      const result = await callBusinessForOrder({
-        businessPhone: business.phone,
-        businessName: order.businessName,
-        orderId: order.orderId,
-        orderTotal: order.total / 100, // Convert from cents
-        customerName: "Cliente NEMY",
-      });
+      // Call the business using orderId (the function fetches details internally)
+      const result = await callBusinessForOrder(order.orderId);
 
       // Mark call as attempted regardless of success
       await db
@@ -78,7 +73,7 @@ async function checkAndCallPendingOrders() {
 
       if (result.success) {
         console.log(
-          `Call initiated successfully for order ${order.orderId}, execution: ${result.executionSid}`,
+          `Call initiated successfully for order ${order.orderId}, SID: ${result.callSid}`,
         );
       } else {
         console.error(
@@ -91,7 +86,7 @@ async function checkAndCallPendingOrders() {
   }
 }
 
-let monitorInterval: NodeJS.Timeout | null = null;
+let monitorInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startPendingOrdersMonitor() {
   if (process.env.NODE_ENV === "development") {
