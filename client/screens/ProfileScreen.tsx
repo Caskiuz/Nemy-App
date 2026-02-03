@@ -304,10 +304,13 @@ export default function ProfileScreen() {
       case "customer":
         return "Cliente";
       case "business":
-        return "Negocio";
+      case "business_owner":
+        return "Dueño de Negocio";
       case "delivery":
+      case "delivery_driver":
         return "Repartidor";
       case "admin":
+      case "super_admin":
         return "Administrador";
       default:
         return user?.role || "Usuario";
