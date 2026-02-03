@@ -278,7 +278,9 @@ router.post("/auth/phone-login", async (req, res) => {
     if (user.length === 0) {
       // Create new user with role based on phone
       let role = "customer";
-      if (formattedPhone === "+52 341 234 5678") role = "business_owner";
+      // Business owners
+      const businessOwnerPhones = ["+52 341 234 5678", "+52 341 456 7892", "+523414567892"];
+      if (businessOwnerPhones.includes(formattedPhone)) role = "business_owner";
       else if (formattedPhone === "+52 341 345 6789") role = "delivery_driver";
       else if (formattedPhone === "+52 341 456 7890") role = "admin";
       else if (formattedPhone === "+52 341 567 8901") role = "super_admin";
@@ -298,14 +300,23 @@ router.post("/auth/phone-login", async (req, res) => {
         .where(eq(users.phone, formattedPhone))
         .limit(1);
     } else {
-      // Update existing user
+      // Update existing user - also update role if in special list
+      const businessOwnerPhones = ["+52 341 234 5678", "+52 341 456 7892", "+523414567892"];
+      const newRole = businessOwnerPhones.includes(formattedPhone) ? "business_owner" : undefined;
+      
       await db
         .update(users)
         .set({
           phoneVerified: true,
           ...(name && { name }),
+          ...(newRole && user[0].role !== newRole && { role: newRole }),
         })
         .where(eq(users.id, user[0].id));
+      
+      // Refresh user data if role was updated
+      if (newRole && user[0].role !== newRole) {
+        user = await db.select().from(users).where(eq(users.id, user[0].id)).limit(1);
+      }
     }
 
     // Generate JWT token
