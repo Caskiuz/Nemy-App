@@ -2112,10 +2112,12 @@ export default function AdminScreen() {
         {activeTab === "users" ? (
           <View style={styles.listContainer}>
             {users.map((u) => (
-              <TouchableOpacity
+              <Pressable
                 key={u.id}
-                onPress={() => openUserModal(u)}
-                activeOpacity={0.7}
+                onPress={() => {
+                  console.log("User pressed:", u.name);
+                  openUserModal(u);
+                }}
                 style={[
                   styles.listItem,
                   { backgroundColor: theme.card },
@@ -2183,7 +2185,7 @@ export default function AdminScreen() {
                   </View>
                   <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         ) : null}
@@ -2204,10 +2206,12 @@ export default function AdminScreen() {
               </View>
             ) : (
               orders.map((order) => (
-                <TouchableOpacity
+                <Pressable
                   key={order.id}
-                  onPress={() => openOrderModal(order)}
-                  activeOpacity={0.7}
+                  onPress={() => {
+                    console.log("Order pressed:", order.id);
+                    openOrderModal(order);
+                  }}
                   style={[
                     styles.listItem,
                     { backgroundColor: theme.card },
@@ -2277,7 +2281,7 @@ export default function AdminScreen() {
                       <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </View>
                   </View>
-                </TouchableOpacity>
+                </Pressable>
               ))
             )}
           </View>
