@@ -166,6 +166,7 @@ export default function BusinessOrdersScreen() {
       preparing: "Preparando",
       ready: "Listo",
       picked_up: "Recogido",
+      on_the_way: "En camino",
       delivered: "Entregado",
       cancelled: "Cancelado",
     };
