@@ -1622,13 +1622,13 @@ router.get(
       // Enrich orders with customer info and business name
       const enrichedOrders = await Promise.all(
         businessOrders.map(async (order) => {
-          // Get customer info
+          // Get customer info (use userId field)
           let customer = null;
-          if (order.customerId) {
+          if (order.userId) {
             const customerResult = await db
               .select({ id: users.id, name: users.name, phone: users.phone })
               .from(users)
-              .where(eq(users.id, order.customerId))
+              .where(eq(users.id, order.userId))
               .limit(1);
             customer = customerResult[0] || null;
           }
@@ -2939,11 +2939,11 @@ router.get(
     try {
       const { orders, businesses, users } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
+      const { eq, desc } = await import("drizzle-orm");
 
-      const allOrders = await db.select().from(orders).orderBy(orders.createdAt);
+      const allOrders = await db.select().from(orders).orderBy(desc(orders.createdAt));
       
-      // Enrich orders with business names
+      // Enrich orders with business and customer names
       const enrichedOrders = [];
       for (const order of allOrders) {
         const business = await db
@@ -2952,21 +2952,24 @@ router.get(
           .where(eq(businesses.id, order.businessId))
           .limit(1);
           
+        // Use userId field (not customerId)
         const customer = await db
-          .select({ name: users.name })
+          .select({ name: users.name, phone: users.phone })
           .from(users)
-          .where(eq(users.id, order.customerId))
+          .where(eq(users.id, order.userId))
           .limit(1);
 
         enrichedOrders.push({
           ...order,
-          businessName: business[0]?.name || "Negocio desconocido",
+          businessName: business[0]?.name || order.businessName || "Negocio",
           customerName: customer[0]?.name || "Cliente",
+          customerPhone: customer[0]?.phone || "",
         });
       }
       
       res.json({ success: true, orders: enrichedOrders });
     } catch (error: any) {
+      console.error("Error loading admin orders:", error);
       res.status(500).json({ error: error.message });
     }
   },
