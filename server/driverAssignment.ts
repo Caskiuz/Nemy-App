@@ -1,6 +1,6 @@
 // Intelligent Driver Assignment System for NEMY - Production Ready
 import { db } from "./db";
-import { orders, businesses, users } from "@shared/schema-mysql";
+import { orders, businesses, users, deliveryDrivers } from "@shared/schema-mysql";
 import { eq, and, isNull } from "drizzle-orm";
 
 interface DriverLocation {
@@ -19,6 +19,11 @@ interface AssignmentResult {
   distance?: number;
   estimatedTime?: number;
   error?: string;
+  performance?: {
+    totalDeliveries: number;
+    onTimeRate: number;
+    isReliable: boolean;
+  };
 }
 
 // Calculate distance between two points using Haversine formula
@@ -48,24 +53,32 @@ async function getAvailableDriversNear(
   radiusKm: number = 10,
 ): Promise<DriverLocation[]> {
   try {
-    // Get all active delivery drivers
-    const drivers = await db
+    // Get all active delivery drivers from deliveryDrivers table
+    const driversData = await db
       .select({
-        id: users.id,
-        name: users.name,
-        isOnline: users.isOnline,
-        lastActiveAt: users.lastActiveAt,
-        latitude: users.currentLatitude,
-        longitude: users.currentLongitude,
+        id: deliveryDrivers.userId,
+        isAvailable: deliveryDrivers.isAvailable,
+        latitude: deliveryDrivers.currentLatitude,
+        longitude: deliveryDrivers.currentLongitude,
+        lastLocationUpdate: deliveryDrivers.lastLocationUpdate,
       })
-      .from(users)
+      .from(deliveryDrivers)
       .where(
         and(
-          eq(users.role, "driver"),
-          eq(users.isActive, true),
-          eq(users.isOnline, true),
+          eq(deliveryDrivers.isAvailable, true),
+          eq(deliveryDrivers.isBlocked, false),
         ),
       );
+
+    // Remap to match expected format
+    const drivers = driversData.map(d => ({
+      id: d.id,
+      name: "",
+      isOnline: d.isAvailable,
+      lastActiveAt: d.lastLocationUpdate,
+      latitude: d.latitude,
+      longitude: d.longitude,
+    }));
 
     // Filter by distance and availability
     const availableDrivers: DriverLocation[] = [];

@@ -1,6 +1,6 @@
-import { db, rawDb } from "./db";
+import { db } from "./db";
 import { orders, deliveryDrivers } from "@shared/schema-mysql";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, inArray, lt } from "drizzle-orm";
 import { logger } from "./logger";
 
 interface DriverScore {
@@ -13,35 +13,60 @@ interface DriverScore {
 
 export async function assignBestDriver(orderId: string, businessLat: number, businessLng: number) {
   try {
-    const [availableDrivers] = await rawDb.execute(
-      "SELECT id, latitude, longitude, rating, completedOrders FROM delivery_drivers WHERE isAvailable = 1 AND strikes < 3"
-    );
+    const availableDrivers = await db
+      .select({
+        id: deliveryDrivers.userId,
+        latitude: deliveryDrivers.currentLatitude,
+        longitude: deliveryDrivers.currentLongitude,
+        rating: deliveryDrivers.rating,
+        completedOrders: deliveryDrivers.totalDeliveries,
+      })
+      .from(deliveryDrivers)
+      .where(
+        and(
+          eq(deliveryDrivers.isAvailable, true),
+          lt(deliveryDrivers.strikes, 3),
+          eq(deliveryDrivers.isBlocked, false)
+        )
+      );
 
     if (!availableDrivers || availableDrivers.length === 0) {
       return { success: false, error: "No drivers available" };
     }
 
-    const scored: DriverScore[] = availableDrivers.map((driver: any) => {
-      const distance = calculateDistance(businessLat, businessLng, parseFloat(driver.latitude), parseFloat(driver.longitude));
-      const distanceScore = Math.max(0, 100 - distance * 10);
-      const ratingScore = (driver.rating || 4.0) * 20;
-      const experienceScore = Math.min(driver.completedOrders || 0, 50);
-      
-      return {
-        driverId: driver.id,
-        distance,
-        rating: driver.rating,
-        completedOrders: driver.completedOrders,
-        score: distanceScore * 0.5 + ratingScore * 0.3 + experienceScore * 0.2
-      };
-    });
+    const scored: DriverScore[] = availableDrivers
+      .filter(driver => driver.latitude && driver.longitude)
+      .map((driver) => {
+        const distance = calculateDistance(
+          businessLat, 
+          businessLng, 
+          parseFloat(driver.latitude!), 
+          parseFloat(driver.longitude!)
+        );
+        const distanceScore = Math.max(0, 100 - distance * 10);
+        const ratingScore = ((driver.rating || 40) / 10) * 20;
+        const experienceScore = Math.min(driver.completedOrders || 0, 50);
+        
+        return {
+          driverId: driver.id,
+          distance,
+          rating: (driver.rating || 0) / 10,
+          completedOrders: driver.completedOrders || 0,
+          score: distanceScore * 0.5 + ratingScore * 0.3 + experienceScore * 0.2
+        };
+      });
+
+    if (scored.length === 0) {
+      return { success: false, error: "No drivers with location available" };
+    }
 
     scored.sort((a, b) => b.score - a.score);
     const bestDriver = scored[0];
 
     await db.update(orders).set({ 
       deliveryPersonId: bestDriver.driverId,
-      status: "assigned"
+      status: "assigned",
+      assignedAt: new Date(),
     }).where(eq(orders.id, orderId));
 
     logger.info("Driver assigned", { orderId, driverId: bestDriver.driverId, score: bestDriver.score });
@@ -61,10 +86,15 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export async function handleMultipleOrders(driverId: string) {
-  const [activeOrders] = await rawDb.execute(
-    "SELECT id FROM orders WHERE deliveryPersonId = ? AND status IN ('assigned','picked_up') ORDER BY createdAt",
-    [driverId]
-  );
+  const activeOrders = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.deliveryPersonId, driverId),
+        inArray(orders.status, ["assigned", "picked_up"])
+      )
+    );
   
   return { success: true, activeOrders: activeOrders.length, orders: activeOrders };
 }

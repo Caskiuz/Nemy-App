@@ -104,6 +104,8 @@ export const orders = mysqlTable("orders", {
   refundedAt: timestamp("refunded_at"), // Cuando se reembolsó
   driverPaidAt: timestamp("driver_paid_at"), // Cuando se pagó al repartidor
   driverPaymentStatus: text("driver_payment_status").default("pending"), // pending, completed, failed
+  // Asignación de repartidor
+  assignedAt: timestamp("assigned_at"), // Cuando se asignó el repartidor
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
 
