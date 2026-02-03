@@ -25,6 +25,7 @@ import BusinessManageScreen from "@/screens/BusinessManageScreen";
 import BusinessStatsScreen from "@/screens/BusinessStatsScreen";
 import BusinessHoursScreen from "@/screens/BusinessHoursScreen";
 import BusinessCategoriesScreen from "@/screens/BusinessCategoriesScreen";
+import MyBusinessesScreen from "@/screens/MyBusinessesScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import AddressesScreen from "@/screens/AddressesScreen";
 import SavedAddressesScreen from "@/screens/SavedAddressesScreen";
@@ -83,6 +84,7 @@ export type RootStackParamList = {
   BecomeDriver: undefined;
   BusinessHours: undefined;
   BusinessCategories: undefined;
+  MyBusinesses: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -253,6 +255,11 @@ export default function RootStackNavigator() {
             name="BusinessCategories"
             component={BusinessCategoriesScreen}
             options={{ headerTitle: "Categorías" }}
+          />
+          <Stack.Screen
+            name="MyBusinesses"
+            component={MyBusinessesScreen}
+            options={{ headerShown: false }}
           />
         </>
       ) : (

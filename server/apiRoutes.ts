@@ -2166,6 +2166,47 @@ router.post(
   },
 );
 
+// Upload business image
+router.post(
+  "/upload/business-image",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { image } = req.body;
+      
+      if (!image) {
+        return res.status(400).json({ error: "No se proporcionó imagen" });
+      }
+
+      const matches = image.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({ error: "Formato de imagen inválido" });
+      }
+
+      const extension = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, "base64");
+
+      const filename = `business_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${extension}`;
+      const uploadDir = path.join(__dirname, "uploads", "businesses");
+      const filepath = path.join(uploadDir, filename);
+
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      fs.writeFileSync(filepath, buffer);
+
+      const imageUrl = `/uploads/businesses/${filename}`;
+      res.json({ success: true, imageUrl });
+    } catch (error: any) {
+      console.error("Error uploading business image:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // Create product
 router.post(
   "/business/products",

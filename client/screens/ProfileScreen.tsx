@@ -399,6 +399,16 @@ export default function ProfileScreen() {
               navigation.navigate("EditProfile");
             }}
           />
+          {user?.role === "business_owner" && (
+            <SettingsItem
+              icon="briefcase"
+              label="Mis Negocios"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate("MyBusinesses");
+              }}
+            />
+          )}
           <SettingsItem
             icon="map-pin"
             label="Direcciones guardadas"
