@@ -32,6 +32,7 @@ export const users = mysqlTable("users", {
   isActive: boolean("is_active").notNull().default(true), // Para desactivar cuentas
   isOnline: boolean("is_online").notNull().default(false), // Para repartidores online/offline
   lastActiveAt: timestamp("last_active_at"), // Última actividad
+  profileImage: text("profile_image"), // URL de imagen de perfil
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
