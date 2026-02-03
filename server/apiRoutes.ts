@@ -543,6 +543,7 @@ router.post("/auth/verify-code", async (req, res) => {
         phone: user[0].phone,
         role: user[0].role,
         phoneVerified: user[0].phoneVerified,
+        profileImage: user[0].profileImage,
       },
     });
   } catch (error: any) {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   Linking,
   Modal,
   Switch,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,14 +20,17 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp, ThemeMode } from "@/contexts/AppContext";
+import { useToast } from "@/contexts/ToastContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 type ProfileScreenNavigationProp =
   NativeStackNavigationProp<RootStackParamList>;
@@ -101,8 +105,10 @@ export default function ProfileScreen() {
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { theme, themeMode, setThemeMode } = useTheme();
   const { settings, updateSettings } = useApp();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
+  const { showToast } = useToast();
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
@@ -111,6 +117,15 @@ export default function ProfileScreen() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
+
+  useEffect(() => {
+    if (user?.profileImage) {
+      const imageUrl = user.profileImage.startsWith("http")
+        ? user.profileImage
+        : `${getApiUrl()}${user.profileImage}`;
+      setProfileImage(imageUrl);
+    }
+  }, [user?.profileImage]);
 
   const getThemeLabel = (mode: ThemeMode) => {
     switch (mode) {
@@ -130,7 +145,7 @@ export default function ProfileScreen() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      console.log("Permisos de galería denegados");
+      showToast("Permisos de galería denegados", "error");
       return;
     }
 
@@ -138,12 +153,46 @@ export default function ProfileScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.7,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setProfileImage(result.assets[0].uri);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await uploadImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    setIsUploadingImage(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const extension = uri.split(".").pop()?.toLowerCase() || "jpg";
+      const mimeType = extension === "png" ? "image/png" : "image/jpeg";
+      const imageData = `data:${mimeType};base64,${base64}`;
+
+      const response = await apiRequest("POST", "/api/user/profile-image", {
+        image: imageData,
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.profileImage) {
+        const fullUrl = `${getApiUrl()}${data.profileImage}`;
+        setProfileImage(fullUrl);
+        await updateUser({ profileImage: data.profileImage });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showToast("Imagen actualizada", "success");
+      } else {
+        throw new Error(data.error || "Error al subir imagen");
+      }
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showToast("No se pudo subir la imagen", "error");
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -252,24 +301,34 @@ export default function ProfileScreen() {
             Shadows.md,
           ]}
         >
-          <Pressable style={styles.avatarContainer} onPress={pickImage}>
+          <Pressable 
+            style={styles.avatarContainer} 
+            onPress={pickImage}
+            disabled={isUploadingImage}
+          >
             <Image
               source={
                 profileImage
                   ? { uri: profileImage }
                   : require("../../assets/images/avatar-placeholder.png")
               }
-              style={styles.avatar}
+              style={[styles.avatar, isUploadingImage && { opacity: 0.5 }]}
               contentFit="cover"
             />
-            <View
-              style={[
-                styles.editBadge,
-                { backgroundColor: NemyColors.primary },
-              ]}
-            >
-              <Feather name="camera" size={14} color="#FFFFFF" />
-            </View>
+            {isUploadingImage ? (
+              <View style={[styles.editBadge, { backgroundColor: NemyColors.primary }]}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.editBadge,
+                  { backgroundColor: NemyColors.primary },
+                ]}
+              >
+                <Feather name="camera" size={14} color="#FFFFFF" />
+              </View>
+            )}
           </Pressable>
           <ThemedText type="h2" style={styles.userName}>
             {user?.name || "Usuario"}

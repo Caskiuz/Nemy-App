@@ -59,10 +59,25 @@ const connection = mysql.createPool(createConnectionConfig());
 
 export const db = drizzle(connection);
 
-// Test connection on startup
+// Test connection on startup and run migrations
 connection.getConnection()
-  .then((conn) => {
+  .then(async (conn) => {
     console.log('✅ Database connected successfully');
+    
+    // Run migrations - add profile_image column if not exists
+    try {
+      await conn.query(`
+        ALTER TABLE users ADD COLUMN profile_image TEXT DEFAULT NULL
+      `);
+      console.log('✅ Added profile_image column to users table');
+    } catch (err: any) {
+      if (err.code === 'ER_DUP_FIELDNAME') {
+        console.log('ℹ️ profile_image column already exists');
+      } else {
+        console.log('ℹ️ Migration note:', err.message);
+      }
+    }
+    
     conn.release();
   })
   .catch((err) => {
