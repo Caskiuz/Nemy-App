@@ -7,8 +7,9 @@ channel = "stable-23_11"
 packages = ["mysql80"]
 
 [deployment]
-run = ["sh", "-c", "npx tsx server/server.ts"]
-deploymentTarget = "cloudrun"
+run = ["npx", "tsx", "server/server.ts"]
+deploymentTarget = "autoscale"
+build = ["npm", "run", "expo:static:build"]
 
 [env]
 NODE_ENV = "production"
