@@ -2673,6 +2673,78 @@ router.get(
   },
 );
 
+// Get driver status (online/offline)
+router.get(
+  "/delivery/status",
+  authenticateToken,
+  requireRole("delivery_driver"),
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const driver = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user!.id))
+        .limit(1);
+
+      if (!driver[0]) {
+        return res.status(404).json({ error: "Driver not found" });
+      }
+
+      res.json({
+        success: true,
+        isOnline: driver[0].isActive === 1 || driver[0].isActive === true,
+        strikes: driver[0].strikes || 0,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Toggle driver online/offline status
+router.post(
+  "/delivery/toggle-status",
+  authenticateToken,
+  requireRole("delivery_driver"),
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const driver = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user!.id))
+        .limit(1);
+
+      if (!driver[0]) {
+        return res.status(404).json({ error: "Driver not found" });
+      }
+
+      const currentStatus = driver[0].isActive === 1 || driver[0].isActive === true;
+      const newStatus = !currentStatus;
+
+      await db
+        .update(users)
+        .set({ isActive: newStatus ? 1 : 0 })
+        .where(eq(users.id, req.user!.id));
+
+      res.json({
+        success: true,
+        isOnline: newStatus,
+        message: newStatus ? "Ahora estás en línea" : "Ahora estás desconectado",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // Accept order
 router.post(
   "/delivery/accept-order/:id",

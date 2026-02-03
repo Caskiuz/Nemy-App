@@ -6,6 +6,7 @@ import {
   Pressable,
   RefreshControl,
   Alert,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -23,6 +24,20 @@ export default function DriverAvailableOrdersScreen() {
   const { theme } = useTheme();
   const [orders, setOrders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+
+  const loadStatus = async () => {
+    try {
+      const response = await apiRequest("GET", "/api/delivery/status");
+      const data = await response.json();
+      if (data.success) {
+        setIsOnline(data.isOnline);
+      }
+    } catch (error) {
+      console.error("Error loading status:", error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -36,7 +51,29 @@ export default function DriverAvailableOrdersScreen() {
     }
   };
 
+  const handleToggleStatus = async () => {
+    setIsTogglingStatus(true);
+    try {
+      const response = await apiRequest("POST", "/api/delivery/toggle-status", {});
+      const data = await response.json();
+      if (data.success) {
+        setIsOnline(data.isOnline);
+        Haptics.notificationAsync(
+          data.isOnline
+            ? Haptics.NotificationFeedbackType.Success
+            : Haptics.NotificationFeedbackType.Warning
+        );
+      }
+    } catch (error) {
+      console.error("Error toggling status:", error);
+      Alert.alert("Error", "No se pudo cambiar el estado");
+    } finally {
+      setIsTogglingStatus(false);
+    }
+  };
+
   useEffect(() => {
+    loadStatus();
     loadOrders();
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
@@ -148,7 +185,38 @@ export default function DriverAvailableOrdersScreen() {
       end={{ x: 1, y: 1 }}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText type="h2">Pedidos Disponibles</ThemedText>
+        <View style={styles.headerTop}>
+          <ThemedText type="h2">Pedidos Disponibles</ThemedText>
+          <View style={styles.statusToggle}>
+            <View
+              style={[
+                styles.statusIndicator,
+                { backgroundColor: isOnline ? NemyColors.success : theme.textSecondary },
+              ]}
+            />
+            <ThemedText
+              type="small"
+              style={{ marginHorizontal: Spacing.xs, color: isOnline ? NemyColors.success : theme.textSecondary }}
+            >
+              {isOnline ? "En línea" : "Desconectado"}
+            </ThemedText>
+            <Switch
+              value={isOnline}
+              onValueChange={handleToggleStatus}
+              disabled={isTogglingStatus}
+              trackColor={{ false: theme.border, true: NemyColors.success + "60" }}
+              thumbColor={isOnline ? NemyColors.success : theme.textSecondary}
+            />
+          </View>
+        </View>
+        {!isOnline && (
+          <View style={[styles.offlineWarning, { backgroundColor: NemyColors.warning + "20" }]}>
+            <Feather name="alert-circle" size={16} color={NemyColors.warning} />
+            <ThemedText type="small" style={{ color: NemyColors.warning, marginLeft: Spacing.xs, flex: 1 }}>
+              Activa tu estado para recibir pedidos
+            </ThemedText>
+          </View>
+        )}
       </View>
 
       <FlatList
@@ -192,6 +260,27 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  statusToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statusIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  offlineWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
   },
   listContent: {
     padding: Spacing.lg,
