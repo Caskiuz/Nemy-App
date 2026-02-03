@@ -577,6 +577,7 @@ router.get(
           biometricEnabled: users.biometricEnabled,
           isActive: users.isActive,
           createdAt: users.createdAt,
+          profileImage: users.profileImage,
         })
         .from(users)
         .where(eq(users.id, req.user!.id))

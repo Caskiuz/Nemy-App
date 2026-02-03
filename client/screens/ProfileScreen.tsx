@@ -119,6 +119,30 @@ export default function ProfileScreen() {
   const [showAddressesModal, setShowAddressesModal] = useState(false);
 
   useEffect(() => {
+    const loadProfileFromServer = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/user/profile");
+        const data = await response.json();
+        if (data.success && data.user) {
+          if (data.user.profileImage) {
+            const imageUrl = data.user.profileImage.startsWith("http")
+              ? data.user.profileImage
+              : `${getApiUrl()}${data.user.profileImage}`;
+            setProfileImage(imageUrl);
+            await updateUser({ profileImage: data.user.profileImage });
+          }
+        }
+      } catch (error) {
+        console.log("Error loading profile from server:", error);
+      }
+    };
+    
+    if (user) {
+      loadProfileFromServer();
+    }
+  }, []);
+
+  useEffect(() => {
     if (user?.profileImage) {
       const imageUrl = user.profileImage.startsWith("http")
         ? user.profileImage
