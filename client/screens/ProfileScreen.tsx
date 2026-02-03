@@ -9,6 +9,7 @@ import {
   Modal,
   Switch,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -188,19 +189,33 @@ export default function ProfileScreen() {
   const uploadImage = async (uri: string) => {
     setIsUploadingImage(true);
     try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      let imageData: string;
+      
+      if (Platform.OS === "web") {
+        // On web, fetch the blob and convert to base64
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        imageData = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        // On native, use FileSystem
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const extension = uri.split(".").pop()?.toLowerCase() || "jpg";
+        const mimeType = extension === "png" ? "image/png" : "image/jpeg";
+        imageData = `data:${mimeType};base64,${base64}`;
+      }
 
-      const extension = uri.split(".").pop()?.toLowerCase() || "jpg";
-      const mimeType = extension === "png" ? "image/png" : "image/jpeg";
-      const imageData = `data:${mimeType};base64,${base64}`;
-
-      const response = await apiRequest("POST", "/api/user/profile-image", {
+      const apiResponse = await apiRequest("POST", "/api/user/profile-image", {
         image: imageData,
       });
 
-      const data = await response.json();
+      const data = await apiResponse.json();
 
       if (data.success && data.profileImage) {
         const fullUrl = `${getApiUrl()}${data.profileImage}`;
