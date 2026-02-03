@@ -18,7 +18,7 @@ export async function cancelOrderWithPenalty(orderId: string, userId: string, re
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
     if (!order) return { success: false, error: "Order not found" };
     
-    if (order.customerId !== userId) return { success: false, error: "Unauthorized" };
+    if (order.userId !== userId) return { success: false, error: "Unauthorized" };
 
     const rule = PENALTY_RULES[order.status as keyof typeof PENALTY_RULES] || { refund: 0, penalty: 100 };
     const refundAmount = Math.round(order.total * (rule.refund / 100));
@@ -30,7 +30,7 @@ export async function cancelOrderWithPenalty(orderId: string, userId: string, re
 
     await db.update(orders).set({
       status: "cancelled",
-      cancelReason: reason,
+      cancellationReason: reason,
       cancelledAt: new Date(),
       refundAmount,
       penaltyAmount

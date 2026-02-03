@@ -78,7 +78,9 @@ export const orders = mysqlTable("orders", {
   cancelledBy: varchar("cancelled_by", { length: 255 }),
   cancellationReason: text("cancellation_reason"),
   refundAmount: int("refund_amount"),
+  penaltyAmount: int("penalty_amount"), // penalización por cancelación
   refundStatus: text("refund_status"), // pending, processed, failed
+  businessResponseAt: timestamp("business_response_at"), // cuando el negocio respondió
   platformFee: int("platform_fee"), // comisión NEMY
   businessEarnings: int("business_earnings"), // ganancia negocio
   deliveryEarnings: int("delivery_earnings_amount"), // ganancia repartidor
@@ -465,8 +467,29 @@ export const reviews = mysqlTable("reviews", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Call logs for automatic business calls
+export const callLogs = mysqlTable("call_logs", {
+  id: varchar("id", { length: 255 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orderId: varchar("order_id", { length: 255 }).notNull(),
+  businessId: varchar("business_id", { length: 255 }).notNull(),
+  callSid: varchar("call_sid", { length: 255 }),
+  phoneNumber: varchar("phone_number", { length: 50 }),
+  purpose: varchar("purpose", { length: 50 }).default("order_notification"), // order_notification, reminder
+  status: varchar("status", { length: 50 }).default("initiated"), // initiated, ringing, answered, completed, failed, no-answer
+  duration: int("duration"), // in seconds
+  outcome: varchar("outcome", { length: 50 }), // accepted, rejected, no-answer
+  response: varchar("response", { length: 10 }), // digits pressed by business
+  responseAction: varchar("response_action", { length: 50 }), // accept, reject
+  retryCount: int("retry_count").default(0),
+  error: text("error"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+  updatedAt: timestamp("updated_at"),
+});
+
 export type RefreshToken = typeof refreshTokens.$inferSelect;
 export type ScheduledOrder = typeof scheduledOrders.$inferSelect;
 export type SupportChat = typeof supportChats.$inferSelect;
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
+export type CallLog = typeof callLogs.$inferSelect;
