@@ -118,6 +118,25 @@ export default function ProfileScreen() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
+  const [driverStrikes, setDriverStrikes] = useState(0);
+  const maxStrikes = 3;
+
+  useEffect(() => {
+    const loadDriverStatus = async () => {
+      if (user?.role === "delivery_driver") {
+        try {
+          const response = await apiRequest("GET", "/api/delivery/status");
+          const data = await response.json();
+          if (data.success) {
+            setDriverStrikes(data.strikes || 0);
+          }
+        } catch (error) {
+          console.log("Error loading driver status:", error);
+        }
+      }
+    };
+    loadDriverStatus();
+  }, [user?.role]);
 
   useEffect(() => {
     const loadProfileFromServer = async () => {
@@ -438,6 +457,65 @@ export default function ProfileScreen() {
             />
           )}
         </View>
+
+        {user?.role === "delivery_driver" && (
+          <View
+            style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
+          >
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Estado del Repartidor
+            </ThemedText>
+            <View style={styles.strikesContainer}>
+              <View style={styles.strikesHeader}>
+                <View style={styles.strikesIconContainer}>
+                  <Feather 
+                    name="alert-triangle" 
+                    size={24} 
+                    color={driverStrikes > 0 ? NemyColors.warning : NemyColors.success} 
+                  />
+                </View>
+                <View style={styles.strikesInfo}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                    Strikes Acumulados
+                  </ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    {driverStrikes === 0 
+                      ? "Sin strikes - Excelente trabajo" 
+                      : driverStrikes >= maxStrikes 
+                        ? "Cuenta en riesgo de suspensión"
+                        : `${maxStrikes - driverStrikes} strikes restantes antes de suspensión`}
+                  </ThemedText>
+                </View>
+              </View>
+              <View style={styles.strikesVisual}>
+                {Array.from({ length: maxStrikes }).map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.strikeIndicator,
+                      {
+                        backgroundColor: index < driverStrikes ? NemyColors.error : theme.backgroundSecondary,
+                        borderColor: index < driverStrikes ? NemyColors.error : theme.border,
+                      },
+                    ]}
+                  >
+                    {index < driverStrikes ? (
+                      <Feather name="x" size={16} color="#FFF" />
+                    ) : (
+                      <Feather name="check" size={16} color={NemyColors.success} />
+                    )}
+                  </View>
+                ))}
+              </View>
+              <View style={[styles.strikeInfoCard, { backgroundColor: theme.backgroundSecondary }]}>
+                <Feather name="info" size={16} color={theme.textSecondary} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.sm, flex: 1 }}>
+                  Los strikes se acumulan por cancelaciones injustificadas, quejas de clientes o incumplimiento de normas. Con 3 strikes tu cuenta puede ser suspendida.
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        )}
 
         <View
           style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
@@ -1358,5 +1436,46 @@ const styles = StyleSheet.create({
   legalText: {
     lineHeight: 22,
     marginBottom: Spacing.sm,
+  },
+  strikesContainer: {
+    padding: Spacing.lg,
+    paddingTop: 0,
+  },
+  strikesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  strikesIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 152, 0, 0.1)",
+    marginRight: Spacing.md,
+  },
+  strikesInfo: {
+    flex: 1,
+  },
+  strikesVisual: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  strikeIndicator: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+  },
+  strikeInfoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
   },
 });
