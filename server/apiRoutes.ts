@@ -3873,10 +3873,30 @@ router.get(
           .limit(1);
 
         enrichedOrders.push({
-          ...order,
+          id: order.id,
+          userId: order.userId,
+          businessId: order.businessId,
           businessName: business[0]?.name || order.businessName || "Negocio",
+          businessImage: order.businessImage,
           customerName: customer[0]?.name || "Cliente",
           customerPhone: customer[0]?.phone || "",
+          status: order.status,
+          subtotal: order.subtotal,
+          deliveryFee: order.deliveryFee,
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+          deliveryAddress: order.deliveryAddress,
+          deliveryLatitude: order.deliveryLatitude,
+          deliveryLongitude: order.deliveryLongitude,
+          items: order.items,
+          notes: order.notes,
+          createdAt: order.createdAt,
+          estimatedDelivery: order.estimatedDelivery,
+          deliveredAt: order.deliveredAt,
+          deliveryPersonId: order.deliveryPersonId,
+          platformFee: order.platformFee,
+          businessEarnings: order.businessEarnings,
+          deliveryEarnings: order.deliveryEarnings,
         });
       }
       
