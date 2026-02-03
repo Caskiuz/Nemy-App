@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
@@ -39,6 +40,8 @@ export default function DriverMyDeliveriesScreen() {
   const { theme } = useTheme();
   const [orders, setOrders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -57,6 +60,62 @@ export default function DriverMyDeliveriesScreen() {
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const startLocationTracking = async () => {
+    if (Platform.OS === "web") {
+      console.log("Location tracking not available on web");
+      return;
+    }
+
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Location permission denied");
+      return;
+    }
+
+    locationSubscription.current = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 10000,
+        distanceInterval: 50,
+      },
+      async (location) => {
+        try {
+          await apiRequest("POST", "/api/delivery/update-location", {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+        } catch (error) {
+          console.error("Error updating location:", error);
+        }
+      }
+    );
+    setIsTracking(true);
+  };
+
+  const stopLocationTracking = () => {
+    if (locationSubscription.current) {
+      locationSubscription.current.remove();
+      locationSubscription.current = null;
+    }
+    setIsTracking(false);
+  };
+
+  useEffect(() => {
+    const hasActiveOrders = orders.some((o: any) =>
+      ["ready", "picked_up", "on_the_way", "in_transit"].includes(o.status)
+    );
+
+    if (hasActiveOrders && !isTracking) {
+      startLocationTracking();
+    } else if (!hasActiveOrders && isTracking) {
+      stopLocationTracking();
+    }
+
+    return () => {
+      stopLocationTracking();
+    };
+  }, [orders]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -389,7 +448,17 @@ export default function DriverMyDeliveriesScreen() {
       end={{ x: 1, y: 1 }}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText type="h2">Mis Entregas</ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText type="h2">Mis Entregas</ThemedText>
+          {isTracking ? (
+            <View style={styles.trackingIndicator}>
+              <View style={styles.trackingDot} />
+              <ThemedText type="small" style={{ color: NemyColors.success, marginLeft: Spacing.xs }}>
+                GPS Activo
+              </ThemedText>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <ScrollView
@@ -445,6 +514,25 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  trackingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(76, 175, 80, 0.15)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
+  },
+  trackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: NemyColors.success,
   },
   listContent: {
     padding: Spacing.lg,

@@ -172,15 +172,59 @@ router.post(
   },
 );
 
-// Get delivery location (public)
+// Update driver location (called by driver app during delivery)
+router.post(
+  "/delivery/update-location",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const { latitude, longitude } = req.body;
+      const userId = (req as any).userId;
+
+      await db.update(users)
+        .set({
+          currentLatitude: String(latitude),
+          currentLongitude: String(longitude),
+        })
+        .where(eq(users.id, userId));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get delivery location (public) - returns driver's real-time location for an order
 router.get(
   "/delivery/location/:orderId",
   async (req, res) => {
     try {
+      const { orders, users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const [order] = await db.select().from(orders).where(eq(orders.id, req.params.orderId)).limit(1);
+      
+      if (!order || !order.driverId) {
+        return res.json({
+          latitude: null,
+          longitude: null,
+          heading: 0,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const [driver] = await db.select().from(users).where(eq(users.id, order.driverId)).limit(1);
+
       res.json({
-        latitude: 20.6736,
-        longitude: -104.3647,
-        heading: 45,
+        latitude: driver?.currentLatitude ? parseFloat(driver.currentLatitude) : null,
+        longitude: driver?.currentLongitude ? parseFloat(driver.currentLongitude) : null,
+        heading: 0,
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
