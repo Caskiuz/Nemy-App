@@ -22,7 +22,8 @@ The NEMY application is built with a client-server architecture.
 *   Includes core functionalities like cart management, secure checkout with card/cash options, and real-time order tracking.
 *   Incorporates advanced features such as a real-time collapsible map for tracking, scheduled and recurring orders, an in-app chat system, favorites, quick reorder options, and delivery tipping.
 *   Delivery drivers have an online/offline toggle, GPS navigation integration, and an earnings dashboard.
-*   Business owners can manage product availability and business operating status, and view sales statistics.
+*   Business owners can manage multiple businesses with a dedicated "Mis Negocios" screen, switch between businesses via a selector in Dashboard/Products, and view per-business statistics.
+*   Business owners can create new businesses with name, description, type, address, phone, and image; delete businesses (only if no active orders); and view consolidated stats across all their businesses.
 *   The UI/UX design emphasizes a Mexican festive aesthetic with a warm, energetic color scheme (`#FF8C00` primary) and the Nunito font family, evoking local market vibes. Micro-animations, haptic feedback, and custom toast/modal components enhance user interaction.
 
 **Backend:**
