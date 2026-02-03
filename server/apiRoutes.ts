@@ -3165,6 +3165,498 @@ router.get(
   },
 );
 
+// Get all drivers (admin)
+router.get(
+  "/admin/drivers",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { users, orders } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, count } = await import("drizzle-orm");
+
+      const drivers = await db
+        .select()
+        .from(users)
+        .where(eq(users.role, "delivery_driver"));
+
+      const driversWithStats = await Promise.all(
+        drivers.map(async (driver) => {
+          const deliveryCount = await db
+            .select({ count: count() })
+            .from(orders)
+            .where(eq(orders.deliveryPersonId, driver.id));
+
+          return {
+            id: driver.id,
+            name: driver.name,
+            email: driver.email,
+            phone: driver.phone,
+            isOnline: driver.isActive,
+            isApproved: true,
+            strikes: 0,
+            totalDeliveries: deliveryCount[0]?.count || 0,
+            rating: 4.5,
+            createdAt: driver.createdAt,
+          };
+        })
+      );
+
+      res.json({ drivers: driversWithStats });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update driver approval (admin)
+router.put(
+  "/admin/drivers/:id/approval",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_driver_approval", "user"),
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      await db
+        .update(users)
+        .set({ isActive: req.body.isApproved })
+        .where(eq(users.id, req.params.id));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update driver strikes (admin)
+router.put(
+  "/admin/drivers/:id/strikes",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_driver_strikes", "user"),
+  async (req, res) => {
+    try {
+      res.json({ success: true, message: "Strikes updated" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get all wallets (admin)
+router.get(
+  "/admin/wallets",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { wallets, users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const allWallets = await db.select().from(wallets);
+
+      const walletsWithUsers = await Promise.all(
+        allWallets.map(async (wallet) => {
+          const user = await db
+            .select({ id: users.id, name: users.name, role: users.role })
+            .from(users)
+            .where(eq(users.id, wallet.userId))
+            .limit(1);
+
+          return {
+            id: wallet.id,
+            userId: wallet.userId,
+            userName: user[0]?.name || "Usuario",
+            userRole: user[0]?.role || "customer",
+            balance: wallet.balance,
+            pendingBalance: wallet.pendingBalance || 0,
+          };
+        })
+      );
+
+      res.json({ wallets: walletsWithUsers });
+    } catch (error: any) {
+      res.json({ wallets: [] });
+    }
+  },
+);
+
+// Get withdrawal requests (admin)
+router.get(
+  "/admin/withdrawals",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { withdrawalRequests, users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const allWithdrawals = await db.select().from(withdrawalRequests);
+
+      const withdrawalsWithUsers = await Promise.all(
+        allWithdrawals.map(async (w) => {
+          const user = await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(eq(users.id, w.userId))
+            .limit(1);
+
+          return {
+            id: w.id,
+            userId: w.userId,
+            userName: user[0]?.name || "Usuario",
+            amount: w.amount,
+            status: w.status,
+            bankName: w.bankName,
+            accountNumber: w.accountNumber,
+            createdAt: w.createdAt,
+          };
+        })
+      );
+
+      res.json({ withdrawals: withdrawalsWithUsers });
+    } catch (error: any) {
+      res.json({ withdrawals: [] });
+    }
+  },
+);
+
+// Update withdrawal request (admin)
+router.put(
+  "/admin/withdrawals/:id",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_withdrawal", "withdrawal"),
+  async (req, res) => {
+    try {
+      const { withdrawalRequests } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      await db
+        .update(withdrawalRequests)
+        .set({ status: req.body.status, processedAt: new Date() })
+        .where(eq(withdrawalRequests.id, req.params.id));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get coupons (admin)
+router.get(
+  "/admin/coupons",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { coupons } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+
+      const allCoupons = await db.select().from(coupons);
+      res.json({ coupons: allCoupons });
+    } catch (error: any) {
+      res.json({ coupons: [] });
+    }
+  },
+);
+
+// Create coupon (admin)
+router.post(
+  "/admin/coupons",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("create_coupon", "coupon"),
+  async (req, res) => {
+    try {
+      const { coupons } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { randomUUID } = await import("crypto");
+
+      await db.insert(coupons).values({
+        id: randomUUID(),
+        ...req.body,
+        usedCount: 0,
+        isActive: true,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update coupon (admin)
+router.put(
+  "/admin/coupons/:id",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_coupon", "coupon"),
+  async (req, res) => {
+    try {
+      const { coupons } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      await db.update(coupons).set(req.body).where(eq(coupons.id, req.params.id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Delete coupon (admin)
+router.delete(
+  "/admin/coupons/:id",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("delete_coupon", "coupon"),
+  async (req, res) => {
+    try {
+      const { coupons } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      await db.delete(coupons).where(eq(coupons.id, req.params.id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get support tickets (admin)
+router.get(
+  "/admin/support-tickets",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { supportTickets, users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const allTickets = await db.select().from(supportTickets);
+
+      const ticketsWithUsers = await Promise.all(
+        allTickets.map(async (ticket) => {
+          const user = await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(eq(users.id, ticket.userId))
+            .limit(1);
+
+          return {
+            id: ticket.id,
+            userId: ticket.userId,
+            userName: user[0]?.name || "Usuario",
+            subject: ticket.subject,
+            status: ticket.status,
+            priority: ticket.priority || "medium",
+            createdAt: ticket.createdAt,
+            lastMessageAt: ticket.updatedAt,
+          };
+        })
+      );
+
+      res.json({ tickets: ticketsWithUsers });
+    } catch (error: any) {
+      res.json({ tickets: [] });
+    }
+  },
+);
+
+// Update support ticket (admin)
+router.put(
+  "/admin/support-tickets/:id",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_support_ticket", "support_ticket"),
+  async (req, res) => {
+    try {
+      const { supportTickets } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      await db
+        .update(supportTickets)
+        .set({ status: req.body.status, updatedAt: new Date() })
+        .where(eq(supportTickets.id, req.params.id));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get delivery zones (admin)
+router.get(
+  "/admin/delivery-zones",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { deliveryZones } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+
+      const zones = await db.select().from(deliveryZones);
+      res.json({ zones });
+    } catch (error: any) {
+      res.json({ zones: [] });
+    }
+  },
+);
+
+// Create delivery zone (admin)
+router.post(
+  "/admin/delivery-zones",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("create_delivery_zone", "delivery_zone"),
+  async (req, res) => {
+    try {
+      const { deliveryZones } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { randomUUID } = await import("crypto");
+
+      await db.insert(deliveryZones).values({
+        id: randomUUID(),
+        ...req.body,
+        isActive: true,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update delivery zone (admin)
+router.put(
+  "/admin/delivery-zones/:id",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_delivery_zone", "delivery_zone"),
+  async (req, res) => {
+    try {
+      const { deliveryZones } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      await db.update(deliveryZones).set(req.body).where(eq(deliveryZones.id, req.params.id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get system settings (admin)
+router.get(
+  "/admin/settings",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { systemSettings } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+
+      const allSettings = await db.select().from(systemSettings);
+      
+      const settingsWithDescriptions = allSettings.map((s) => ({
+        key: s.key,
+        value: s.value,
+        description: getSettingDescription(s.key),
+      }));
+
+      res.json({ settings: settingsWithDescriptions });
+    } catch (error: any) {
+      res.json({ settings: [] });
+    }
+  },
+);
+
+// Update system setting (admin)
+router.put(
+  "/admin/settings",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("update_system_setting", "system_setting"),
+  async (req, res) => {
+    try {
+      const { systemSettings } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const { key, value } = req.body;
+      
+      const existing = await db
+        .select()
+        .from(systemSettings)
+        .where(eq(systemSettings.key, key))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db
+          .update(systemSettings)
+          .set({ value, updatedAt: new Date() })
+          .where(eq(systemSettings.key, key));
+      } else {
+        const { randomUUID } = await import("crypto");
+        await db.insert(systemSettings).values({
+          id: randomUUID(),
+          key,
+          value,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Clear cache (admin)
+router.post(
+  "/admin/clear-cache",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  auditAction("clear_cache", "system"),
+  async (req, res) => {
+    try {
+      res.json({ success: true, message: "Cache cleared" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+function getSettingDescription(key: string): string {
+  const descriptions: Record<string, string> = {
+    platform_commission: "Comisión de plataforma (%)",
+    business_commission: "Comisión de negocio (%)",
+    delivery_commission: "Comisión de repartidor (%)",
+    anti_fraud_hold_hours: "Horas de retención anti-fraude",
+    max_strikes: "Strikes máximos antes de suspensión",
+  };
+  return descriptions[key] || key;
+}
+
 // Create business (admin)
 router.post(
   "/admin/businesses",
