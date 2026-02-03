@@ -9,6 +9,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Trust proxy - required for rate limiting behind Replit's proxy
+app.set('trust proxy', 1);
+
 // Security middleware - disable CSP for SPA
 app.use(helmet({
   contentSecurityPolicy: false,
