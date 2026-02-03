@@ -37,6 +37,19 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve Expo static bundles (for Expo Go deployment)
+const staticBuildPath = path.join(process.cwd(), 'static-build');
+app.use('/ios', express.static(path.join(staticBuildPath, 'ios')));
+app.use('/android', express.static(path.join(staticBuildPath, 'android')));
+// Serve bundle assets with dynamic timestamp paths
+app.use(express.static(staticBuildPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
+
 // API routes
 app.use('/api', apiRoutes);
 
