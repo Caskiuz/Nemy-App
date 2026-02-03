@@ -3888,6 +3888,35 @@ router.get(
   },
 );
 
+// Update order status (admin)
+router.put(
+  "/admin/orders/:id/status",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { orders } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const { status } = req.body;
+      const validStatuses = ["pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      await db
+        .update(orders)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(orders.id, req.params.id));
+
+      res.json({ success: true, message: "Order status updated" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // Get all businesses
 router.get(
   "/admin/businesses",
@@ -3927,6 +3956,34 @@ router.put(
         .where(eq(users.id, req.params.id));
 
       res.json({ success: true, message: "User status updated" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update user role
+router.put(
+  "/admin/users/:id/role",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const { role } = req.body;
+      if (!["customer", "business", "driver", "admin", "super_admin"].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      await db
+        .update(users)
+        .set({ role })
+        .where(eq(users.id, req.params.id));
+
+      res.json({ success: true, message: "User role updated" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

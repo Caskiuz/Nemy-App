@@ -1394,6 +1394,11 @@ export default function AdminScreen() {
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
   const [onlineDrivers, setOnlineDrivers] = useState<OnlineDriver[]>([]);
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([]);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [userRoleEdit, setUserRoleEdit] = useState("");
 
   const fetchDashboardData = async () => {
     try {
@@ -1556,6 +1561,47 @@ export default function AdminScreen() {
       if (selectedBusinessId) fetchProducts(selectedBusinessId);
     } catch (error) {
       showToast("No se pudo eliminar el producto", "error");
+    }
+  };
+
+  const openUserModal = (user: AdminUser) => {
+    setSelectedUser(user);
+    setUserRoleEdit(user.role);
+    setShowUserModal(true);
+  };
+
+  const handleUpdateUserRole = async () => {
+    if (!selectedUser) return;
+    try {
+      await apiRequest("PUT", `/api/admin/users/${selectedUser.id}/role`, {
+        role: userRoleEdit,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast("Rol actualizado correctamente", "success");
+      setShowUserModal(false);
+      fetchData();
+    } catch (error) {
+      showToast("Error al actualizar el rol", "error");
+    }
+  };
+
+  const openOrderModal = (order: AdminOrder) => {
+    setSelectedOrder(order);
+    setShowOrderModal(true);
+  };
+
+  const handleUpdateOrderStatus = async (status: string) => {
+    if (!selectedOrder) return;
+    try {
+      await apiRequest("PUT", `/api/admin/orders/${selectedOrder.id}/status`, {
+        status,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast("Estado del pedido actualizado", "success");
+      setShowOrderModal(false);
+      fetchData();
+    } catch (error) {
+      showToast("Error al actualizar el estado", "error");
     }
   };
 
@@ -2063,8 +2109,9 @@ export default function AdminScreen() {
         {activeTab === "users" ? (
           <View style={styles.listContainer}>
             {users.map((u) => (
-              <View
+              <Pressable
                 key={u.id}
+                onPress={() => openUserModal(u)}
                 style={[
                   styles.listItem,
                   { backgroundColor: theme.card },
@@ -2130,8 +2177,9 @@ export default function AdminScreen() {
                       {u.emailVerified ? "Verificado" : "Sin verificar"}
                     </ThemedText>
                   </View>
+                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         ) : null}
@@ -2152,8 +2200,9 @@ export default function AdminScreen() {
               </View>
             ) : (
               orders.map((order) => (
-                <View
+                <Pressable
                   key={order.id}
+                  onPress={() => openOrderModal(order)}
                   style={[
                     styles.listItem,
                     { backgroundColor: theme.card },
@@ -2213,14 +2262,17 @@ export default function AdminScreen() {
                         {getStatusLabel(order.status)}
                       </ThemedText>
                     </View>
-                    <ThemedText
-                      type="caption"
-                      style={{ color: theme.textSecondary }}
-                    >
-                      {order.paymentMethod === "card" ? "Tarjeta" : "Efectivo"}
-                    </ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ThemedText
+                        type="caption"
+                        style={{ color: theme.textSecondary }}
+                      >
+                        {order.paymentMethod === "card" ? "Tarjeta" : "Efectivo"}
+                      </ThemedText>
+                      <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                    </View>
                   </View>
-                </View>
+                </Pressable>
               ))
             )}
           </View>
@@ -3213,6 +3265,187 @@ export default function AdminScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showUserModal} animationType="slide" transparent>
+        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <ThemedText type="h3">Detalles del Usuario</ThemedText>
+              <Pressable onPress={() => setShowUserModal(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              {selectedUser ? (
+                <>
+                  <View style={[styles.userDetailCard, { backgroundColor: theme.backgroundSecondary }]}>
+                    <View style={[styles.avatar, { backgroundColor: NemyColors.primaryLight, width: 60, height: 60 }]}>
+                      <ThemedText type="h2" style={{ color: NemyColors.primaryDark }}>
+                        {selectedUser.name.charAt(0).toUpperCase()}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="h3" style={{ marginTop: Spacing.md }}>{selectedUser.name}</ThemedText>
+                    <ThemedText type="body" style={{ color: theme.textSecondary }}>{selectedUser.email}</ThemedText>
+                    {selectedUser.phone ? (
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                        {selectedUser.phone}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                  <View style={{ marginTop: Spacing.lg }}>
+                    <ThemedText type="body" style={{ fontWeight: "600", marginBottom: Spacing.sm }}>
+                      Estado de verificación
+                    </ThemedText>
+                    <View style={{ flexDirection: "row", gap: Spacing.md }}>
+                      <View style={styles.infoChip}>
+                        <Feather
+                          name={selectedUser.emailVerified ? "check-circle" : "x-circle"}
+                          size={14}
+                          color={selectedUser.emailVerified ? NemyColors.success : NemyColors.error}
+                        />
+                        <ThemedText type="caption" style={{ marginLeft: 4 }}>
+                          Email {selectedUser.emailVerified ? "verificado" : "sin verificar"}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.infoChip}>
+                        <Feather
+                          name={selectedUser.phoneVerified ? "check-circle" : "x-circle"}
+                          size={14}
+                          color={selectedUser.phoneVerified ? NemyColors.success : NemyColors.error}
+                        />
+                        <ThemedText type="caption" style={{ marginLeft: 4 }}>
+                          Tel {selectedUser.phoneVerified ? "verificado" : "sin verificar"}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={{ marginTop: Spacing.lg }}>
+                    <ThemedText type="body" style={{ fontWeight: "600", marginBottom: Spacing.sm }}>
+                      Cambiar Rol
+                    </ThemedText>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
+                      {["customer", "business", "driver", "admin"].map((role) => (
+                        <Pressable
+                          key={role}
+                          onPress={() => setUserRoleEdit(role)}
+                          style={[
+                            styles.tab,
+                            {
+                              backgroundColor: userRoleEdit === role ? NemyColors.primary : "transparent",
+                              borderColor: NemyColors.primary,
+                            },
+                          ]}
+                        >
+                          <ThemedText
+                            type="small"
+                            style={{ color: userRoleEdit === role ? "#FFFFFF" : NemyColors.primary }}
+                          >
+                            {getRoleLabel(role)}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.lg }}>
+                    Registrado: {new Date(selectedUser.createdAt).toLocaleDateString()}
+                  </ThemedText>
+                </>
+              ) : null}
+            </ScrollView>
+            <Pressable
+              onPress={handleUpdateUserRole}
+              style={[styles.saveButton, { backgroundColor: NemyColors.primary }]}
+            >
+              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                Guardar Cambios
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showOrderModal} animationType="slide" transparent>
+        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <ThemedText type="h3">Detalles del Pedido</ThemedText>
+              <Pressable onPress={() => setShowOrderModal(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              {selectedOrder ? (
+                <>
+                  <View style={[styles.userDetailCard, { backgroundColor: theme.backgroundSecondary }]}>
+                    <View style={[styles.orderIcon, { backgroundColor: NemyColors.primaryLight, width: 50, height: 50 }]}>
+                      <Feather name="package" size={24} color={NemyColors.primary} />
+                    </View>
+                    <ThemedText type="h3" style={{ marginTop: Spacing.md }}>
+                      #{selectedOrder.id.slice(0, 8)}
+                    </ThemedText>
+                    <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                      {selectedOrder.businessName}
+                    </ThemedText>
+                  </View>
+                  <View style={{ marginTop: Spacing.lg }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Spacing.sm }}>
+                      <ThemedText type="body" style={{ color: theme.textSecondary }}>Total</ThemedText>
+                      <ThemedText type="h4" style={{ color: NemyColors.primary }}>
+                        ${(selectedOrder.total / 100).toFixed(2)}
+                      </ThemedText>
+                    </View>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Spacing.sm }}>
+                      <ThemedText type="body" style={{ color: theme.textSecondary }}>Método de Pago</ThemedText>
+                      <ThemedText type="body">
+                        {selectedOrder.paymentMethod === "card" ? "Tarjeta" : "Efectivo"}
+                      </ThemedText>
+                    </View>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Spacing.sm }}>
+                      <ThemedText type="body" style={{ color: theme.textSecondary }}>Estado actual</ThemedText>
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedOrder.status) + "20" }]}>
+                        <View style={[styles.statusDot, { backgroundColor: getStatusColor(selectedOrder.status) }]} />
+                        <ThemedText type="caption" style={{ color: getStatusColor(selectedOrder.status), marginLeft: 6 }}>
+                          {getStatusLabel(selectedOrder.status)}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={{ marginTop: Spacing.lg }}>
+                    <ThemedText type="body" style={{ fontWeight: "600", marginBottom: Spacing.sm }}>
+                      Cambiar Estado
+                    </ThemedText>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
+                      {["pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled"].map((status) => (
+                        <Pressable
+                          key={status}
+                          onPress={() => handleUpdateOrderStatus(status)}
+                          style={[
+                            styles.tab,
+                            {
+                              backgroundColor: selectedOrder.status === status ? getStatusColor(status) : "transparent",
+                              borderColor: getStatusColor(status),
+                            },
+                          ]}
+                        >
+                          <ThemedText
+                            type="small"
+                            style={{ color: selectedOrder.status === status ? "#FFFFFF" : getStatusColor(status) }}
+                          >
+                            {getStatusLabel(status)}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.lg }}>
+                    Creado: {new Date(selectedOrder.createdAt).toLocaleString()}
+                  </ThemedText>
+                </>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -3300,6 +3533,11 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     justifyContent: "center",
     alignItems: "center",
+  },
+  userDetailCard: {
+    alignItems: "center",
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
   },
   listItemContent: {
     flex: 1,
