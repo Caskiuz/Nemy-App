@@ -303,10 +303,8 @@ export default function ProfileScreen() {
     switch (user?.role) {
       case "customer":
         return "Cliente";
-      case "business":
       case "business_owner":
         return "Dueño de Negocio";
-      case "delivery":
       case "delivery_driver":
         return "Repartidor";
       case "admin":
@@ -432,7 +430,7 @@ export default function ProfileScreen() {
               }}
             />
           )}
-          {(user?.role === "delivery" || user?.role === "business") && (
+          {(user?.role === "delivery_driver" || user?.role === "business_owner") && (
             <SettingsItem
               icon="dollar-sign"
               label="Mi Billetera"
