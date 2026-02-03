@@ -2186,8 +2186,10 @@ router.get(
           month: calculateEarnings(monthOrders) / 100,
           total: calculateEarnings(completedOrders) / 100,
           tips: calculateTips(completedOrders) / 100,
-          deliveries: completedOrders.length,
-          rating: 4.8,
+        },
+        stats: {
+          totalDeliveries: completedOrders.length,
+          averageRating: 4.8,
           completionRate: 100,
           avgDeliveryTime: completedOrders.length > 0 ? 25 : 0,
         },
