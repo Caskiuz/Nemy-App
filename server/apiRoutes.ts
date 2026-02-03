@@ -563,6 +563,112 @@ router.post("/auth/verify-code", async (req, res) => {
 });
 
 // ============================================
+// BIOMETRIC AUTH ROUTES
+// ============================================
+
+// Enable biometric authentication
+router.post("/auth/enable-biometric", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID required" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
+
+    await db
+      .update(users)
+      .set({ biometricEnabled: true })
+      .where(eq(users.id, userId));
+
+    res.json({ success: true, message: "Biometric enabled" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Disable biometric authentication
+router.post("/auth/disable-biometric", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID required" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
+
+    await db
+      .update(users)
+      .set({ biometricEnabled: false })
+      .where(eq(users.id, userId));
+
+    res.json({ success: true, message: "Biometric disabled" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Biometric login (after device verification)
+router.post("/auth/biometric-login", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: "Phone required" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.phone, phone))
+      .limit(1);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!user.biometricEnabled) {
+      return res.status(400).json({ error: "Biometric not enabled for this account" });
+    }
+
+    // Generate JWT token
+    const jwt = await import("jsonwebtoken");
+    const token = jwt.default.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET || "nemy-secret-key",
+      { expiresIn: "30d" }
+    );
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        phoneVerified: user.phoneVerified,
+        biometricEnabled: user.biometricEnabled,
+        stripeCustomerId: user.stripeCustomerId,
+      },
+      token,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // USER PROFILE ROUTES
 // ============================================
 

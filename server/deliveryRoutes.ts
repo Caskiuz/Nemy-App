@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "./db";
 import { deliveryDrivers, users, orders, wallets } from "@shared/schema-mysql";
-import { eq, and, or, inArray } from "drizzle-orm";
+import { eq, and, or, inArray, sql } from "drizzle-orm";
 import { authenticateToken } from "./authMiddleware";
 import {
   asyncHandler,
@@ -36,7 +36,7 @@ router.post(
       throw new ValidationError("Driver already registered");
     }
 
-    const [driver] = await db
+    await db
       .insert(deliveryDrivers)
       .values({
         userId,
@@ -48,8 +48,13 @@ router.post(
         totalRatings: 0,
         strikes: 0,
         isBlocked: false,
-      })
-      .returning();
+      });
+
+    const [driver] = await db
+      .select()
+      .from(deliveryDrivers)
+      .where(eq(deliveryDrivers.userId, userId))
+      .limit(1);
 
     await db.insert(wallets).values({
       userId,
@@ -186,6 +191,104 @@ router.post(
     logger.delivery("Order accepted", { orderId, driverId: userId });
 
     res.json({ success: true, order });
+  }),
+);
+
+// Mark order as picked up
+router.post(
+  "/pickup/:orderId",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+    const userId = (req as any).user.id;
+
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!order) {
+      throw new NotFoundError("Order");
+    }
+
+    if (order.deliveryPersonId !== userId) {
+      throw new AuthorizationError("Not your order");
+    }
+
+    if (order.status !== "ready" && order.status !== "assigned") {
+      throw new ValidationError("Order not ready for pickup");
+    }
+
+    await db
+      .update(orders)
+      .set({ status: "picked_up" })
+      .where(eq(orders.id, orderId));
+
+    logger.delivery("Order picked up", { orderId, driverId: userId });
+
+    res.json({ success: true });
+  }),
+);
+
+// Mark order as delivered - triggers commission distribution
+router.post(
+  "/deliver/:orderId",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+    const userId = (req as any).user.id;
+    const { latitude, longitude } = req.body;
+
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!order) {
+      throw new NotFoundError("Order");
+    }
+
+    if (order.deliveryPersonId !== userId) {
+      throw new AuthorizationError("Not your order");
+    }
+
+    if (order.status !== "picked_up") {
+      throw new ValidationError("Order must be picked up first");
+    }
+
+    // Mark as delivered
+    await db
+      .update(orders)
+      .set({
+        status: "delivered",
+        deliveredAt: new Date(),
+        deliveryLatitude: latitude?.toString(),
+        deliveryLongitude: longitude?.toString(),
+      })
+      .where(eq(orders.id, orderId));
+
+    // Calculate and distribute commissions
+    const { calculateAndDistributeCommissions } = await import("./commissionService");
+    await calculateAndDistributeCommissions(orderId);
+
+    // Increment driver's delivery count
+    await db
+      .update(deliveryDrivers)
+      .set({ 
+        totalDeliveries: sql`total_deliveries + 1`,
+        isAvailable: true 
+      })
+      .where(eq(deliveryDrivers.userId, userId));
+
+    // Send notification to customer
+    const { notifyOrderStatusChange } = await import("./pushNotificationService");
+    await notifyOrderStatusChange(orderId, order.userId, "delivered");
+
+    logger.delivery("Order delivered", { orderId, driverId: userId });
+
+    res.json({ success: true, message: "Pedido entregado exitosamente" });
   }),
 );
 
