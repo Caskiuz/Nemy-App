@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
+import { apiRequest } from '@/lib/query-client';
 
 export default function AddAddressScreen() {
   const navigation = useNavigation();
@@ -21,18 +22,14 @@ export default function AddAddressScreen() {
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${user?.id}/addresses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          label: label.trim(),
-          street: street.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          zipCode: zipCode.trim(),
-          latitude: 19.7667,
-          longitude: -104.3667,
-        }),
+      const response = await apiRequest('POST', `/api/users/${user?.id}/addresses`, {
+        label: label.trim(),
+        street: street.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        zipCode: zipCode.trim(),
+        latitude: 19.7667,
+        longitude: -104.3667,
       });
 
       if (response.ok) {

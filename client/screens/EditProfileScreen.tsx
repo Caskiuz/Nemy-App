@@ -26,8 +26,9 @@ export default function EditProfileScreen() {
 
   const [name, setName] = useState(user?.name || "");
   const [phone, setPhone] = useState(user?.phone || "");
+  const [email, setEmail] = useState(user?.email || "");
   const [isSaving, setIsSaving] = useState(false);
-  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
@@ -36,7 +37,7 @@ export default function EditProfileScreen() {
   }, [navigation]);
 
   const validateForm = () => {
-    const newErrors: { name?: string; phone?: string } = {};
+    const newErrors: { name?: string; phone?: string; email?: string } = {};
 
     if (!name.trim()) {
       newErrors.name = "El nombre es requerido";
@@ -48,6 +49,10 @@ export default function EditProfileScreen() {
       newErrors.phone = "El teléfono es requerido";
     } else if (phone.trim().length < 10) {
       newErrors.phone = "Ingresa un número de teléfono válido";
+    }
+
+    if (email.trim() && !email.includes("@")) {
+      newErrors.email = "Ingresa un correo válido";
     }
 
     setErrors(newErrors);
@@ -64,6 +69,7 @@ export default function EditProfileScreen() {
       const response = await apiRequest("PUT", `/api/users/${user.id}`, {
         name: name.trim(),
         phone: phone.trim(),
+        email: email.trim() || undefined,
       });
 
       const data = await response.json();
@@ -72,6 +78,7 @@ export default function EditProfileScreen() {
         await updateUser({
           name: data.user.name,
           phone: data.user.phone,
+          email: data.user.email,
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -155,28 +162,17 @@ export default function EditProfileScreen() {
             autoCorrect={false}
           />
 
-          <View
-            style={[
-              styles.emailRow,
-              { backgroundColor: theme.backgroundSecondary },
-            ]}
-          >
-            <Feather name="mail" size={20} color={theme.textSecondary} />
-            <View style={styles.emailContent}>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                Correo electrónico
-              </ThemedText>
-              <ThemedText type="body">{user?.email}</ThemedText>
-            </View>
-            <View
-              style={[
-                styles.verifiedBadge,
-                { backgroundColor: NemyColors.success + "20" },
-              ]}
-            >
-              <Feather name="check" size={12} color={NemyColors.success} />
-            </View>
-          </View>
+          <Input
+            label="Correo electrónico (opcional)"
+            leftIcon="mail"
+            value={email}
+            onChangeText={setEmail}
+            error={errors.email}
+            placeholder="tucorreo@ejemplo.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
         </View>
 
         <View
@@ -194,8 +190,8 @@ export default function EditProfileScreen() {
               marginLeft: Spacing.sm,
             }}
           >
-            Tu correo electrónico no puede ser modificado por seguridad de tu
-            cuenta.
+            El teléfono es tu identificador principal. El correo es opcional
+            para recibir recibos y notificaciones.
           </ThemedText>
         </View>
       </ScrollView>

@@ -443,10 +443,10 @@ router.put(
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
 
-      const userId = parseInt(req.params.id);
+      const userId = req.params.id;
       
       // Users can only update their own profile unless admin
-      if (req.user!.id !== userId && req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+      if (String(req.user!.id) !== userId && req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
         return res.status(403).json({ error: "No tienes permiso para editar este perfil" });
       }
 
