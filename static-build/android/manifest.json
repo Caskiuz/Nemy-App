@@ -1,0 +1,107 @@
+{
+  "id": "4230f666-8c7d-46ae-915e-3a14b0b4ae9c",
+  "createdAt": "2026-02-03T15:22:40.079Z",
+  "runtimeVersion": "exposdk:54.0.0",
+  "launchAsset": {
+    "key": "bundle-1770132160079-37548",
+    "contentType": "application/javascript",
+    "url": "https://8417c296-af24-4e86-b854-5d86385fbca9-00-39wlkmta8vwmp.spock.replit.dev/1770132160079-37548/_expo/static/js/android/bundle.js"
+  },
+  "assets": [],
+  "metadata": {},
+  "extra": {
+    "eas": {},
+    "expoClient": {
+      "name": "NEMY",
+      "slug": "nemy",
+      "version": "1.0.0",
+      "orientation": "portrait",
+      "icon": "./assets/images/icon.png",
+      "scheme": "nemy",
+      "userInterfaceStyle": "automatic",
+      "newArchEnabled": true,
+      "ios": {
+        "supportsTablet": true,
+        "bundleIdentifier": "com.nemy.app"
+      },
+      "android": {
+        "adaptiveIcon": {
+          "backgroundColor": "#FF8C00",
+          "foregroundImage": "./assets/images/icon.png",
+          "foregroundImageUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png"
+        },
+        "edgeToEdgeEnabled": true,
+        "predictiveBackGestureEnabled": false,
+        "package": "com.nemy.app"
+      },
+      "web": {
+        "output": "single",
+        "favicon": "./assets/images/icon.png"
+      },
+      "plugins": [
+        [
+          "expo-splash-screen",
+          {
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 200,
+            "resizeMode": "contain",
+            "backgroundColor": "#FF8C00",
+            "dark": {
+              "backgroundColor": "#1A1A1A",
+              "image": "./assets/images/splash-icon.png"
+            }
+          }
+        ],
+        "expo-web-browser",
+        "expo-secure-store"
+      ],
+      "experiments": {
+        "reactCompiler": true
+      },
+      "_internal": {
+        "isDebug": false,
+        "projectRoot": "/home/runner/workspace",
+        "dynamicConfigPath": {},
+        "staticConfigPath": "/home/runner/workspace/app.json",
+        "packageJsonPath": "/home/runner/workspace/package.json",
+        "pluginHistory": {
+          "expo-splash-screen": {
+            "name": "expo-splash-screen",
+            "version": "31.0.13"
+          },
+          "expo-web-browser": {
+            "name": "expo-web-browser",
+            "version": "15.0.10"
+          },
+          "expo-secure-store": {
+            "name": "expo-secure-store",
+            "version": "15.0.8"
+          }
+        }
+      },
+      "sdkVersion": "54.0.0",
+      "platforms": [
+        "ios",
+        "android",
+        "web"
+      ],
+      "androidStatusBar": {
+        "backgroundColor": "#FF8C00"
+      },
+      "iconUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png",
+      "hostUri": "8417c296-af24-4e86-b854-5d86385fbca9-00-39wlkmta8vwmp.spock.replit.dev/android"
+    },
+    "expoGo": {
+      "debuggerHost": "8417c296-af24-4e86-b854-5d86385fbca9-00-39wlkmta8vwmp.spock.replit.dev/android",
+      "developer": {
+        "tool": "expo-cli",
+        "projectRoot": "/home/runner/workspace"
+      },
+      "packagerOpts": {
+        "dev": false
+      },
+      "mainModuleName": "client/index"
+    },
+    "scopeKey": "@anonymous/nemy-4a71e8bb-86e1-4c0a-b74d-313dad11adab"
+  }
+}
