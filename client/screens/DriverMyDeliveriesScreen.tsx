@@ -237,8 +237,9 @@ export default function DriverMyDeliveriesScreen() {
   };
 
   const activeOrders = orders.filter((o: any) =>
-    ["ready", "picked_up", "on_the_way"].includes(o.status)
+    ["ready", "picked_up", "on_the_way", "in_transit"].includes(o.status)
   );
+  const completedOrders = orders.filter((o: any) => o.status === "delivered");
 
   return (
     <LinearGradient
