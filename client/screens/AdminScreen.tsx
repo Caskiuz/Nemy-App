@@ -1453,7 +1453,7 @@ export default function AdminScreen() {
     try {
       const res = await apiRequest("GET", `/api/businesses/${businessId}`);
       const data = await res.json();
-      setProducts(data.products || []);
+      setProducts(data.business?.products || []);
     } catch (error) {
       console.error("Error fetching products:", error);
     }
