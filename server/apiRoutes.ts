@@ -482,6 +482,149 @@ router.put(
 );
 
 // ============================================
+// USER ADDRESSES ROUTES
+// ============================================
+
+// Get user addresses
+router.get(
+  "/users/:userId/addresses",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { addresses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const userId = req.params.userId;
+      
+      // Users can only view their own addresses unless admin
+      if (String(req.user!.id) !== userId && req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+        return res.status(403).json({ error: "No tienes permiso para ver estas direcciones" });
+      }
+
+      const userAddresses = await db
+        .select()
+        .from(addresses)
+        .where(eq(addresses.userId, userId));
+
+      res.json({ success: true, addresses: userAddresses });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Add new address
+router.post(
+  "/users/:userId/addresses",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { addresses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+
+      const userId = req.params.userId;
+      
+      if (String(req.user!.id) !== userId && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: "No tienes permiso para agregar direcciones" });
+      }
+
+      const { label, street, city, state, zipCode, isDefault, latitude, longitude } = req.body;
+
+      // If this is the default, unset other defaults
+      if (isDefault) {
+        const { eq } = await import("drizzle-orm");
+        await db
+          .update(addresses)
+          .set({ isDefault: false })
+          .where(eq(addresses.userId, userId));
+      }
+
+      const [newAddress] = await db
+        .insert(addresses)
+        .values({
+          userId,
+          label,
+          street,
+          city,
+          state,
+          zipCode,
+          isDefault: isDefault || false,
+          latitude,
+          longitude,
+        })
+        .$returningId();
+
+      res.json({ success: true, addressId: newAddress.id });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Set address as default
+router.put(
+  "/users/:userId/addresses/:addressId/default",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { addresses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const { userId, addressId } = req.params;
+      
+      if (String(req.user!.id) !== userId && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: "No tienes permiso" });
+      }
+
+      // Unset all defaults for this user
+      await db
+        .update(addresses)
+        .set({ isDefault: false })
+        .where(eq(addresses.userId, userId));
+
+      // Set the specified address as default
+      await db
+        .update(addresses)
+        .set({ isDefault: true })
+        .where(and(eq(addresses.id, addressId), eq(addresses.userId, userId)));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Delete address
+router.delete(
+  "/users/:userId/addresses/:addressId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { addresses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const { userId, addressId } = req.params;
+      
+      if (String(req.user!.id) !== userId && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: "No tienes permiso" });
+      }
+
+      await db
+        .delete(addresses)
+        .where(and(eq(addresses.id, addressId), eq(addresses.userId, userId)));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// ============================================
 // SYSTEM CONFIGURATION ROUTES
 // ============================================
 
