@@ -104,7 +104,7 @@ export default function DeliveryEarningsScreen() {
     enabled: !!user?.id,
   });
 
-  const { data: walletData, refetch: refetchWallet } = useQuery<{ success: boolean; balance: number; pendingBalance: number; totalEarned: number }>({
+  const { data: walletData, refetch: refetchWallet } = useQuery<{ success: boolean; wallet: { balance: number; pendingBalance: number; totalEarned: number; availableBalance: number } }>({
     queryKey: ["/api/wallet/balance"],
     enabled: !!user?.id,
   });
@@ -151,9 +151,9 @@ export default function DeliveryEarningsScreen() {
   };
 
   const wallet: WalletData = {
-    balance: (walletData?.balance || 0) / 100,
-    pendingBalance: (walletData?.pendingBalance || 0) / 100,
-    totalEarned: (walletData?.totalEarned || 0) / 100,
+    balance: (walletData?.wallet?.balance || 0) / 100,
+    pendingBalance: (walletData?.wallet?.pendingBalance || 0) / 100,
+    totalEarned: (walletData?.wallet?.totalEarned || 0) / 100,
   };
 
   const transactions = transactionsData?.transactions || [];

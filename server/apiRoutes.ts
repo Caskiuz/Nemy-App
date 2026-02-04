@@ -2728,16 +2728,28 @@ router.get(
     try {
       const { orders } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
+      const { eq, isNull, and, or, inArray, desc } = await import("drizzle-orm");
 
-      const availableOrders = await db
+      // Get orders that are ready for pickup and don't have a driver assigned
+      const allReadyOrders = await db
         .select()
         .from(orders)
-        .where(eq(orders.status, "ready"))
-        .orderBy(orders.createdAt);
+        .where(
+          or(
+            eq(orders.status, "ready"),
+            eq(orders.status, "preparing")
+          )
+        )
+        .orderBy(desc(orders.createdAt));
+
+      // Filter to only include orders without a delivery driver
+      const availableOrders = allReadyOrders.filter(
+        order => !order.deliveryPersonId || order.deliveryPersonId === null
+      );
 
       res.json({ success: true, orders: availableOrders });
     } catch (error: any) {
+      console.error("Error fetching available orders:", error);
       res.status(500).json({ error: error.message });
     }
   },
