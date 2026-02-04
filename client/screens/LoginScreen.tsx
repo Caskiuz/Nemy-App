@@ -265,7 +265,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             style={[styles.formCard, Shadows.lg]}
           >
             <ThemedText type="h3" style={styles.formTitle}>
-              Inicia sesión
+              Bienvenido a NEMY
             </ThemedText>
             <ThemedText type="body" style={styles.formSubtitle}>
               {loginMode === "password" 

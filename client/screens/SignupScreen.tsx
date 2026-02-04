@@ -200,7 +200,7 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
               Crear cuenta
             </ThemedText>
             <ThemedText type="body" style={styles.subtitle}>
-              Crea tu cuenta con correo y teléfono
+              Registra tu correo, telefono y contrasena
             </ThemedText>
           </View>
 
