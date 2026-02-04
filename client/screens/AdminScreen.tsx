@@ -613,7 +613,7 @@ export default function AdminScreen() {
 
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
         style={styles.tabsScroll}
         contentContainerStyle={styles.tabs}
       >
