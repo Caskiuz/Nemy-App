@@ -30,6 +30,7 @@ import {
   deleteSetting,
   initializeDefaultSettings,
 } from "./systemSettingsService";
+import supportRoutes from "./supportRoutes";
 
 const router = express.Router();
 
@@ -1352,7 +1353,7 @@ router.post(
 router.post(
   "/admin/settings/initialize",
   authenticateToken,
-  requireRole("super_admin"),
+  requireMinRole("admin"),
   auditAction("initialize_settings", "system_settings"),
   async (req, res) => {
     try {
@@ -3132,17 +3133,31 @@ router.get(
         return orderDate >= today;
       });
 
-      const cancelledToday = todayOrders.filter(o => o.status === "cancelled").length;
+      // Si no hay pedidos de hoy, mostrar estadísticas generales
+      const ordersToShow = todayOrders.length > 0 ? todayOrders : allOrders;
+      const cancelledToday = ordersToShow.filter(o => o.status === "cancelled").length;
       
       const driversOnline = allUsers.filter(u => u.role === "delivery_driver" && u.isActive).length;
       const totalDrivers = allUsers.filter(u => u.role === "delivery_driver").length;
       const pausedBusinesses = allBusinesses.filter(b => !b.isActive).length;
       const totalBusinesses = allBusinesses.length;
 
+      const activeOrdersCount = allOrders.filter(o => 
+        ["pending", "confirmed", "preparing", "on_the_way"].includes(o.status)
+      ).length;
+
+      const todayRevenue = ordersToShow
+        .filter(o => o.status === "delivered")
+        .reduce((sum, o) => sum + o.total, 0);
+
       res.json({
-        ordersToday: todayOrders.length,
+        activeOrders: activeOrdersCount,
+        ordersToday: ordersToShow.length,
+        onlineDrivers: driversOnline,
+        todayOrders: ordersToShow.length,
+        todayRevenue: todayRevenue,
         cancelledToday,
-        cancellationRate: todayOrders.length > 0 ? ((cancelledToday / todayOrders.length) * 100).toFixed(1) + "%" : "0%",
+        cancellationRate: ordersToShow.length > 0 ? ((cancelledToday / ordersToShow.length) * 100).toFixed(1) + "%" : "0%",
         avgDeliveryTime: 35,
         driversOnline,
         totalDrivers,
@@ -3555,6 +3570,157 @@ router.delete(
 
 // Get support tickets (admin)
 router.get(
+  "/admin/support/tickets",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { supportChats, users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, desc } = await import("drizzle-orm");
+
+      const tickets = await db.select().from(supportChats).orderBy(desc(supportChats.createdAt));
+
+      const enrichedTickets = await Promise.all(
+        tickets.map(async (ticket) => {
+          const [user] = await db
+            .select({ id: users.id, name: users.name, phone: users.phone })
+            .from(users)
+            .where(eq(users.id, ticket.userId))
+            .limit(1);
+
+          return {
+            ...ticket,
+            userName: user?.name || "Usuario",
+            userPhone: user?.phone || "",
+          };
+        })
+      );
+
+      res.json({ success: true, tickets: enrichedTickets });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Get messages for a ticket
+router.get(
+  "/admin/support/tickets/:id/messages",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { supportMessages, users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const messages = await db
+        .select()
+        .from(supportMessages)
+        .where(eq(supportMessages.chatId, req.params.id))
+        .orderBy(supportMessages.createdAt);
+
+      const enrichedMessages = await Promise.all(
+        messages.map(async (msg) => {
+          if (!msg.userId) {
+            return { ...msg, senderName: "Bot", senderType: "bot" };
+          }
+
+          const [user] = await db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, msg.userId))
+            .limit(1);
+
+          return {
+            ...msg,
+            senderName: user?.name || "Usuario",
+            senderType: msg.isBot ? "bot" : "user",
+          };
+        })
+      );
+
+      res.json({ success: true, messages: enrichedMessages });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Send message (with AI response)
+router.post(
+  "/admin/support/tickets/:id/messages",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { supportMessages } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { v4: uuidv4 } = await import("uuid");
+
+      const { message, isBot } = req.body;
+
+      await db.insert(supportMessages).values({
+        id: uuidv4(),
+        chatId: req.params.id,
+        userId: isBot ? null : req.user!.id,
+        message,
+        isBot: isBot || false,
+      });
+
+      if (!isBot) {
+        try {
+          const aiResponse = await generateGeminiResponse(message);
+          
+          await db.insert(supportMessages).values({
+            id: uuidv4(),
+            chatId: req.params.id,
+            userId: null,
+            message: aiResponse,
+            isBot: true,
+          });
+
+          res.json({ success: true, aiResponse });
+        } catch (aiError) {
+          res.json({ success: true, aiResponse: null });
+        }
+      } else {
+        res.json({ success: true });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update ticket status/priority
+router.put(
+  "/admin/support/tickets/:id",
+  authenticateToken,
+  requireRole("admin", "super_admin"),
+  async (req, res) => {
+    try {
+      const { supportChats } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const { status } = req.body;
+
+      await db
+        .update(supportChats)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(supportChats.id, req.params.id));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Legacy support tickets route
+router.get(
   "/admin/support-tickets",
   authenticateToken,
   requireRole("admin", "super_admin"),
@@ -3772,6 +3938,9 @@ function getSettingDescription(key: string): string {
   };
   return descriptions[key] || key;
 }
+
+// Register support routes
+router.use("/support", supportRoutes);
 
 // Create business (admin)
 router.post(
@@ -4323,5 +4492,32 @@ router.post(
     }
   }
 );
+
+// Helper function for Gemini AI
+async function generateGeminiResponse(userMessage: string): Promise<string> {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return "Lo siento, el servicio de IA no está configurado. Un administrador te responderá pronto.";
+    }
+
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+
+    const prompt = `Eres un asistente de soporte para NEMY, una plataforma de delivery en Autlán, Jalisco, México.
+Responde de manera amable, profesional y concisa en español.
+
+Usuario: ${userMessage}
+
+Asistente:`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("AI Error:", error);
+    return "Lo siento, no pude procesar tu mensaje. Un administrador te responderá pronto.";
+  }
+}
 
 export default router;

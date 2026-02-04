@@ -3,24 +3,18 @@ import { Platform } from "react-native";
 
 // Get API base URL dynamically at runtime
 export const getApiBaseUrl = (): string => {
-  // For web in production, always use current origin (same domain)
-  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
-    // In production web, API is served from same origin
-    if (!__DEV__) {
-      return window.location.origin;
-    }
-  }
-
-  // Check for environment variable
+  // Check for environment variable FIRST (highest priority)
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (envBackendUrl) {
+    console.log('Using EXPO_PUBLIC_BACKEND_URL:', envBackendUrl);
     return envBackendUrl;
   }
 
-  // Check for Replit domain
-  const replitDomain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (replitDomain) {
-    return `https://${replitDomain}`;
+  // For web in production, use current origin (same domain)
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    if (!__DEV__) {
+      return window.location.origin;
+    }
   }
 
   // Development mode fallback
@@ -28,8 +22,9 @@ export const getApiBaseUrl = (): string => {
     return "http://localhost:5000";
   }
 
-  // Final fallback for native apps in production
-  return "https://api.nemy.mx";
+  // Final fallback
+  console.warn('No backend URL configured, using fallback');
+  return "https://8417c296-af24-4e86-b854-5d86385fbca9-00-39wlkmta8vwmp.spock.replit.dev";
 };
 
 export const API_CONFIG = {
@@ -55,8 +50,8 @@ export const API_CONFIG = {
       UPDATE_STATUS: (id: string) => `/api/orders/${id}/status`,
     },
     USERS: {
-      PROFILE: "/api/users/profile",
-      UPDATE: "/api/users/profile",
+      PROFILE: "/api/user/profile",
+      UPDATE: "/api/user/profile",
     },
   },
   TIMEOUT: 10000, // 10 seconds

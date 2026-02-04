@@ -120,16 +120,16 @@ export default function App() {
                           <NavigationContainer>
                             <RootStackNavigator />
                           </NavigationContainer>
-                        {showOnboarding && (
-                          <OnboardingOverlay
-                            onComplete={() => setShowOnboarding(false)}
+                          {showOnboarding && (
+                            <OnboardingOverlay
+                              onComplete={() => setShowOnboarding(false)}
+                            />
+                          )}
+                          <NotificationPermissionModal
+                            visible={showNotificationModal}
+                            onAccept={handleAcceptNotifications}
+                            onDecline={handleDeclineNotifications}
                           />
-                        )}
-                        <NotificationPermissionModal
-                          visible={showNotificationModal}
-                          onAccept={handleAcceptNotifications}
-                          onDecline={handleDeclineNotifications}
-                        />
                         </ToastProvider>
                       </CartProvider>
                     </BusinessProvider>

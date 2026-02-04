@@ -7,6 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -190,11 +191,19 @@ export default function SupportChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        throw new Error("Token requerido");
+      }
+
       const response = await fetch(
         new URL("/api/support/chat", getApiUrl()).toString(),
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             userId: user?.id,
             message: userMessage.content,

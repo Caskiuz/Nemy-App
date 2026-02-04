@@ -30,6 +30,22 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// Request logging with error capture
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.originalUrl}`);
+  
+  const originalSend = res.send;
+  res.send = function(data) {
+    if (res.statusCode >= 400) {
+      console.error(`❌ ${req.method} ${req.originalUrl} - Status: ${res.statusCode}`);
+      console.error('Response:', data);
+    }
+    return originalSend.call(this, data);
+  };
+  
+  next();
+});
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

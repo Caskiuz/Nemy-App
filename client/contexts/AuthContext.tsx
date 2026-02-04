@@ -161,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+    await AsyncStorage.setItem("token", data.token);
     await AsyncStorage.removeItem(PENDING_PHONE_KEY);
     setUser(newUser);
     setPendingVerificationPhone(null);
@@ -217,6 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+      await AsyncStorage.setItem("token", data.token);
       setUser(newUser);
       return true;
     } catch (error) {
@@ -277,6 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem(PENDING_PHONE_KEY);
     setUser(null);
     setPendingVerificationPhone(null);

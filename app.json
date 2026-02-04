@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "NEMY",
-    "slug": "nemy",
+    "slug": "nemy-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -44,6 +44,12 @@
     ],
     "experiments": {
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8c58541f-bf02-4e36-bcf9-a2e64b126a5b"
+      }
+    },
+    "owner": "caskiuzs-organization"
   }
 }
