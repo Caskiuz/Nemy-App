@@ -2726,28 +2726,52 @@ router.get(
   requireRole("delivery_driver"),
   async (req, res) => {
     try {
-      const { orders } = await import("@shared/schema-mysql");
+      const { orders, businesses } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
-      const { eq, isNull, and, or, inArray, desc } = await import("drizzle-orm");
+      const { eq, or, desc, inArray } = await import("drizzle-orm");
 
-      // Get orders that are ready for pickup and don't have a driver assigned
+      // Get orders that are ready for pickup (confirmed, preparing, or ready status)
       const allReadyOrders = await db
         .select()
         .from(orders)
         .where(
           or(
             eq(orders.status, "ready"),
-            eq(orders.status, "preparing")
+            eq(orders.status, "preparing"),
+            eq(orders.status, "confirmed")
           )
         )
         .orderBy(desc(orders.createdAt));
 
-      // Filter to only include orders without a delivery driver
+      // Filter to only include orders without a delivery driver assigned
       const availableOrders = allReadyOrders.filter(
         order => !order.deliveryPersonId || order.deliveryPersonId === null
       );
 
-      res.json({ success: true, orders: availableOrders });
+      // Get business info for each order
+      const businessIds = [...new Set(availableOrders.map(o => o.businessId).filter(Boolean))];
+      let businessMap: Record<string, any> = {};
+      
+      if (businessIds.length > 0) {
+        const businessList = await db
+          .select()
+          .from(businesses)
+          .where(inArray(businesses.id, businessIds as string[]));
+        
+        businessMap = businessList.reduce((acc, b) => {
+          acc[b.id] = b;
+          return acc;
+        }, {} as Record<string, any>);
+      }
+
+      // Enrich orders with business info
+      const enrichedOrders = availableOrders.map(order => ({
+        ...order,
+        businessName: businessMap[order.businessId!]?.name || "Negocio",
+        businessAddress: businessMap[order.businessId!]?.address || "",
+      }));
+
+      res.json({ success: true, orders: enrichedOrders });
     } catch (error: any) {
       console.error("Error fetching available orders:", error);
       res.status(500).json({ error: error.message });
