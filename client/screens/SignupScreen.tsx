@@ -67,6 +67,10 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
   const initialPhone = route.params?.phone || "";
 
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState(initialPhone);
   const [role, setRole] = useState<UserRole>("customer");
   const [isLoading, setIsLoading] = useState(false);
@@ -88,11 +92,32 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
     }
   };
 
+  const validateEmail = (emailValue: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(emailValue);
+  };
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
     if (!name.trim()) {
       newErrors.name = "El nombre es requerido";
+    }
+
+    if (!email.trim()) {
+      newErrors.email = "El correo es requerido";
+    } else if (!validateEmail(email)) {
+      newErrors.email = "Ingresa un correo válido";
+    }
+
+    if (!password) {
+      newErrors.password = "La contraseña es requerida";
+    } else if (password.length < 8) {
+      newErrors.password = "Mínimo 8 caracteres";
+    }
+
+    if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Las contraseñas no coinciden";
     }
 
     if (!phone) {
@@ -112,18 +137,19 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const result = await signup(name, role, phone);
+      const formattedPhone = `+52${phone}`;
+      const result = await signup(name, role, formattedPhone, email, password);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       if (result?.requiresVerification) {
-        navigation.navigate("VerifyPhone", { phone });
+        navigation.navigate("VerifyPhone", { phone: formattedPhone });
       }
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      if (error.message?.includes("already")) {
-        showToast("Este número ya está registrado. Inicia sesión.", "error");
+      if (error.message?.includes("already") || error.message?.includes("existe")) {
+        showToast("Este correo o teléfono ya está registrado. Inicia sesión.", "error");
       } else {
-        setErrors({ phone: error.message || "Error al crear la cuenta" });
+        setErrors({ email: error.message || "Error al crear la cuenta" });
       }
     } finally {
       setIsLoading(false);
@@ -174,7 +200,7 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
               Crear cuenta
             </ThemedText>
             <ThemedText type="body" style={styles.subtitle}>
-              Solo necesitas tu número de teléfono
+              Crea tu cuenta con correo y teléfono
             </ThemedText>
           </View>
 
@@ -189,6 +215,103 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
               autoCapitalize="words"
               testID="input-name"
             />
+
+            <Input
+              label="Correo electrónico"
+              placeholder="tu@email.com"
+              leftIcon="mail"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+              }}
+              error={errors.email}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              testID="input-email"
+            />
+
+            <View style={styles.inputWrapper}>
+              <ThemedText type="small" style={styles.inputLabel}>
+                Contraseña
+              </ThemedText>
+              <View
+                style={[
+                  styles.inputBox,
+                  errors.password ? styles.inputBoxError : null,
+                ]}
+              >
+                <Feather
+                  name="lock"
+                  size={20}
+                  color="#666666"
+                  style={styles.inputBoxIcon}
+                />
+                <TextInput
+                  placeholder="Mínimo 8 caracteres"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                  }}
+                  secureTextEntry={!showPassword}
+                  placeholderTextColor="#999999"
+                  style={styles.textInput}
+                  selectionColor={NemyColors.primary}
+                  testID="input-password"
+                />
+                <Pressable onPress={() => setShowPassword(!showPassword)}>
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#666666"
+                  />
+                </Pressable>
+              </View>
+              {errors.password ? (
+                <ThemedText type="caption" style={styles.inputError}>
+                  {errors.password}
+                </ThemedText>
+              ) : null}
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <ThemedText type="small" style={styles.inputLabel}>
+                Confirmar contraseña
+              </ThemedText>
+              <View
+                style={[
+                  styles.inputBox,
+                  errors.confirmPassword ? styles.inputBoxError : null,
+                ]}
+              >
+                <Feather
+                  name="lock"
+                  size={20}
+                  color="#666666"
+                  style={styles.inputBoxIcon}
+                />
+                <TextInput
+                  placeholder="Repite tu contraseña"
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                  }}
+                  secureTextEntry={!showPassword}
+                  placeholderTextColor="#999999"
+                  style={styles.textInput}
+                  selectionColor={NemyColors.primary}
+                  testID="input-confirm-password"
+                />
+              </View>
+              {errors.confirmPassword ? (
+                <ThemedText type="caption" style={styles.inputError}>
+                  {errors.confirmPassword}
+                </ThemedText>
+              ) : null}
+            </View>
 
             <View style={styles.inputWrapper}>
               <ThemedText type="small" style={styles.inputLabel}>

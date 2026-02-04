@@ -15,10 +15,16 @@ interface AuthContextType {
   requestPhoneLogin: (
     phone: string,
   ) => Promise<{ userNotFound?: boolean; requiresVerification?: boolean }>;
+  loginWithPassword: (
+    identifier: string,
+    password: string,
+  ) => Promise<{ success: boolean; requiresVerification?: boolean }>;
   signup: (
     name: string,
     role: UserRole,
     phone: string,
+    email?: string,
+    password?: string,
   ) => Promise<{ requiresVerification: boolean }>;
   verifyPhone: (phone: string, code: string) => Promise<void>;
   resendVerification: (phone: string) => Promise<void>;
@@ -115,17 +121,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { requiresVerification: true };
   };
 
+  const loginWithPassword = async (
+    identifier: string,
+    password: string,
+  ): Promise<{ success: boolean; requiresVerification?: boolean }> => {
+    const response = await apiRequest("POST", "/api/auth/login", {
+      identifier,
+      password,
+    });
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || "Credenciales incorrectas");
+    }
+
+    if (data.requiresVerification) {
+      await AsyncStorage.setItem(PENDING_PHONE_KEY, data.phone);
+      setPendingVerificationPhone(data.phone);
+      return { success: true, requiresVerification: true };
+    }
+
+    const newUser: User = {
+      id: data.user.id,
+      email: data.user.email || undefined,
+      name: data.user.name,
+      phone: data.user.phone,
+      role: data.user.role,
+      phoneVerified: data.user.phoneVerified,
+      stripeCustomerId: data.user.stripeCustomerId,
+      cardLast4: data.user.cardLast4,
+      cardBrand: data.user.cardBrand,
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+    setUser(newUser);
+    return { success: true };
+  };
+
   const signup = async (
     name: string,
     role: UserRole,
     phone: string,
+    email?: string,
+    password?: string,
   ): Promise<{ requiresVerification: boolean }> => {
-    const response = await apiRequest("POST", "/api/auth/phone-signup", {
+    const response = await apiRequest("POST", "/api/auth/signup", {
       name,
       role,
       phone,
+      email,
+      password,
     });
     const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || "Error al crear la cuenta");
+    }
 
     if (data.requiresVerification) {
       await AsyncStorage.setItem(PENDING_PHONE_KEY, phone);
@@ -303,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         biometricAvailable,
         biometricType,
         requestPhoneLogin,
+        loginWithPassword,
         signup,
         verifyPhone,
         resendVerification,

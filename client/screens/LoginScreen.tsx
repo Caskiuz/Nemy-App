@@ -53,6 +53,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const { theme } = useTheme();
   const {
     requestPhoneLogin,
+    loginWithPassword,
     loginWithBiometric,
     biometricAvailable,
     biometricType,
@@ -60,10 +61,14 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
 
+  const [loginMode, setLoginMode] = useState<"sms" | "password">("password");
   const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
-  const [errors, setErrors] = useState<{ phone?: string }>({});
+  const [errors, setErrors] = useState<{ phone?: string; identifier?: string; password?: string }>({});
   const [featuredBusinesses, setFeaturedBusinesses] = useState<
     FeaturedBusiness[]
   >([]);
@@ -108,16 +113,46 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   };
 
   const validate = () => {
-    const newErrors: { phone?: string } = {};
+    const newErrors: { phone?: string; identifier?: string; password?: string } = {};
 
-    if (!phone) {
-      newErrors.phone = "El teléfono es requerido";
-    } else if (phone.length < 10) {
-      newErrors.phone = "Ingresa 10 dígitos";
+    if (loginMode === "sms") {
+      if (!phone) {
+        newErrors.phone = "El teléfono es requerido";
+      } else if (phone.length < 10) {
+        newErrors.phone = "Ingresa 10 dígitos";
+      }
+    } else {
+      if (!identifier) {
+        newErrors.identifier = "Correo o teléfono es requerido";
+      }
+      if (!password) {
+        newErrors.password = "La contraseña es requerida";
+      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handlePasswordLogin = async () => {
+    if (!validate()) return;
+
+    setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const result = await loginWithPassword(identifier, password);
+
+      if (result?.requiresVerification) {
+        showToast("Verifica tu teléfono para continuar", "info");
+        navigation.navigate("VerifyPhone", { phone: identifier });
+      }
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showToast(error.message || "Error al iniciar sesión", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePhoneLogin = async () => {
@@ -233,49 +268,128 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               Inicia sesión
             </ThemedText>
             <ThemedText type="body" style={styles.formSubtitle}>
-              Te enviaremos un código SMS para verificar
+              {loginMode === "password" 
+                ? "Usa tu correo o teléfono con contraseña" 
+                : "Te enviaremos un código SMS para verificar"}
             </ThemedText>
 
-            <View style={styles.inputWrapper}>
-              <ThemedText type="small" style={styles.inputLabel}>
-                Número de teléfono
-              </ThemedText>
-              <View style={styles.phoneInputContainer}>
-                <View style={styles.countryCode}>
-                  <ThemedText type="body" style={styles.countryCodeText}>
-                    +52
+            {loginMode === "password" ? (
+              <>
+                <View style={styles.inputWrapper}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Correo o teléfono
                   </ThemedText>
+                  <View style={[styles.inputBox, errors.identifier ? styles.inputBoxError : null]}>
+                    <Feather
+                      name="user"
+                      size={20}
+                      color="#666666"
+                      style={styles.inputBoxIcon}
+                    />
+                    <TextInput
+                      placeholder="correo@ejemplo.com o +52..."
+                      value={identifier}
+                      onChangeText={(text) => {
+                        setIdentifier(text);
+                        if (errors.identifier) setErrors((prev) => ({ ...prev, identifier: "" }));
+                      }}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      placeholderTextColor="#999999"
+                      style={styles.textInput}
+                      selectionColor={NemyColors.primary}
+                      testID="input-identifier"
+                    />
+                  </View>
+                  {errors.identifier ? (
+                    <ThemedText type="caption" style={styles.inputError}>
+                      {errors.identifier}
+                    </ThemedText>
+                  ) : null}
                 </View>
-                <View style={styles.inputBox}>
-                  <Feather
-                    name="phone"
-                    size={20}
-                    color="#666666"
-                    style={styles.inputBoxIcon}
-                  />
-                  <TextInput
-                    placeholder="317 123 4567"
-                    value={formatPhoneDisplay(phone)}
-                    onChangeText={handlePhoneChange}
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
-                    placeholderTextColor="#999999"
-                    style={styles.textInput}
-                    selectionColor={NemyColors.primary}
-                    maxLength={12}
-                    testID="input-phone"
-                  />
+
+                <View style={styles.inputWrapper}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Contraseña
+                  </ThemedText>
+                  <View style={[styles.inputBox, errors.password ? styles.inputBoxError : null]}>
+                    <Feather
+                      name="lock"
+                      size={20}
+                      color="#666666"
+                      style={styles.inputBoxIcon}
+                    />
+                    <TextInput
+                      placeholder="Tu contraseña"
+                      value={password}
+                      onChangeText={(text) => {
+                        setPassword(text);
+                        if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                      }}
+                      secureTextEntry={!showPassword}
+                      placeholderTextColor="#999999"
+                      style={styles.textInput}
+                      selectionColor={NemyColors.primary}
+                      testID="input-password"
+                    />
+                    <Pressable onPress={() => setShowPassword(!showPassword)}>
+                      <Feather
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={20}
+                        color="#666666"
+                      />
+                    </Pressable>
+                  </View>
+                  {errors.password ? (
+                    <ThemedText type="caption" style={styles.inputError}>
+                      {errors.password}
+                    </ThemedText>
+                  ) : null}
                 </View>
-              </View>
-              {errors.phone ? (
-                <ThemedText type="caption" style={styles.inputError}>
-                  {errors.phone}
+              </>
+            ) : (
+              <View style={styles.inputWrapper}>
+                <ThemedText type="small" style={styles.inputLabel}>
+                  Número de teléfono
                 </ThemedText>
-              ) : null}
-            </View>
+                <View style={styles.phoneInputContainer}>
+                  <View style={styles.countryCode}>
+                    <ThemedText type="body" style={styles.countryCodeText}>
+                      +52
+                    </ThemedText>
+                  </View>
+                  <View style={styles.inputBox}>
+                    <Feather
+                      name="phone"
+                      size={20}
+                      color="#666666"
+                      style={styles.inputBoxIcon}
+                    />
+                    <TextInput
+                      placeholder="317 123 4567"
+                      value={formatPhoneDisplay(phone)}
+                      onChangeText={handlePhoneChange}
+                      keyboardType="phone-pad"
+                      autoComplete="tel"
+                      placeholderTextColor="#999999"
+                      style={styles.textInput}
+                      selectionColor={NemyColors.primary}
+                      maxLength={12}
+                      testID="input-phone"
+                    />
+                  </View>
+                </View>
+                {errors.phone ? (
+                  <ThemedText type="caption" style={styles.inputError}>
+                    {errors.phone}
+                  </ThemedText>
+                ) : null}
+              </View>
+            )}
 
             <Button
-              onPress={handlePhoneLogin}
+              onPress={loginMode === "password" ? handlePasswordLogin : handlePhoneLogin}
               disabled={isLoading}
               style={styles.loginButton}
               testID="button-login"
@@ -283,9 +397,28 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                "Enviar código SMS"
+                loginMode === "password" ? "Iniciar sesión" : "Enviar código SMS"
               )}
             </Button>
+
+            <Pressable
+              onPress={() => {
+                setLoginMode(loginMode === "password" ? "sms" : "password");
+                setErrors({});
+              }}
+              style={styles.switchModeButton}
+            >
+              <Feather
+                name={loginMode === "password" ? "message-circle" : "key"}
+                size={16}
+                color={NemyColors.primary}
+              />
+              <ThemedText type="small" style={styles.switchModeText}>
+                {loginMode === "password" 
+                  ? "Iniciar con código SMS" 
+                  : "Iniciar con contraseña"}
+              </ThemedText>
+            </Pressable>
 
             {showBiometricOption && biometricAvailable ? (
               <>
@@ -564,8 +697,23 @@ const styles = StyleSheet.create({
     color: NemyColors.error,
     marginTop: Spacing.xs,
   },
+  inputBoxError: {
+    borderColor: NemyColors.error,
+  },
   loginButton: {
     marginTop: Spacing.sm,
+  },
+  switchModeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+    padding: Spacing.sm,
+  },
+  switchModeText: {
+    color: NemyColors.primary,
+    fontWeight: "500",
   },
   divider: {
     flexDirection: "row",

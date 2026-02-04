@@ -505,6 +505,202 @@ router.post("/auth/phone-signup", async (req, res) => {
   }
 });
 
+// Full signup with email and password
+router.post("/auth/signup", async (req, res) => {
+  try {
+    const { phone, name, role, email, password } = req.body;
+    
+    if (!phone || !name) {
+      return res.status(400).json({ success: false, error: "Teléfono y nombre son requeridos" });
+    }
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: "Correo y contraseña son requeridos" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, error: "La contraseña debe tener al menos 8 caracteres" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq, or, like } = await import("drizzle-orm");
+    const bcrypt = await import("bcrypt");
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/[\s-()]/g, '');
+    const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user already exists (by phone or email)
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.phone, normalizedPhone),
+          eq(users.phone, phone),
+          like(users.phone, `%${phoneDigits.slice(-10)}`),
+          eq(users.email, normalizedEmail)
+        )
+      )
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      const existing = existingUser[0];
+      if (existing.email === normalizedEmail) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Este correo ya está registrado. Intenta iniciar sesión.",
+          userExists: true
+        });
+      }
+      return res.status(400).json({ 
+        success: false,
+        error: "Este número ya está registrado. Intenta iniciar sesión.",
+        userExists: true
+      });
+    }
+
+    // Validate role
+    const validRoles = ['customer', 'business_owner', 'delivery_driver'];
+    const userRole = validRoles.includes(role) ? role : 'customer';
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user
+    await db
+      .insert(users)
+      .values({
+        phone: normalizedPhone,
+        email: normalizedEmail,
+        password: hashedPassword,
+        name: name,
+        role: userRole,
+        phoneVerified: false,
+      });
+
+    console.log("✅ Usuario registrado con email:", normalizedEmail, normalizedPhone, name, userRole);
+
+    res.json({ 
+      success: true, 
+      requiresVerification: true,
+      message: "Usuario registrado. Verifica tu teléfono."
+    });
+  } catch (error: any) {
+    console.error("Signup error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Login with email/phone and password
+router.post("/auth/login", async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+    
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, error: "Correo/teléfono y contraseña son requeridos" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq, or, like } = await import("drizzle-orm");
+    const bcrypt = await import("bcrypt");
+    const jwt = await import("jsonwebtoken");
+
+    // Determine if identifier is email or phone
+    const isEmail = identifier.includes('@');
+    const normalizedIdentifier = identifier.toLowerCase().trim();
+    
+    let user;
+    if (isEmail) {
+      const result = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, normalizedIdentifier))
+        .limit(1);
+      user = result[0];
+    } else {
+      // Phone login
+      const normalizedPhone = identifier.replace(/[\s-()]/g, '');
+      const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
+      
+      const result = await db
+        .select()
+        .from(users)
+        .where(
+          or(
+            eq(users.phone, normalizedPhone),
+            eq(users.phone, identifier),
+            like(users.phone, `%${phoneDigits.slice(-10)}`)
+          )
+        )
+        .limit(1);
+      user = result[0];
+    }
+
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        error: "Usuario no encontrado" 
+      });
+    }
+
+    if (!user.password) {
+      return res.status(401).json({ 
+        success: false, 
+        error: "Esta cuenta no tiene contraseña configurada. Usa verificación por teléfono." 
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ 
+        success: false, 
+        error: "Contraseña incorrecta" 
+      });
+    }
+
+    // Check if phone is verified
+    if (!user.phoneVerified) {
+      return res.json({ 
+        success: true, 
+        requiresVerification: true,
+        phone: user.phone,
+        message: "Por favor verifica tu teléfono para continuar"
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET || "nemy-secret-key",
+      { expiresIn: "30d" }
+    );
+
+    res.json({ 
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        phoneVerified: user.phoneVerified,
+        stripeCustomerId: user.stripeCustomerId,
+        cardLast4: user.cardLast4,
+        cardBrand: user.cardBrand,
+      }
+    });
+  } catch (error: any) {
+    console.error("Login error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Verify code and login (existing users only)
 router.post("/auth/verify-code", async (req, res) => {
   try {

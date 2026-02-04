@@ -18,7 +18,11 @@ The NEMY application is built with a client-server architecture.
 
 **Frontend:**
 *   Developed using **React Native with Expo**, targeting a Progressive Web App experience.
-*   Features a multi-role authentication system for customers, businesses, delivery personnel, and administrators.
+*   Features a dual authentication system:
+    - **Email/Password Login**: Users can register with email and password, then login using either email or phone number with their password.
+    - **SMS Verification**: Phone-based authentication with SMS code verification (via Twilio) for phone verification after registration and critical actions.
+    - **Biometric Login**: Face ID / Touch ID / Fingerprint support for quick login on supported devices.
+*   Multi-role system for customers, businesses, delivery personnel, and administrators.
 *   Includes core functionalities like cart management, secure checkout with card/cash options, and real-time order tracking.
 *   Incorporates advanced features such as a real-time collapsible map for tracking, scheduled and recurring orders, an in-app chat system, favorites, quick reorder options, and delivery tipping.
 *   Delivery drivers have an online/offline toggle, GPS navigation integration, and an earnings dashboard.
