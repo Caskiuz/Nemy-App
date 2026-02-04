@@ -1276,6 +1276,31 @@ router.get("/connect/commission-rates", authenticateToken, async (req, res) => {
 // WALLET & WITHDRAWALS ROUTES
 // ============================================
 
+// Get wallet transactions
+router.get(
+  "/wallet/transactions",
+  authenticateToken,
+  requirePhoneVerified,
+  async (req, res) => {
+    try {
+      const { walletTransactions } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, desc } = await import("drizzle-orm");
+
+      const transactions = await db
+        .select()
+        .from(walletTransactions)
+        .where(eq(walletTransactions.userId, req.user!.id))
+        .orderBy(desc(walletTransactions.createdAt));
+
+      res.json({ success: true, transactions });
+    } catch (error: any) {
+      console.error("Error fetching wallet transactions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 // Get wallet balance
 router.get(
   "/wallet/balance",
