@@ -1,72 +1,233 @@
 import React from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
-import { NemyColors, Spacing, BorderRadius } from "../../../constants/theme";
-import { DashboardMetrics, ActiveOrder, OnlineDriver } from "../types/admin.types";
+import { View, Text, ScrollView, StyleSheet, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { NemyColors, Spacing } from "../../../constants/theme";
+import { DashboardMetrics, ActiveOrder, OnlineDriver, AdminStats } from "../types/admin.types";
 
 interface DashboardTabProps {
   metrics: DashboardMetrics | null;
   activeOrders: ActiveOrder[];
   onlineDrivers: OnlineDriver[];
+  stats?: AdminStats | null;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
   metrics,
   activeOrders,
   onlineDrivers,
+  stats,
 }) => {
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "pending":
+      case "pendiente":
+        return NemyColors.warning;
+      case "confirmed":
+      case "confirmado":
+        return "#3498DB";
+      case "preparing":
+      case "preparando":
+        return NemyColors.primary;
+      case "ready":
+      case "listo":
+        return NemyColors.success;
+      case "in_transit":
+      case "en camino":
+        return "#9B59B6";
+      case "delivered":
+      case "entregado":
+        return NemyColors.success;
+      default:
+        return "#666";
+    }
+  };
+
+  const translateStatus = (status: string) => {
+    const statusMap: Record<string, string> = {
+      pending: "Pendiente",
+      confirmed: "Confirmado",
+      preparing: "Preparando",
+      ready: "Listo",
+      in_transit: "En camino",
+      delivered: "Entregado",
+      cancelled: "Cancelado",
+    };
+    return statusMap[status?.toLowerCase()] || status;
+  };
+
+  const isDriverAvailable = (driver: OnlineDriver) => driver.activeOrder === null;
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>Métricas en Tiempo Real</Text>
       <View style={styles.metricsGrid}>
         <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{metrics?.activeOrders || 0}</Text>
-          <Text style={styles.metricLabel}>Pedidos Activos</Text>
+          <Text style={styles.metricValue}>{metrics?.ordersToday || 0}</Text>
+          <Text style={styles.metricLabel}>Pedidos hoy</Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{metrics?.onlineDrivers || 0}</Text>
-          <Text style={styles.metricLabel}>Repartidores Online</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{metrics?.todayOrders || 0}</Text>
-          <Text style={styles.metricLabel}>Pedidos Hoy</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>
-            ${((metrics?.todayRevenue || 0) / 100).toFixed(0)}
+          <Text style={[styles.metricValue, { color: NemyColors.error }]}>
+            {metrics?.cancelledToday || 0}
           </Text>
-          <Text style={styles.metricLabel}>Ingresos Hoy</Text>
+          <Text style={styles.metricLabel}>Cancelados</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricValue}>{metrics?.avgDeliveryTime || 35}m</Text>
+          <Text style={styles.metricLabel}>Tiempo prom.</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={[styles.metricValue, { color: NemyColors.success }]}>
+            {metrics?.driversOnline || 0}/{metrics?.totalDrivers || 1}
+          </Text>
+          <Text style={styles.metricLabel}>Repartidores</Text>
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📦 Pedidos Activos</Text>
-        {activeOrders.length === 0 ? (
-          <Text style={styles.emptyText}>No hay pedidos activos</Text>
-        ) : (
-          activeOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <Text style={styles.orderBusiness}>{order.businessName}</Text>
-              <Text style={styles.orderCustomer}>{order.customerName}</Text>
-              <Text style={styles.orderStatus}>{order.status}</Text>
-            </View>
-          ))
-        )}
+      <View style={styles.secondaryMetricsGrid}>
+        <View style={[styles.metricCard, styles.secondaryMetric]}>
+          <Feather name="package" size={20} color={NemyColors.primary} />
+          <Text style={styles.secondaryValue}>{activeOrders.length}</Text>
+          <Text style={styles.metricLabel}>Pedidos activos</Text>
+        </View>
+        <View style={[styles.metricCard, styles.secondaryMetric]}>
+          <Feather name="pause-circle" size={20} color={NemyColors.warning} />
+          <Text style={styles.secondaryValue}>{metrics?.pausedBusinesses || 0}</Text>
+          <Text style={styles.metricLabel}>Pausados</Text>
+        </View>
       </View>
 
+      <View style={styles.mapSection}>
+        <Text style={styles.sectionTitle}>Mapa en tiempo real</Text>
+        <View style={styles.mapPlaceholder}>
+          <Feather name="map" size={48} color="#ccc" />
+          <Text style={styles.mapText}>
+            {Platform.OS === "web" 
+              ? "Mapa disponible en la app móvil" 
+              : "Cargando mapa..."}
+          </Text>
+          <Text style={styles.mapSubtext}>
+            {onlineDrivers.length} repartidores | {activeOrders.length} pedidos activos
+          </Text>
+        </View>
+      </View>
+
+      {stats ? (
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Resumen General</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Feather name="users" size={24} color={NemyColors.primary} />
+              <Text style={styles.statValue}>{stats.totalUsers}</Text>
+              <Text style={styles.statLabel}>Usuarios</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Feather name="shopping-bag" size={24} color="#3498DB" />
+              <Text style={styles.statValue}>{stats.totalOrders}</Text>
+              <Text style={styles.statLabel}>Pedidos</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Feather name="dollar-sign" size={24} color={NemyColors.success} />
+              <Text style={styles.statValue}>${(stats.totalRevenue / 100).toFixed(0)}</Text>
+              <Text style={styles.statLabel}>Ingresos</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Feather name="clock" size={24} color={NemyColors.warning} />
+              <Text style={styles.statValue}>{stats.pendingOrders}</Text>
+              <Text style={styles.statLabel}>Pendientes</Text>
+            </View>
+          </View>
+
+          <Text style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Usuarios por rol</Text>
+          <View style={styles.rolesGrid}>
+            <View style={styles.roleCard}>
+              <Text style={styles.roleLabel}>Clientes</Text>
+              <Text style={styles.roleValue}>{stats.usersByRole.customers}</Text>
+            </View>
+            <View style={styles.roleCard}>
+              <Text style={styles.roleLabel}>Negocios</Text>
+              <Text style={styles.roleValue}>{stats.usersByRole.businesses}</Text>
+            </View>
+            <View style={styles.roleCard}>
+              <Text style={styles.roleLabel}>Repartidores</Text>
+              <Text style={styles.roleValue}>{stats.usersByRole.delivery}</Text>
+            </View>
+            <View style={styles.roleCard}>
+              <Text style={styles.roleLabel}>Admins</Text>
+              <Text style={styles.roleValue}>{stats.usersByRole.admins}</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🚗 Repartidores Online</Text>
-        {onlineDrivers.length === 0 ? (
-          <Text style={styles.emptyText}>No hay repartidores online</Text>
+        <Text style={styles.sectionTitle}>Pedidos activos ({activeOrders.length})</Text>
+        {activeOrders.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Feather name="inbox" size={32} color="#ccc" />
+            <Text style={styles.emptyText}>No hay pedidos activos</Text>
+          </View>
         ) : (
-          onlineDrivers.map((driver) => (
-            <View key={driver.id} style={styles.driverCard}>
-              <Text style={styles.driverName}>{driver.name}</Text>
-              <Text style={styles.driverStatus}>
-                {driver.isAvailable ? "Disponible" : "Ocupado"}
+          activeOrders.slice(0, 8).map((order) => (
+            <View key={order.id} style={styles.orderCard}>
+              <View style={styles.orderHeader}>
+                <View style={styles.orderInfo}>
+                  <Text style={styles.orderCustomer}>{order.customer?.name || "Cliente"}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + "20" }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+                      {translateStatus(order.status)}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.orderTotal}>${((order.total || 0) / 100).toFixed(2)}</Text>
+              </View>
+              <Text style={styles.orderAddress} numberOfLines={1}>
+                {order.deliveryAddress?.address || "Sin dirección"}
+              </Text>
+              <Text style={styles.orderDriver}>
+                {order.driver?.name || "Sin asignar"}
               </Text>
             </View>
           ))
         )}
       </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Repartidores Online ({onlineDrivers.length})</Text>
+        {onlineDrivers.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Feather name="truck" size={32} color="#ccc" />
+            <Text style={styles.emptyText}>No hay repartidores online</Text>
+          </View>
+        ) : (
+          onlineDrivers.map((driver) => (
+            <View key={driver.id} style={styles.driverCard}>
+              <View style={styles.driverInfo}>
+                <View style={[styles.driverAvatar, { backgroundColor: NemyColors.primaryLight }]}>
+                  <Feather name="user" size={16} color={NemyColors.primary} />
+                </View>
+                <Text style={styles.driverName}>{driver.name}</Text>
+              </View>
+              <View style={[
+                styles.availabilityBadge, 
+                { backgroundColor: isDriverAvailable(driver) ? NemyColors.success + "20" : NemyColors.warning + "20" }
+              ]}>
+                <View style={[
+                  styles.availabilityDot,
+                  { backgroundColor: isDriverAvailable(driver) ? NemyColors.success : NemyColors.warning }
+                ]} />
+                <Text style={[
+                  styles.availabilityText,
+                  { color: isDriverAvailable(driver) ? NemyColors.success : NemyColors.warning }
+                ]}>
+                  {isDriverAvailable(driver) ? "Disponible" : "Ocupado"}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 };
@@ -75,82 +236,240 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#333",
+    marginBottom: 12,
+    marginTop: 8,
+  },
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 12,
   },
   metricCard: {
     flex: 1,
-    minWidth: "45%",
+    minWidth: "22%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: NemyColors.primary,
+    marginBottom: 2,
+  },
+  metricLabel: {
+    fontSize: 10,
+    color: "#666",
+    textAlign: "center",
+  },
+  secondaryMetricsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  secondaryMetric: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  secondaryValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  mapSection: {
+    marginBottom: 16,
+  },
+  mapPlaceholder: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mapText: {
+    fontSize: 14,
+    color: "#999",
+    marginTop: 12,
+  },
+  mapSubtext: {
+    fontSize: 12,
+    color: "#bbb",
+    marginTop: 4,
+  },
+  statsSection: {
+    marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: "22%",
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  metricValue: {
-    fontSize: 32,
+  statValue: {
+    fontSize: 24,
     fontWeight: "bold",
-    color: NemyColors.primary,
+    color: "#333",
+    marginTop: 8,
     marginBottom: 4,
   },
-  metricLabel: {
-    fontSize: 12,
+  statLabel: {
+    fontSize: 11,
     color: "#666",
-    textAlign: "center",
+  },
+  rolesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  roleCard: {
+    flex: 1,
+    minWidth: "22%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+  },
+  roleLabel: {
+    fontSize: 11,
+    color: "#666",
+    marginBottom: 4,
+  },
+  roleValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: NemyColors.primary,
   },
   section: {
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000",
-    marginBottom: 12,
+  emptyCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 32,
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    padding: 16,
+    color: "#999",
+    marginTop: 8,
   },
   orderCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  orderBusiness: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#000",
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  orderInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   orderCustomer: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  orderTotal: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: NemyColors.primary,
+  },
+  orderAddress: {
     fontSize: 12,
     color: "#666",
+    marginBottom: 4,
   },
-  orderStatus: {
+  orderDriver: {
     fontSize: 12,
     color: NemyColors.primary,
-    marginTop: 4,
+    fontWeight: "500",
   },
   driverCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     marginBottom: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  driverInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  driverAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   driverName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#000",
+    color: "#333",
   },
-  driverStatus: {
+  availabilityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 6,
+  },
+  availabilityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  availabilityText: {
     fontSize: 12,
-    color: NemyColors.primary,
+    fontWeight: "500",
   },
 });

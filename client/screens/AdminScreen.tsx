@@ -698,6 +698,7 @@ export default function AdminScreen() {
             metrics={dashboardMetrics}
             activeOrders={activeOrders}
             onlineDrivers={onlineDrivers}
+            stats={stats}
           />
         )}
         {activeTab === "users" && (
