@@ -10,7 +10,7 @@ import {
   drivers,
 } from "@shared/schema-mysql";
 import { eq, and } from "drizzle-orm";
-import { getCommissionRates } from "./systemSettingsService";
+import { financialService } from "./unifiedFinancialService";
 
 // Lazy-loaded Stripe instance
 let stripeInstance: Stripe | null = null;
@@ -140,28 +140,30 @@ export async function processSuccessfulPayment(paymentIntentId: string) {
       throw new Error("Payment not found");
     }
 
-    // Get commission rates
-    const rates = await getCommissionRates();
+    // Get commission rates from unified service
+    const rates = await financialService.getCommissionRates();
 
     const platformAmount = payment.amount * rates.platform;
     const businessAmount = payment.amount * rates.business;
     const driverAmount = payment.amount * rates.driver;
 
-    // Update business wallet
-    await updateWallet(
+    // Update business wallet using unified service
+    await financialService.updateWalletBalance(
       payment.businessId,
       businessAmount,
       "commission",
       payment.orderId,
+      `Business commission for order ${payment.orderId}`
     );
 
-    // Update driver wallet (if assigned)
+    // Update driver wallet (if assigned) using unified service
     if (payment.driverId) {
-      await updateWallet(
+      await financialService.updateWalletBalance(
         payment.driverId,
         driverAmount,
         "delivery_fee",
         payment.orderId,
+        `Delivery fee for order ${payment.orderId}`
       );
     }
 
@@ -202,57 +204,7 @@ export async function processSuccessfulPayment(paymentIntentId: string) {
   }
 }
 
-async function updateWallet(
-  userId: string,
-  amount: number,
-  type: string,
-  orderId: string,
-) {
-  // Get or create wallet
-  let [wallet] = await db
-    .select()
-    .from(wallets)
-    .where(eq(wallets.userId, userId))
-    .limit(1);
 
-  if (!wallet) {
-    // Insert new wallet
-    await db.insert(wallets).values({
-      userId,
-      balance: 0,
-      pendingBalance: 0,
-      totalEarned: 0,
-    });
-    // Retrieve the newly created wallet
-    [wallet] = await db
-      .select()
-      .from(wallets)
-      .where(eq(wallets.userId, userId))
-      .limit(1);
-  }
-
-  if (!wallet) return;
-
-  // Update wallet balance
-  await db
-    .update(wallets)
-    .set({
-      balance: wallet.balance + amount,
-      totalEarned: wallet.totalEarned + amount,
-    })
-    .where(eq(wallets.userId, userId));
-
-  // Create transaction record
-  await db.insert(walletTransactions).values({
-    walletId: wallet.id,
-    userId,
-    amount,
-    type,
-    status: "completed",
-    description: `${type} for order ${orderId}`,
-    orderId,
-  });
-}
 
 export async function createSetupIntent(customerId: string) {
   try {

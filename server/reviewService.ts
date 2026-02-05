@@ -20,7 +20,7 @@ export async function createReview(params: any) {
       .where(
         and(
           eq(orders.id, orderId),
-          eq(orders.customerId, userId),
+          eq(orders.userId, userId),
           eq(orders.status, "delivered"),
         ),
       )
@@ -52,11 +52,9 @@ export async function createReview(params: any) {
         orderId,
         userId,
         businessId: type === "business" ? businessId : null,
-        driverId: type === "driver" ? driverId : null,
         rating,
         comment: comment || null,
-        type,
-        isVisible: true,
+        approved: true,
         createdAt: new Date(),
       })
       .returning();
@@ -91,8 +89,7 @@ async function updateBusinessRating(businessId: string) {
       .where(
         and(
           eq(reviews.businessId, businessId),
-          eq(reviews.type, "business"),
-          eq(reviews.isVisible, true),
+          eq(reviews.approved, true),
         ),
       );
 
@@ -104,9 +101,8 @@ async function updateBusinessRating(businessId: string) {
     await db
       .update(businesses)
       .set({
-        rating: avgRating,
-        totalReviews,
-        updatedAt: new Date(),
+        rating: Math.round(avgRating * 10), // Store as 0-50 for 0.0-5.0
+        totalRatings: totalReviews,
       })
       .where(eq(businesses.id, businessId));
 

@@ -15,9 +15,11 @@ import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
+import { gpsService } from '@/services/gpsService';
 
 export default function DriverAvailableOrdersScreen() {
   const insets = useSafeAreaInsets();
@@ -26,46 +28,81 @@ export default function DriverAvailableOrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
 
   const loadStatus = async () => {
     try {
+      console.log('🔍 Loading driver status...');
       const response = await apiRequest("GET", "/api/delivery/status");
       const data = await response.json();
-      if (data.success) {
+      
+      console.log('📝 Status response:', data);
+      
+      if (data.success && typeof data.isOnline !== 'undefined') {
+        console.log('✅ Current status:', data.isOnline);
         setIsOnline(data.isOnline);
+      } else {
+        console.error('❌ Failed to load status:', data);
+        // Set default to false if we can't get status
+        setIsOnline(false);
       }
     } catch (error) {
-      console.error("Error loading status:", error);
+      console.error("❌ Error loading status:", error);
+      setIsOnline(false);
     }
   };
 
   const loadOrders = async () => {
     try {
+      console.log('📦 Loading available orders...');
       const response = await apiRequest("GET", "/api/delivery/available-orders");
       const data = await response.json();
+      console.log('📦 Orders response:', data);
       if (data.success) {
-        setOrders(data.orders);
+        console.log('✅ Found orders:', data.orders?.length || 0);
+        setOrders(data.orders || []);
+      } else {
+        console.error('❌ Failed to load orders:', data);
       }
     } catch (error) {
-      console.error("Error loading orders:", error);
+      console.error("❌ Error loading orders:", error);
     }
   };
 
   const handleToggleStatus = async () => {
     setIsTogglingStatus(true);
     try {
+      console.log('🔄 Toggling driver status from:', isOnline);
       const response = await apiRequest("POST", "/api/delivery/toggle-status", {});
       const data = await response.json();
+      
+      console.log('📝 Toggle response:', data);
+      
       if (data.success) {
-        setIsOnline(data.isOnline);
+        // Use the isOnline value from server response if available
+        const newStatus = typeof data.isOnline !== 'undefined' ? data.isOnline : !isOnline;
+        console.log('✅ Status changed to:', newStatus);
+        setIsOnline(newStatus);
+        
+        // Start/stop GPS tracking based on status
+        if (newStatus) {
+          gpsService.startTracking();
+        } else {
+          gpsService.stopTracking();
+        }
         Haptics.notificationAsync(
-          data.isOnline
+          newStatus
             ? Haptics.NotificationFeedbackType.Success
             : Haptics.NotificationFeedbackType.Warning
         );
+      } else {
+        console.error('❌ Toggle failed:', data);
+        Alert.alert("Error", data.error || "No se pudo cambiar el estado");
       }
     } catch (error) {
-      console.error("Error toggling status:", error);
+      console.error("❌ Error toggling status:", error);
       Alert.alert("Error", "No se pudo cambiar el estado");
     } finally {
       setIsTogglingStatus(false);
@@ -76,8 +113,17 @@ export default function DriverAvailableOrdersScreen() {
     loadStatus();
     loadOrders();
     const interval = setInterval(loadOrders, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    
+    // Start GPS tracking if online
+    if (isOnline) {
+      gpsService.startTracking();
+    }
+    
+    return () => {
+      clearInterval(interval);
+      gpsService.stopTracking();
+    };
+  }, [isOnline]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -86,22 +132,40 @@ export default function DriverAvailableOrdersScreen() {
   };
 
   const handleAcceptOrder = async (orderId: string) => {
-    Alert.alert("Aceptar Pedido", "¿Quieres aceptar este pedido?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Aceptar",
-        onPress: async () => {
-          try {
-            await apiRequest("POST", `/api/delivery/accept-order/${orderId}`, {});
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            loadOrders();
-          } catch (error) {
-            console.error("Error accepting order:", error);
-            Alert.alert("Error", "No se pudo aceptar el pedido");
-          }
-        },
-      },
-    ]);
+    if (!isOnline) {
+      setShowOfflineModal(true);
+      return;
+    }
+    
+    setPendingOrderId(orderId);
+    setShowConfirmModal(true);
+  };
+
+  const confirmAccept = async () => {
+    if (!pendingOrderId) return;
+    
+    try {
+      const response = await apiRequest("POST", `/api/delivery/accept/${pendingOrderId}`, {});
+      const data = await response.json();
+      
+      if (data.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Éxito", "Pedido aceptado exitosamente");
+        loadOrders();
+      } else {
+        Alert.alert("Error", data.error || "No se pudo aceptar el pedido");
+      }
+    } catch (error) {
+      Alert.alert("Error", `No se pudo aceptar el pedido: ${error}`);
+    } finally {
+      setShowConfirmModal(false);
+      setPendingOrderId(null);
+    }
+  };
+
+  const cancelAccept = () => {
+    setShowConfirmModal(false);
+    setPendingOrderId(null);
   };
 
   const renderOrder = ({ item }: { item: any }) => {
@@ -157,11 +221,14 @@ export default function DriverAvailableOrdersScreen() {
               Ganancia estimada
             </ThemedText>
             <ThemedText type="h3" style={{ color: NemyColors.success }}>
-              ${((item.total * 0.15) / 100).toFixed(2)}
+              ${(item.total * 0.15).toFixed(2)}
             </ThemedText>
           </View>
           <Pressable
-            onPress={() => handleAcceptOrder(item.id)}
+            onPress={() => {
+              console.log('🔥 Button pressed for order:', item.id);
+              handleAcceptOrder(item.id);
+            }}
             style={[styles.acceptButton, { backgroundColor: NemyColors.primary }]}
           >
             <Feather name="check" size={18} color="#FFF" />
@@ -248,6 +315,24 @@ export default function DriverAvailableOrdersScreen() {
             </ThemedText>
           </View>
         }
+      />
+      
+      <ConfirmModal
+        visible={showConfirmModal}
+        title="Aceptar Pedido"
+        message="¿Quieres aceptar este pedido?"
+        onConfirm={confirmAccept}
+        onCancel={cancelAccept}
+      />
+      
+      <ConfirmModal
+        visible={showOfflineModal}
+        title="Estado Requerido"
+        message="Debes estar en línea para aceptar pedidos"
+        onConfirm={() => setShowOfflineModal(false)}
+        onCancel={() => setShowOfflineModal(false)}
+        confirmText="Entendido"
+        showCancel={false}
       />
     </LinearGradient>
   );

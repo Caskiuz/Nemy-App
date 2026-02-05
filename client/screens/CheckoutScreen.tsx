@@ -22,9 +22,10 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { mockAddresses, mockBusinesses } from "@/data/mockData";
 import { apiRequest } from "@/lib/query-client";
 import { useToast } from "@/contexts/ToastContext";
+import { calculateDistance, calculateDeliveryFee, estimateDeliveryTime } from "@/utils/distance";
+import { useQuery } from "@tanstack/react-query";
 
 type SubstitutionOption = "refund" | "call" | "substitute";
 
@@ -43,11 +44,20 @@ export default function CheckoutScreen() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const [selectedAddress, setSelectedAddress] = useState(mockAddresses[0]);
+  const { data: addressesData } = useQuery<{ addresses: any[] }>({
+    queryKey: ["/api/users", user?.id, "addresses"],
+    enabled: !!user?.id,
+  });
+
+  const addresses = addressesData?.addresses || [];
+  const [selectedAddress, setSelectedAddress] = useState<any>(null);
+  const [business, setBusiness] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
   const [isLoading, setIsLoading] = useState(false);
   const [isPaymentReady, setIsPaymentReady] = useState(false);
   const [stripeModule, setStripeModule] = useState<any>(null);
+  const [dynamicDeliveryFee, setDynamicDeliveryFee] = useState<number | null>(null);
+  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
 
   // Preferencias de sustitución
   const [globalSubstitution, setGlobalSubstitution] =
@@ -61,11 +71,48 @@ export default function CheckoutScreen() {
   const [cashPaymentAmount, setCashPaymentAmount] = useState("");
   const [cashError, setCashError] = useState("");
 
-  const business = cart
-    ? mockBusinesses.find((b) => b.id === cart.businessId)
-    : null;
-  const deliveryFee = business?.deliveryFee || 0;
+  useEffect(() => {
+    if (cart?.businessId) {
+      loadBusiness();
+    }
+  }, [cart?.businessId]);
+
+  const loadBusiness = async () => {
+    try {
+      const response = await apiRequest("GET", `/api/businesses/${cart?.businessId}`);
+      const data = await response.json();
+      setBusiness(data.business);
+    } catch (error) {
+      console.error("Error loading business:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (addresses.length > 0 && !selectedAddress) {
+      const defaultAddr = addresses.find((a: any) => a.isDefault) || addresses[0];
+      setSelectedAddress(defaultAddr);
+    }
+  }, [addresses]);
+
+
+  const deliveryFee = dynamicDeliveryFee ?? business?.deliveryFee ?? 0;
   const total = subtotal + deliveryFee;
+
+  // Calcular delivery fee dinámico cuando cambia la dirección
+  useEffect(() => {
+    if (business && selectedAddress && selectedAddress.latitude && selectedAddress.longitude) {
+      const distance = calculateDistance(
+        business.latitude || 19.7708,
+        business.longitude || -104.3636,
+        selectedAddress.latitude,
+        selectedAddress.longitude
+      );
+      const fee = calculateDeliveryFee(distance);
+      const time = estimateDeliveryTime(distance);
+      setDynamicDeliveryFee(fee);
+      setEstimatedTime(time);
+    }
+  }, [business, selectedAddress]);
 
   // Calcular cambio para efectivo
   const cashAmountNumber = parseFloat(cashPaymentAmount) || 0;
@@ -284,41 +331,69 @@ export default function CheckoutScreen() {
               Dirección de entrega
             </ThemedText>
           </View>
-          {mockAddresses.map((addr) => (
+          {addresses.length === 0 ? (
             <Pressable
-              key={addr.id}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setSelectedAddress(addr);
-              }}
+              onPress={() => navigation.navigate("AddAddress" as never)}
               style={[
                 styles.addressCard,
                 {
                   backgroundColor: theme.backgroundSecondary,
-                  borderColor:
-                    selectedAddress.id === addr.id
-                      ? NemyColors.primary
-                      : "transparent",
+                  borderColor: NemyColors.primary,
+                  borderStyle: "dashed",
                 },
               ]}
             >
               <View style={styles.addressContent}>
-                <ThemedText type="body" style={{ fontWeight: "600" }}>
-                  {addr.label}
-                </ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  {addr.street}, {addr.city}
+                <Feather name="plus" size={20} color={NemyColors.primary} />
+                <ThemedText
+                  type="body"
+                  style={{ color: NemyColors.primary, marginLeft: Spacing.sm }}
+                >
+                  Agregar dirección
                 </ThemedText>
               </View>
-              {selectedAddress.id === addr.id ? (
-                <Feather
-                  name="check-circle"
-                  size={20}
-                  color={NemyColors.primary}
-                />
-              ) : null}
             </Pressable>
-          ))}
+          ) : (
+            addresses.map((addr: any) => (
+              <Pressable
+                key={addr.id}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedAddress(addr);
+                }}
+                style={[
+                  styles.addressCard,
+                  {
+                    backgroundColor: theme.backgroundSecondary,
+                    borderColor:
+                      selectedAddress?.id === addr.id
+                        ? NemyColors.primary
+                        : "transparent",
+                  },
+                ]}
+                accessibilityLabel={`Dirección ${addr.label}: ${addr.street}, ${addr.city}`}
+                accessibilityHint={selectedAddress?.id === addr.id ? 'Dirección seleccionada' : 'Toca para seleccionar esta dirección'}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedAddress?.id === addr.id }}
+              >
+                <View style={styles.addressContent}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                    {addr.label}
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    {addr.street}, {addr.city}
+                  </ThemedText>
+                </View>
+                {selectedAddress?.id === addr.id ? (
+                  <Feather
+                    name="check-circle"
+                    size={20}
+                    color={NemyColors.primary}
+                  />
+                ) : null}
+              </Pressable>
+            ))
+          )}}
         </View>
 
         <View
@@ -344,6 +419,10 @@ export default function CheckoutScreen() {
                   paymentMethod === "card" ? NemyColors.primary : "transparent",
               },
             ]}
+            accessibilityLabel="Pago con tarjeta"
+            accessibilityHint={paymentMethod === "card" ? 'Método seleccionado' : 'Toca para pagar con tarjeta'}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: paymentMethod === "card" }}
           >
             <View style={styles.paymentContent}>
               <Feather name="credit-card" size={24} color={theme.text} />
@@ -382,6 +461,10 @@ export default function CheckoutScreen() {
                     : "transparent",
               },
             ]}
+            accessibilityLabel="Pago en efectivo"
+            accessibilityHint={paymentMethod === "cash" ? 'Método seleccionado' : 'Toca para pagar en efectivo'}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: paymentMethod === "cash" }}
           >
             <View style={styles.paymentContent}>
               <Feather name="dollar-sign" size={24} color={theme.text} />
@@ -441,6 +524,8 @@ export default function CheckoutScreen() {
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="decimal-pad"
                   testID="input-cash-amount"
+                  accessibilityLabel="Monto en efectivo"
+                  accessibilityHint="Ingresa con cuánto dinero vas a pagar"
                 />
               </View>
               {cashAmountNumber > 0 && cashAmountNumber >= total ? (
@@ -676,7 +761,7 @@ export default function CheckoutScreen() {
         </View>
         <View style={styles.totalRow}>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>
-            Envío
+            Envío {estimatedTime ? `(~${estimatedTime} min)` : ''}
           </ThemedText>
           <ThemedText type="body">${deliveryFee.toFixed(2)}</ThemedText>
         </View>

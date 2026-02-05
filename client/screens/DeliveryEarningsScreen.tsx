@@ -100,7 +100,7 @@ export default function DeliveryEarningsScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
 
   const { data, isLoading, refetch, isRefetching } = useQuery<EarningsData>({
-    queryKey: ["/api/delivery", user?.id, "earnings"],
+    queryKey: ["/api/delivery/stats"],
     enabled: !!user?.id,
   });
 
@@ -109,10 +109,17 @@ export default function DeliveryEarningsScreen() {
     enabled: !!user?.id,
   });
 
+  // DEBUG: Log wallet data
+  console.log('🔍 Wallet Data:', walletData);
+  console.log('👤 User ID:', user?.id);
+
   const { data: transactionsData, refetch: refetchTransactions } = useQuery<{ success: boolean; transactions: Transaction[] }>({
     queryKey: ["/api/wallet/transactions"],
     enabled: !!user?.id,
   });
+
+  // DEBUG: Log transactions
+  console.log('💳 Transactions:', transactionsData);
 
   const withdrawMutation = useMutation({
     mutationFn: async (amount: number) => {
@@ -135,25 +142,25 @@ export default function DeliveryEarningsScreen() {
     },
   });
 
-  const earnings = data?.earnings || {
-    today: 0,
-    week: 0,
-    month: 0,
-    total: 0,
+  const earnings = {
+    today: (data?.stats?.todayEarnings || 0) / 100,
+    week: (data?.stats?.weekEarnings || 0) / 100,
+    month: (data?.stats?.totalEarnings || 0) / 100,
+    total: (data?.stats?.totalEarnings || 0) / 100,
     tips: 0,
   };
 
-  const stats = data?.stats || {
-    totalDeliveries: 0,
-    averageRating: 0,
-    completionRate: 100,
-    avgDeliveryTime: 0,
+  const stats = {
+    totalDeliveries: data?.stats?.totalDeliveries || 0,
+    averageRating: data?.stats?.rating || 0,
+    completionRate: data?.stats?.completionRate || 100,
+    avgDeliveryTime: data?.stats?.avgDeliveryTime || 0,
   };
 
   const wallet: WalletData = {
-    balance: (walletData?.wallet?.balance || 0) / 100,
-    pendingBalance: (walletData?.wallet?.pendingBalance || 0) / 100,
-    totalEarned: (walletData?.wallet?.totalEarned || 0) / 100,
+    balance: (walletData?.wallet?.balance ?? 0) / 100,
+    pendingBalance: (walletData?.wallet?.pendingBalance ?? 0) / 100,
+    totalEarned: (walletData?.wallet?.totalEarned ?? 0) / 100,
   };
 
   const transactions = transactionsData?.transactions || [];

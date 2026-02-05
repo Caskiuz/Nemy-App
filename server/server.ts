@@ -3,7 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
-import apiRoutes from './apiRoutes';
+import apiRoutes from './apiRoutesCompact';
+import devRoutes from './devRoutes';
+import financialTestRoute from './financialTestRoute';
+import walletRoutes from './walletRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -69,6 +72,18 @@ app.use(express.static(staticBuildPath, {
 // API routes
 app.use('/api', apiRoutes);
 
+// Wallet routes
+import walletRoutes from './walletRoutes';
+app.use('/api/wallet', walletRoutes);
+
+// Financial system test routes
+app.use('/api/financial', financialTestRoute);
+
+// Development routes (only in development)
+if (!isProduction) {
+  app.use('/api', devRoutes);
+}
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -91,7 +106,8 @@ if (isProduction) {
     res.json({ 
       message: 'NEMY API Server',
       frontend: process.env.FRONTEND_URL || 'http://localhost:8081',
-      docs: '/api'
+      docs: '/api',
+      financialTests: '/api/financial/test-financial-system'
     });
   });
 }
@@ -113,6 +129,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8081'}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💰 Financial Tests: http://localhost:${PORT}/api/financial/test-financial-system`);
   
   // Check optional services
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -121,4 +138,9 @@ app.listen(PORT, () => {
   if (!process.env.TWILIO_ACCOUNT_SID) {
     console.warn('⚠️  Twilio not configured - SMS disabled');
   }
+
+  // Start business hours cron
+  import('./businessHoursCron').then(({ startBusinessHoursCron }) => {
+    startBusinessHoursCron();
+  }).catch(console.error);
 });

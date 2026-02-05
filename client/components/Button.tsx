@@ -1,141 +1,104 @@
-import React, { ReactNode } from "react";
-import {
-  StyleSheet,
-  Pressable,
-  ViewStyle,
-  StyleProp,
-  ActivityIndicator,
-} from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  WithSpringConfig,
-} from "react-native-reanimated";
-
-import { ThemedText } from "@/components/ThemedText";
-import { useTheme } from "@/hooks/useTheme";
-import { BorderRadius, Spacing, NemyColors } from "@/constants/theme";
+import React from 'react';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { theme } from '@/constants/theme';
 
 interface ButtonProps {
-  onPress?: () => void;
-  children: ReactNode;
-  style?: StyleProp<ViewStyle>;
-  disabled?: boolean;
-  variant?: "primary" | "secondary" | "outline";
+  title?: string;
+  children?: React.ReactNode;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
-  testID?: string;
+  disabled?: boolean;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
 }
 
-const springConfig: WithSpringConfig = {
-  damping: 15,
-  mass: 0.3,
-  stiffness: 150,
-  overshootClamping: true,
-  energyThreshold: 0.001,
-};
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 export function Button({
-  onPress,
+  title,
   children,
-  style,
-  disabled = false,
-  variant = "primary",
+  onPress,
+  variant = 'primary',
+  size = 'md',
   loading = false,
-  testID,
+  disabled = false,
+  style,
+  textStyle,
 }: ButtonProps) {
-  const { theme } = useTheme();
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    if (!disabled && !loading) {
-      scale.value = withSpring(0.97, springConfig);
-    }
-  };
-
-  const handlePressOut = () => {
-    if (!disabled && !loading) {
-      scale.value = withSpring(1, springConfig);
-    }
-  };
-
-  const getBackgroundColor = () => {
-    if (variant === "primary") {
-      return NemyColors.primary;
-    }
-    if (variant === "secondary") {
-      return theme.backgroundSecondary;
-    }
-    return "transparent";
-  };
-
-  const getTextColor = () => {
-    if (variant === "primary") {
-      return "#FFFFFF";
-    }
-    if (variant === "secondary") {
-      return theme.text;
-    }
-    return NemyColors.primary;
-  };
-
-  const getBorderColor = () => {
-    if (variant === "outline") {
-      return NemyColors.primary;
-    }
-    return "transparent";
-  };
+  const isDisabled = disabled || loading;
 
   return (
-    <AnimatedPressable
-      onPress={disabled || loading ? undefined : onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      disabled={disabled || loading}
-      testID={testID}
+    <TouchableOpacity
       style={[
-        styles.button,
-        {
-          backgroundColor: getBackgroundColor(),
-          borderColor: getBorderColor(),
-          borderWidth: variant === "outline" ? 2 : 0,
-          opacity: disabled ? 0.5 : 1,
-        },
+        styles.base,
+        styles[variant],
+        styles[`size_${size}`],
+        isDisabled && styles.disabled,
         style,
-        animatedStyle,
       ]}
+      onPress={onPress}
+      disabled={isDisabled}
+      activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={getTextColor()} size="small" />
-      ) : typeof children === "string" ? (
-        <ThemedText
-          type="body"
-          style={[styles.buttonText, { color: getTextColor() }]}
-        >
-          {children}
-        </ThemedText>
+        <ActivityIndicator color={variant === 'primary' ? '#FFF' : theme.colors.primary} />
       ) : (
-        children
+        <Text style={[styles.text, styles[`text_${variant}`], textStyle]}>
+          {children || title}
+        </Text>
       )}
-    </AnimatedPressable>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    height: Spacing.buttonHeight,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.xl,
+  base: {
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonText: {
-    fontWeight: "600",
+  primary: {
+    backgroundColor: theme.colors.primary,
+  },
+  secondary: {
+    backgroundColor: theme.colors.secondary,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+  },
+  size_sm: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  size_md: {
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  size_lg: {
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.xl,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  text: {
+    ...theme.typography.button,
+  },
+  text_primary: {
+    color: theme.colors.text.inverse,
+  },
+  text_secondary: {
+    color: theme.colors.text.inverse,
+  },
+  text_outline: {
+    color: theme.colors.primary,
+  },
+  text_ghost: {
+    color: theme.colors.primary,
   },
 });

@@ -31,6 +31,8 @@ export const mockBusinesses: Business[] = [
     categories: ["Tacos", "Mexicana", "Antojitos"],
     acceptsCash: true,
     featured: true,
+    latitude: 19.7708,
+    longitude: -104.3636,
   },
   {
     id: "2",
@@ -62,6 +64,8 @@ export const mockBusinesses: Business[] = [
     categories: ["Comida Casera", "Mexicana", "Desayunos"],
     acceptsCash: true,
     featured: true,
+    latitude: 19.7720,
+    longitude: -104.3650,
   },
   {
     id: "3",
@@ -93,6 +97,8 @@ export const mockBusinesses: Business[] = [
     categories: ["Sushi", "Japonesa", "Mariscos"],
     acceptsCash: false,
     featured: false,
+    latitude: 19.7695,
+    longitude: -104.3680,
   },
   {
     id: "4",
@@ -124,6 +130,8 @@ export const mockBusinesses: Business[] = [
     categories: ["Frutas", "Verduras", "Carnes", "Abarrotes"],
     acceptsCash: true,
     featured: true,
+    latitude: 19.7715,
+    longitude: -104.3640,
   },
   {
     id: "5",
@@ -155,6 +163,8 @@ export const mockBusinesses: Business[] = [
     categories: ["Carnes", "Embutidos", "Pollo"],
     acceptsCash: true,
     featured: false,
+    latitude: 19.7700,
+    longitude: -104.3645,
   },
   {
     id: "6",
@@ -186,6 +196,8 @@ export const mockBusinesses: Business[] = [
     categories: ["Pizza", "Italiana", "Pastas"],
     acceptsCash: true,
     featured: false,
+    latitude: 19.7710,
+    longitude: -104.3638,
   },
 ];
 

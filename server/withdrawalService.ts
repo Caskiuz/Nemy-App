@@ -9,6 +9,7 @@ import {
   systemSettings,
 } from "@shared/schema-mysql";
 import { eq, and } from "drizzle-orm";
+import { financialService } from "./unifiedFinancialService";
 
 // Lazy-loaded Stripe instance
 let stripeInstance: Stripe | null = null;
@@ -85,70 +86,79 @@ export async function requestWithdrawal(params: {
       };
     }
 
-    // Get Stripe Connect account
-    const [connectAccount] = await db
-      .select()
-      .from(stripeConnectAccounts)
-      .where(eq(stripeConnectAccounts.userId, params.userId))
-      .limit(1);
+    // In development, skip Stripe Connect requirement
+    const isDevelopment = process.env.NODE_ENV === "development" || !process.env.STRIPE_SECRET_KEY;
+    
+    if (!isDevelopment) {
+      // Get Stripe Connect account (only in production)
+      const [connectAccount] = await db
+        .select()
+        .from(stripeConnectAccounts)
+        .where(eq(stripeConnectAccounts.userId, params.userId))
+        .limit(1);
 
-    if (!connectAccount) {
-      return {
-        success: false,
-        error:
-          "Cuenta de Stripe no configurada. Completa tu onboarding primero.",
-      };
+      if (!connectAccount) {
+        return {
+          success: false,
+          error: "Cuenta de Stripe no configurada. Completa tu onboarding primero.",
+        };
+      }
+
+      if (!connectAccount.payoutsEnabled) {
+        return {
+          success: false,
+          error: "Pagos no habilitados. Completa la verificación de tu cuenta.",
+        };
+      }
     }
 
-    if (!connectAccount.payoutsEnabled) {
-      return {
-        success: false,
-        error: "Pagos no habilitados. Completa la verificación de tu cuenta.",
-      };
-    }
+    // Create withdrawal record and update wallet atomically
+    return await db.transaction(async (tx) => {
+      const [withdrawal] = await tx
+        .insert(withdrawals)
+        .values({
+          walletId: wallet.id,
+          userId: params.userId,
+          amount: params.amount,
+          status: isDevelopment ? "completed" : "pending",
+          method: params.method || "stripe",
+        })
+        .$returningId();
 
-    // Create withdrawal record
-    const [withdrawal] = await db
-      .insert(withdrawals)
-      .values({
+      // Update wallet balance
+      await tx
+        .update(wallets)
+        .set({
+          balance: wallet.balance - params.amount,
+          totalWithdrawn: wallet.totalWithdrawn + params.amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(wallets.userId, params.userId));
+
+      // Record transaction
+      await tx.insert(transactions).values({
         walletId: wallet.id,
         userId: params.userId,
+        type: "withdrawal",
+        amount: -params.amount,
+        balanceBefore: wallet.balance,
+        balanceAfter: wallet.balance - params.amount,
+        description: `Retiro de fondos`,
+        status: "completed",
+      });
+
+      // Process withdrawal if not in development
+      if (!isDevelopment) {
+        await processWithdrawal(withdrawal.id);
+      }
+
+      return {
+        success: true,
+        withdrawalId: withdrawal.id,
         amount: params.amount,
-        status: "pending",
-        method: params.method || "stripe",
-      })
-      .$returningId();
-
-    // Deduct from wallet balance (move to pending)
-    await db
-      .update(wallets)
-      .set({
-        balance: wallet.balance - params.amount,
-        pendingBalance: wallet.pendingBalance + params.amount,
-        updatedAt: new Date(),
-      })
-      .where(eq(wallets.id, wallet.id));
-
-    // Record transaction
-    await db.insert(transactions).values({
-      walletId: wallet.id,
-      type: "withdrawal",
-      amount: -params.amount,
-      balanceBefore: wallet.balance,
-      balanceAfter: wallet.balance - params.amount,
-      description: `Retiro solicitado`,
-      status: "pending",
-      metadata: JSON.stringify({ withdrawalId: withdrawal.id }),
+        message: isDevelopment ? "Retiro procesado (modo desarrollo)" : "Retiro solicitado",
+      };
     });
-
-    // Process withdrawal immediately
-    await processWithdrawal(withdrawal.id);
-
-    return {
-      success: true,
-      withdrawalId: withdrawal.id,
-      amount: params.amount,
-    };
   } catch (error: any) {
     console.error("Error requesting withdrawal:", error);
     return {
@@ -316,13 +326,18 @@ export async function getWithdrawalHistory(userId: string) {
 // Get wallet balance
 export async function getWalletBalance(userId: string) {
   try {
+    console.log('💰 getWalletBalance called for userId:', userId);
+    
     const [wallet] = await db
       .select()
       .from(wallets)
       .where(eq(wallets.userId, userId))
       .limit(1);
 
+    console.log('💰 Wallet found:', wallet);
+
     if (!wallet) {
+      console.log('⚠️ No wallet found, creating new one');
       // Create wallet if doesn't exist
       const [newWallet] = await db
         .insert(wallets)
@@ -348,14 +363,18 @@ export async function getWalletBalance(userId: string) {
       };
     }
 
-    return {
+    const result = {
       success: true,
       wallet: {
         ...wallet,
         availableBalance: wallet.balance - wallet.pendingBalance,
       },
     };
+    
+    console.log('✅ Returning wallet data:', result);
+    return result;
   } catch (error: any) {
+    console.error('❌ Error in getWalletBalance:', error);
     return {
       success: false,
       error: error.message,

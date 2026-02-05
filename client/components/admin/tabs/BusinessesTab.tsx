@@ -6,55 +6,39 @@ import { Business } from "../types/admin.types";
 
 interface BusinessesTabProps {
   businesses: Business[];
-  onAddBusiness: () => void;
-  onEditBusiness: (business: Business) => void;
-  onManageProducts: (businessId: string) => void;
+  onBusinessPress: (business: Business) => void;
 }
 
 export const BusinessesTab: React.FC<BusinessesTabProps> = ({
   businesses,
-  onAddBusiness,
-  onEditBusiness,
-  onManageProducts,
+  onBusinessPress,
 }) => {
   return (
     <ScrollView style={styles.container}>
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          onAddBusiness();
-        }}
-      >
-        <Text style={styles.addButtonText}>+ Agregar Negocio</Text>
-      </TouchableOpacity>
-
       {businesses.map((business) => (
-        <View key={business.id} style={styles.card}>
-          <Text style={styles.businessName}>{business.name}</Text>
-          <Text style={styles.businessType}>{business.type}</Text>
-          <Text style={styles.businessAddress}>{business.address}</Text>
-          <View style={styles.businessActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onEditBusiness(business);
-              }}
-            >
-              <Text style={styles.actionButtonText}>Editar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.productsButton]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onManageProducts(business.id);
-              }}
-            >
-              <Text style={styles.actionButtonText}>Productos</Text>
-            </TouchableOpacity>
+        <TouchableOpacity
+          key={business.id}
+          style={styles.card}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onBusinessPress(business);
+          }}
+        >
+          <View style={styles.businessHeader}>
+            <Text style={styles.businessName}>{business.name}</Text>
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: business.isActive ? '#10B981' : '#EF4444' }
+            ]}>
+              <Text style={styles.statusText}>
+                {business.isActive ? 'Activo' : 'Inactivo'}
+              </Text>
+            </View>
           </View>
-        </View>
+          <Text style={styles.businessType}>{business.type === 'restaurant' ? 'Restaurante' : 'Mercado'}</Text>
+          <Text style={styles.businessAddress}>{business.address || 'Sin dirección'}</Text>
+          <Text style={styles.businessPhone}>{business.phone || 'Sin teléfono'}</Text>
+        </TouchableOpacity>
       ))}
     </ScrollView>
   );
@@ -64,29 +48,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  addButton: {
-    backgroundColor: NemyColors.primary,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  addButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
   },
+  businessHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   businessName: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#000000",
-    marginBottom: 4,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   businessType: {
     fontSize: 14,
@@ -96,25 +84,10 @@ const styles = StyleSheet.create({
   businessAddress: {
     fontSize: 12,
     color: "#666666",
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  businessActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: NemyColors.primary,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  productsButton: {
-    backgroundColor: NemyColors.secondary,
-  },
-  actionButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+  businessPhone: {
+    fontSize: 12,
+    color: "#666666",
   },
 });

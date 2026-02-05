@@ -231,6 +231,40 @@ router.post(
   }),
 );
 
+// Update order status (for on_the_way, in_transit, etc.)
+router.put(
+  "/orders/:orderId/status",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+    const { status } = req.body;
+    const userId = (req as any).user.id;
+
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!order) {
+      throw new NotFoundError("Order");
+    }
+
+    if (order.deliveryPersonId !== userId) {
+      throw new AuthorizationError("Not your order");
+    }
+
+    await db
+      .update(orders)
+      .set({ status })
+      .where(eq(orders.id, orderId));
+
+    logger.delivery(`Order status updated to ${status}`, { orderId, driverId: userId });
+
+    res.json({ success: true });
+  }),
+);
+
 // Mark order as delivered - triggers commission distribution
 router.post(
   "/deliver/:orderId",
@@ -254,8 +288,8 @@ router.post(
       throw new AuthorizationError("Not your order");
     }
 
-    if (order.status !== "picked_up") {
-      throw new ValidationError("Order must be picked up first");
+    if (order.status !== "picked_up" && order.status !== "on_the_way" && order.status !== "in_transit") {
+      throw new ValidationError("Order must be picked up or on the way first");
     }
 
     // Mark as delivered
@@ -319,6 +353,32 @@ router.get(
       location: {
         latitude: driver.currentLatitude,
         longitude: driver.currentLongitude,
+        lastUpdate: driver.lastLocationUpdate,
+      },
+    });
+  }),
+);
+
+// Get delivery person location by deliveryPersonId
+router.get(
+  "/location/driver/:deliveryPersonId",
+  asyncHandler(async (req, res) => {
+    const { deliveryPersonId } = req.params;
+
+    const [driver] = await db
+      .select()
+      .from(deliveryDrivers)
+      .where(eq(deliveryDrivers.userId, deliveryPersonId))
+      .limit(1);
+    
+    if (!driver || !driver.currentLatitude || !driver.currentLongitude) {
+      return res.json({ location: null });
+    }
+
+    res.json({
+      location: {
+        latitude: parseFloat(driver.currentLatitude),
+        longitude: parseFloat(driver.currentLongitude),
         lastUpdate: driver.lastLocationUpdate,
       },
     });

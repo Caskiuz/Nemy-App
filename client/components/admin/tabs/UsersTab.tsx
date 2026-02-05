@@ -14,13 +14,17 @@ export const UsersTab: React.FC<UsersTabProps> = ({ users, onUserPress }) => {
     switch (role) {
       case "admin":
       case "super_admin":
-        return "#ef4444";
+        return "#9333EA"; // Morado
       case "business":
-        return "#3b82f6";
+      case "business_owner":
+        return "#3B82F6"; // Azul
       case "driver":
-        return "#10b981";
+      case "delivery_driver":
+        return "#10B981"; // Verde
+      case "customer":
+        return "#6B7280"; // Gris
       default:
-        return "#6b7280";
+        return "#6B7280";
     }
   };
 
@@ -28,8 +32,10 @@ export const UsersTab: React.FC<UsersTabProps> = ({ users, onUserPress }) => {
     const labels: Record<string, string> = {
       customer: "Cliente",
       business: "Negocio",
+      business_owner: "Negocio",
       driver: "Repartidor",
-      admin: "Admin",
+      delivery_driver: "Repartidor",
+      admin: "Administrador",
       super_admin: "Super Admin",
     };
     return labels[role] || role;

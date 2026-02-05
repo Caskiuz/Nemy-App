@@ -1,5 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Platform } from "react-native";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import BusinessTabNavigator from "@/navigation/BusinessTabNavigator";
@@ -37,6 +38,12 @@ import OrderConfirmationScreen from "@/screens/OrderConfirmationScreen";
 import BecomeDriverScreen from "@/screens/BecomeDriverScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/contexts/AuthContext";
+
+// Conditional import for LocationPickerScreen
+let LocationPickerScreen: any = null;
+if (Platform.OS !== 'web') {
+  LocationPickerScreen = require("@/screens/LocationPickerScreen").default;
+}
 
 export type RootStackParamList = {
   Main: undefined;
@@ -77,6 +84,7 @@ export type RootStackParamList = {
   Addresses: undefined;
   SavedAddresses: undefined;
   AddAddress: undefined;
+  LocationPicker: { onLocationSelected?: (coords: any, address: string) => void };
   SupportChat: undefined;
   Wallet: undefined;
   ReportIssue: { orderId: string; orderNumber?: string };
@@ -221,6 +229,13 @@ export default function RootStackNavigator() {
             component={AddAddressScreen}
             options={{ headerTitle: "Agregar dirección" }}
           />
+          {Platform.OS !== 'web' && LocationPickerScreen && (
+            <Stack.Screen
+              name="LocationPicker"
+              component={LocationPickerScreen}
+              options={{ headerTitle: "Seleccionar ubicación" }}
+            />
+          )}
           <Stack.Screen
             name="SupportChat"
             component={SupportChatScreen}

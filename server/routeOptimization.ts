@@ -166,7 +166,7 @@ export async function canDriverHandleMoreOrders(
     .from(orders)
     .where(
       and(
-        eq(orders.driverId, driverId),
+        eq(orders.deliveryPersonId, driverId),
         inArray(orders.status, ['picked_up', 'ready'])
       )
     );
@@ -194,7 +194,7 @@ export async function getDriverCurrentRoute(
     .from(orders)
     .where(
       and(
-        eq(orders.driverId, driverId),
+        eq(orders.deliveryPersonId, driverId),
         inArray(orders.status, ['picked_up', 'ready'])
       )
     );

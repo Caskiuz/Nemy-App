@@ -3,7 +3,13 @@ import { Platform } from "react-native";
 
 // Get API base URL dynamically at runtime
 export const getApiBaseUrl = (): string => {
-  // Check for environment variable FIRST (highest priority)
+  // Development mode - use localhost
+  if (__DEV__) {
+    console.log('🔧 Development mode: using localhost:5000');
+    return "http://localhost:5000";
+  }
+
+  // Check for environment variable (production)
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (envBackendUrl) {
     console.log('Using EXPO_PUBLIC_BACKEND_URL:', envBackendUrl);
@@ -12,19 +18,12 @@ export const getApiBaseUrl = (): string => {
 
   // For web in production, use current origin (same domain)
   if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
-    if (!__DEV__) {
-      return window.location.origin;
-    }
-  }
-
-  // Development mode fallback
-  if (__DEV__) {
-    return "http://localhost:5000";
+    return window.location.origin;
   }
 
   // Final fallback
   console.warn('No backend URL configured, using fallback');
-  return "https://8417c296-af24-4e86-b854-5d86385fbca9-00-39wlkmta8vwmp.spock.replit.dev";
+  return "https://nemy-app.replit.app";
 };
 
 export const API_CONFIG = {

@@ -9,7 +9,7 @@ import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import OrdersStackNavigator from "@/navigation/OrdersStackNavigator";
 import FavoritesStackNavigator from "@/navigation/FavoritesStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
-import AdminScreen from "@/screens/AdminScreen";
+import AdminScreenNew from "@/screens/AdminScreenNew"; // 🔧 ESTE ES EL ARCHIVO CORRECTO
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import DeliveryDashboardScreen from "@/screens/DeliveryDashboardScreen";
 import { useTheme } from "@/hooks/useTheme";
@@ -125,7 +125,7 @@ export default function MainTabNavigator() {
       {isAdmin ? (
         <Tab.Screen
           name="AdminTab"
-          component={AdminScreen}
+          component={AdminScreenNew}
           options={{
             title: "Admin",
             tabBarIcon: ({ color, size }) => (

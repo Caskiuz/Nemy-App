@@ -3,7 +3,8 @@ import { View, StyleSheet, ViewStyle } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, NemyColors } from "@/constants/theme";
+import { theme } from "@/constants/theme";
+import { NemyColors } from "@/constants/theme";
 
 type BadgeVariant = "primary" | "secondary" | "success" | "warning" | "error";
 
@@ -14,7 +15,7 @@ interface BadgeProps {
 }
 
 export function Badge({ text, variant = "primary", style }: BadgeProps) {
-  const { theme } = useTheme();
+  const { theme: currentTheme } = useTheme();
 
   const getColors = () => {
     switch (variant) {
@@ -25,8 +26,8 @@ export function Badge({ text, variant = "primary", style }: BadgeProps) {
         };
       case "secondary":
         return {
-          bg: theme.backgroundSecondary,
-          text: theme.textSecondary,
+          bg: currentTheme.backgroundSecondary,
+          text: currentTheme.textSecondary,
         };
       case "success":
         return {
@@ -64,9 +65,9 @@ export function Badge({ text, variant = "primary", style }: BadgeProps) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
     alignSelf: "flex-start",
   },
   text: {

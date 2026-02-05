@@ -1,130 +1,51 @@
-import React, { useState } from "react";
-import {
-  View,
-  TextInput,
-  StyleSheet,
-  TextInputProps,
-  Pressable,
-} from "react-native";
-import { Feather } from "@expo/vector-icons";
-
-import { ThemedText } from "@/components/ThemedText";
-import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, NemyColors } from "@/constants/theme";
+import React from 'react';
+import { View, TextInput, Text, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
+import { theme } from '@/constants/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
-  leftIcon?: keyof typeof Feather.glyphMap;
-  rightIcon?: keyof typeof Feather.glyphMap;
-  onRightIconPress?: () => void;
+  containerStyle?: ViewStyle;
 }
 
-export function Input({
-  label,
-  error,
-  leftIcon,
-  rightIcon,
-  onRightIconPress,
-  style,
-  ...props
-}: InputProps) {
-  const { theme, isDark } = useTheme();
-  const [isFocused, setIsFocused] = useState(false);
-
-  const borderColor = error
-    ? NemyColors.error
-    : isFocused
-      ? NemyColors.primary
-      : theme.border;
-
+export function Input({ label, error, containerStyle, style, ...props }: InputProps) {
   return (
-    <View style={styles.container}>
-      {label ? (
-        <ThemedText type="small" style={styles.label}>
-          {label}
-        </ThemedText>
-      ) : null}
-      <View
-        style={[
-          styles.inputContainer,
-          {
-            backgroundColor: theme.backgroundDefault,
-            borderColor,
-          },
-        ]}
-      >
-        {leftIcon ? (
-          <Feather
-            name={leftIcon}
-            size={20}
-            color={theme.textSecondary}
-            style={styles.leftIcon}
-          />
-        ) : null}
-        <TextInput
-          style={[
-            styles.input,
-            {
-              color: theme.text,
-              paddingLeft: leftIcon ? 0 : Spacing.lg,
-              backgroundColor: "transparent",
-            },
-            style,
-          ]}
-          selectionColor={NemyColors.primary}
-          placeholderTextColor={theme.textSecondary}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          {...props}
-        />
-        {rightIcon ? (
-          <Pressable onPress={onRightIconPress} style={styles.rightIcon}>
-            <Feather name={rightIcon} size={20} color={theme.textSecondary} />
-          </Pressable>
-        ) : null}
-      </View>
-      {error ? (
-        <ThemedText
-          type="caption"
-          style={[styles.error, { color: NemyColors.error }]}
-        >
-          {error}
-        </ThemedText>
-      ) : null}
+    <View style={[styles.container, containerStyle]}>
+      {label && <Text style={styles.label}>{label}</Text>}
+      <TextInput
+        style={[styles.input, error && styles.inputError, style]}
+        placeholderTextColor={theme.colors.text.disabled}
+        {...props}
+      />
+      {error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: Spacing.lg,
+    marginBottom: theme.spacing.md,
   },
   label: {
-    marginBottom: Spacing.xs,
-    fontWeight: "600",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.md,
-    height: Spacing.inputHeight,
-  },
-  leftIcon: {
-    marginLeft: Spacing.lg,
-    marginRight: Spacing.sm,
+    ...theme.typography.bodySmall,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.xs,
   },
   input: {
-    flex: 1,
-    height: "100%",
-    fontSize: 16,
-    paddingRight: Spacing.lg,
+    ...theme.typography.body,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
   },
-  rightIcon: {
-    padding: Spacing.md,
+  inputError: {
+    borderColor: theme.colors.error,
   },
   error: {
-    marginTop: Spacing.xs,
+    ...theme.typography.caption,
+    color: theme.colors.error,
+    marginTop: theme.spacing.xs,
   },
 });

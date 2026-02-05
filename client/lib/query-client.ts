@@ -9,6 +9,48 @@ export function getApiUrl(): string {
   return API_CONFIG.BASE_URL;
 }
 
+// Token cache to avoid repeated AsyncStorage reads
+let tokenCache: string | null = null;
+let tokenCacheTime = 0;
+const TOKEN_CACHE_DURATION = 5000; // 5 seconds
+
+async function getAuthToken(): Promise<string | null> {
+  // Use cache if recent
+  if (tokenCache && Date.now() - tokenCacheTime < TOKEN_CACHE_DURATION) {
+    return tokenCache;
+  }
+
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    
+    // Try to get token directly first
+    let token = await AsyncStorage.getItem('token');
+    
+    // Fallback to user object
+    if (!token) {
+      const stored = await AsyncStorage.getItem('@nemy_user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        token = user.token;
+      }
+    }
+    
+    // Update cache
+    tokenCache = token;
+    tokenCacheTime = Date.now();
+    
+    return token;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Clear token cache (call on logout)
+export function clearTokenCache() {
+  tokenCache = null;
+  tokenCacheTime = 0;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -24,18 +66,7 @@ export async function apiRequest(
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
 
-  // Get token from AsyncStorage
-  let token = null;
-  try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const stored = await AsyncStorage.getItem('@nemy_user');
-    if (stored) {
-      const user = JSON.parse(stored);
-      token = user.token;
-    }
-  } catch (error) {
-    // Silent fail
-  }
+  const token = await getAuthToken();
 
   const headers: Record<string, string> = {};
   if (data) {
@@ -65,18 +96,7 @@ export const getQueryFn: <T>(options: {
     const baseUrl = getApiUrl();
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
-    // Get token from AsyncStorage
-    let token = null;
-    try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const stored = await AsyncStorage.getItem('@nemy_user');
-      if (stored) {
-        const user = JSON.parse(stored);
-        token = user.token;
-      }
-    } catch (error) {
-      // Silent fail
-    }
+    const token = await getAuthToken();
 
     const headers: Record<string, string> = {};
     if (token) {

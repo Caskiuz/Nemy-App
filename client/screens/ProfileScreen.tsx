@@ -417,14 +417,24 @@ export default function ProfileScreen() {
             }}
           />
           {user?.role === "business_owner" && (
-            <SettingsItem
-              icon="briefcase"
-              label="Mis Negocios"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                navigation.navigate("MyBusinesses");
-              }}
-            />
+            <>
+              <SettingsItem
+                icon="briefcase"
+                label="Mis Negocios"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("MyBusinesses");
+                }}
+              />
+              <SettingsItem
+                icon="clock"
+                label="Horarios de atención"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("BusinessHours");
+                }}
+              />
+            </>
           )}
           <SettingsItem
             icon="map-pin"

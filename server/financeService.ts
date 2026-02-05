@@ -2,6 +2,7 @@
 import { db } from './db';
 import { users, businesses, orders, orderItems, wallets, transactions } from '@shared/schema-mysql';
 import { eq, and, gte, sum, count, desc } from 'drizzle-orm';
+import { financialService } from './unifiedFinancialService';
 
 export interface FinancialMetrics {
   totalUsers: number;
@@ -58,10 +59,11 @@ export class FinanceService {
         .filter(o => o.status === 'delivered')
         .reduce((sum, order) => sum + (order.total || 0), 0);
 
-      // Calculate commissions (15% platform, 70% business, 15% driver)
-      const platformCommission = Math.round(totalRevenue * 0.15);
-      const businessPayouts = Math.round(totalRevenue * 0.70);
-      const driverPayouts = Math.round(totalRevenue * 0.15);
+      // Calculate commissions using unified service
+      const rates = await financialService.getCommissionRates();
+      const platformCommission = Math.round(totalRevenue * rates.platform);
+      const businessPayouts = Math.round(totalRevenue * rates.business);
+      const driverPayouts = Math.round(totalRevenue * rates.driver);
 
       // Count users by role
       const usersByRole = {
@@ -133,7 +135,8 @@ export class FinanceService {
 
       const completedOrders = businessOrders.filter(o => o.status === 'delivered');
       const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-      const businessEarnings = Math.round(totalRevenue * 0.70); // 70% to business
+      const rates = await financialService.getCommissionRates();
+      const businessEarnings = Math.round(totalRevenue * rates.business); // Business percentage
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -165,11 +168,12 @@ export class FinanceService {
       const driverOrders = await db
         .select()
         .from(orders)
-        .where(eq(orders.driverId, driverId));
+        .where(eq(orders.deliveryPersonId, driverId));
 
       const completedOrders = driverOrders.filter(o => o.status === 'delivered');
       const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-      const driverEarnings = Math.round(totalRevenue * 0.15); // 15% to driver
+      const rates = await financialService.getCommissionRates();
+      const driverEarnings = Math.round(totalRevenue * rates.driver); // Driver percentage
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);

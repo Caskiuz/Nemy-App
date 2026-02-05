@@ -15,6 +15,7 @@ import { Audio } from "expo-av";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
@@ -26,6 +27,13 @@ export default function BusinessOrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "active">("pending");
   const previousPendingCount = useRef(0);
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: "default" | "danger";
+  }>({ visible: false, title: "", message: "", onConfirm: () => {} });
 
   const playNotificationSound = async () => {
     try {
@@ -86,46 +94,30 @@ export default function BusinessOrdersScreen() {
   };
 
   const handleAccept = (orderId: string) => {
-    console.log("handleAccept called:", orderId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    
-    if (typeof window !== 'undefined' && window.confirm) {
-      // Web
-      if (window.confirm('¿Confirmar este pedido?')) {
+    setConfirmModal({
+      visible: true,
+      title: "Aceptar Pedido",
+      message: "¿Confirmar este pedido?",
+      onConfirm: () => {
         updateOrderStatus(orderId, "confirmed");
-      }
-    } else {
-      // Native
-      Alert.alert("Aceptar Pedido", "¿Confirmar este pedido?", [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Aceptar",
-          onPress: () => updateOrderStatus(orderId, "confirmed"),
-        },
-      ]);
-    }
+        setConfirmModal({ ...confirmModal, visible: false });
+      },
+    });
   };
 
   const handleReject = (orderId: string) => {
-    console.log("handleReject called:", orderId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    
-    if (typeof window !== 'undefined' && window.confirm) {
-      // Web
-      if (window.confirm('¿Rechazar este pedido?')) {
+    setConfirmModal({
+      visible: true,
+      title: "Rechazar Pedido",
+      message: "¿Estás seguro de rechazar este pedido?",
+      variant: "danger",
+      onConfirm: () => {
         updateOrderStatus(orderId, "cancelled");
-      }
-    } else {
-      // Native
-      Alert.alert("Rechazar Pedido", "¿Estás seguro?", [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Rechazar",
-          style: "destructive",
-          onPress: () => updateOrderStatus(orderId, "cancelled"),
-        },
-      ]);
-    }
+        setConfirmModal({ ...confirmModal, visible: false });
+      },
+    });
   };
 
   const handleStartPreparing = (orderId: string) => {
@@ -361,6 +353,14 @@ export default function BusinessOrdersScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ ...confirmModal, visible: false })}
+        variant={confirmModal.variant}
+      />
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <ThemedText type="h2">Pedidos</ThemedText>
       </View>

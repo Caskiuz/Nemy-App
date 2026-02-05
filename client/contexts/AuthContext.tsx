@@ -88,10 +88,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = async () => {
     try {
+      // Load user data
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setUser(JSON.parse(stored));
+        const userData = JSON.parse(stored);
+        setUser(userData);
+        
+        // Ensure token is also stored separately for easy access
+        if (userData.token) {
+          await AsyncStorage.setItem("token", userData.token);
+        }
       }
+      
+      // Load pending verification phone
       const pendingPhone = await AsyncStorage.getItem(PENDING_PHONE_KEY);
       if (pendingPhone) {
         setPendingVerificationPhone(pendingPhone);
@@ -125,37 +134,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     identifier: string,
     password: string,
   ): Promise<{ success: boolean; requiresVerification?: boolean }> => {
-    const response = await apiRequest("POST", "/api/auth/login", {
-      identifier,
-      password,
-    });
-    const data = await response.json();
+    // Check if it's an email (use dev endpoint) or phone (use regular endpoint)
+    const isEmail = identifier.includes('@');
+    
+    if (isEmail) {
+      // Use development email login
+      const response = await apiRequest("POST", "/api/auth/dev-email-login", {
+        email: identifier,
+        password,
+      });
+      const data = await response.json();
 
-    if (!data.success) {
-      throw new Error(data.error || "Credenciales incorrectas");
+      if (!data.success) {
+        throw new Error(data.error || "Credenciales incorrectas");
+      }
+
+      const newUser: User = {
+        id: data.user.id,
+        email: data.user.email || undefined,
+        name: data.user.name,
+        phone: data.user.phone,
+        role: data.user.role,
+        phoneVerified: data.user.phoneVerified,
+        stripeCustomerId: data.user.stripeCustomerId,
+        cardLast4: data.user.cardLast4,
+        cardBrand: data.user.cardBrand,
+        token: data.token,
+      };
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+      await AsyncStorage.setItem("token", data.token);
+      setUser(newUser);
+      return { success: true };
+    } else {
+      // Use regular login for phone/password
+      const response = await apiRequest("POST", "/api/auth/login", {
+        identifier,
+        password,
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Credenciales incorrectas");
+      }
+
+      if (data.requiresVerification) {
+        await AsyncStorage.setItem(PENDING_PHONE_KEY, data.phone);
+        setPendingVerificationPhone(data.phone);
+        return { success: true, requiresVerification: true };
+      }
+
+      const newUser: User = {
+        id: data.user.id,
+        email: data.user.email || undefined,
+        name: data.user.name,
+        phone: data.user.phone,
+        role: data.user.role,
+        phoneVerified: data.user.phoneVerified,
+        stripeCustomerId: data.user.stripeCustomerId,
+        cardLast4: data.user.cardLast4,
+        cardBrand: data.user.cardBrand,
+        token: data.token,
+      };
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+      await AsyncStorage.setItem("token", data.token);
+      setUser(newUser);
+      return { success: true };
     }
-
-    if (data.requiresVerification) {
-      await AsyncStorage.setItem(PENDING_PHONE_KEY, data.phone);
-      setPendingVerificationPhone(data.phone);
-      return { success: true, requiresVerification: true };
-    }
-
-    const newUser: User = {
-      id: data.user.id,
-      email: data.user.email || undefined,
-      name: data.user.name,
-      phone: data.user.phone,
-      role: data.user.role,
-      phoneVerified: data.user.phoneVerified,
-      stripeCustomerId: data.user.stripeCustomerId,
-      cardLast4: data.user.cardLast4,
-      cardBrand: data.user.cardBrand,
-    };
-
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-    setUser(newUser);
-    return { success: true };
   };
 
   const signup = async (
@@ -188,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const verifyPhone = async (phone: string, code: string) => {
-    const response = await apiRequest("POST", "/api/auth/verify-code", {
+    const response = await apiRequest("POST", "/api/auth/phone-login", {
       phone,
       code,
     });
@@ -332,6 +378,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.removeItem(STORAGE_KEY);
     await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem(PENDING_PHONE_KEY);
+    
+    // Clear token cache
+    try {
+      const { clearTokenCache } = await import("@/lib/query-client");
+      clearTokenCache();
+    } catch (error) {
+      // Silent fail
+    }
+    
     setUser(null);
     setPendingVerificationPhone(null);
   };

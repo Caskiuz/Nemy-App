@@ -493,3 +493,25 @@ export type SupportChat = typeof supportChats.$inferSelect;
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type CallLog = typeof callLogs.$inferSelect;
+
+// Delivery Zones - Zonas de entrega
+export const deliveryZones = mysqlTable("delivery_zones", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  name: text("name").notNull(),
+  description: text("description"),
+  deliveryFee: int("deliveryFee").notNull(), // en centavos
+  maxDeliveryTime: int("maxDeliveryTime").default(45), // minutos
+  isActive: boolean("isActive").notNull().default(true),
+  coordinates: text("coordinates"), // JSON con polígono de coordenadas
+  centerLatitude: text("centerLatitude"),
+  centerLongitude: text("centerLongitude"),
+  radiusKm: int("radiusKm").default(5),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updatedAt").default(
+    sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`,
+  ),
+});
+
+export type DeliveryZone = typeof deliveryZones.$inferSelect;

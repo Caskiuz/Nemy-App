@@ -4,11 +4,7 @@ import { db } from "./db";
 import { orders, transactions, businesses, users } from "@shared/schema-mysql";
 import { eq, and } from "drizzle-orm";
 import Stripe from "stripe";
-
-// Commission structure: 15% platform, 70% business, 15% delivery
-const PLATFORM_COMMISSION_RATE = 0.15;
-const BUSINESS_COMMISSION_RATE = 0.7;
-const DELIVERY_COMMISSION_RATE = 0.15;
+import { financialService } from "./unifiedFinancialService";
 
 // Anti-fraud: Hold funds for 1 hour after delivery
 const FUND_HOLD_DURATION_MS = 60 * 60 * 1000; // 1 hour
@@ -27,16 +23,12 @@ interface ProcessPaymentResult {
   distribution?: PaymentDistribution;
 }
 
-function calculateCommissions(totalAmount: number): PaymentDistribution {
-  // Ensure amounts are integers (cents)
-  const platformAmount = Math.round(totalAmount * PLATFORM_COMMISSION_RATE);
-  const deliveryAmount = Math.round(totalAmount * DELIVERY_COMMISSION_RATE);
-  const businessAmount = totalAmount - platformAmount - deliveryAmount;
-
+async function calculateCommissions(totalAmount: number): Promise<PaymentDistribution> {
+  const commissions = await financialService.calculateCommissions(totalAmount);
   return {
-    platformAmount,
-    businessAmount,
-    deliveryAmount,
+    platformAmount: commissions.platform,
+    businessAmount: commissions.business,
+    deliveryAmount: commissions.driver,
     totalAmount,
   };
 }
@@ -88,8 +80,8 @@ export async function createPaymentIntent(orderData: {
       };
     }
 
-    // Calculate commission distribution
-    const distribution = calculateCommissions(orderData.amount);
+    // Calculate commission distribution using unified service
+    const distribution = await calculateCommissions(orderData.amount);
 
     // Create payment intent with application fee
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
@@ -190,7 +182,7 @@ export async function processDeliveryPayment(
       .select({
         id: orders.id,
         businessId: orders.businessId,
-        driverId: orders.driverId,
+        driverId: orders.deliveryPersonId,
         total: orders.total,
         status: orders.status,
         stripePaymentIntentId: orders.stripePaymentIntentId,
@@ -251,8 +243,8 @@ export async function processDeliveryPayment(
       };
     }
 
-    // Calculate delivery commission
-    const distribution = calculateCommissions(order.total);
+    // Calculate delivery commission using unified service
+    const distribution = await calculateCommissions(order.total);
 
     // Transfer delivery commission to driver
     const transfer = await stripe.transfers.create({

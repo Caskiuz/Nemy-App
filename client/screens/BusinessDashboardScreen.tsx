@@ -456,7 +456,7 @@ export default function BusinessDashboardScreen() {
             </Pressable>
             <Pressable
               style={[styles.actionButton, { backgroundColor: theme.card }]}
-              onPress={() => navigation.navigate("Profile" as any)}
+              onPress={() => navigation.navigate("BusinessProfile" as any)}
             >
               <Feather name="settings" size={24} color={NemyColors.primary} />
               <ThemedText type="small" style={{ marginTop: Spacing.xs }}>Ajustes</ThemedText>

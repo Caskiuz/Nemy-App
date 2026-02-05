@@ -1,22 +1,91 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '@/lib/query-client';
+import { isInCoverageArea, AUTLAN_CENTER } from '@/utils/coverage';
+import { checkDuplicateAddress, suggestSimilarAddresses, Address } from '@/utils/addressValidation';
+import { useDebounce, usePerformanceMonitor } from '@/hooks/usePerformance';
+import { Feather } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 
 export default function AddAddressScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  usePerformanceMonitor('AddAddressScreen');
+  
+  // Fetch existing addresses
+  const { data: addressesData } = useQuery<{ addresses: Address[] }>({
+    queryKey: ["/api/users", user?.id, "addresses"],
+    enabled: !!user?.id,
+  });
+  const existingAddresses = addressesData?.addresses || [];
+  
   const [label, setLabel] = useState('');
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('Autlán');
   const [state, setState] = useState('Jalisco');
   const [zipCode, setZipCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<Address | null>(null);
+  const [suggestions, setSuggestions] = useState<Address[]>([]);
+  
+  // Debounce street input for suggestions
+  const debouncedStreet = useDebounce(street, 300);
+
+  // Check for duplicates when coordinates or street change
+  useEffect(() => {
+    if (coordinates && street && existingAddresses.length > 0) {
+      const duplicate = checkDuplicateAddress(
+        { latitude: coordinates.latitude, longitude: coordinates.longitude, street },
+        existingAddresses
+      );
+      setDuplicateWarning(duplicate);
+    } else {
+      setDuplicateWarning(null);
+    }
+  }, [coordinates, street, existingAddresses]);
+
+  // Show suggestions when typing street (debounced)
+  useEffect(() => {
+    if (debouncedStreet.length >= 3 && existingAddresses.length > 0) {
+      const addressSuggestions = suggestSimilarAddresses(debouncedStreet, existingAddresses);
+      setSuggestions(addressSuggestions);
+    } else {
+      setSuggestions([]);
+    }
+  }, [debouncedStreet, existingAddresses]);
+
+  const handleSuggestionSelect = useCallback((addr: Address) => {
+    setStreet(addr.street);
+    setLabel(addr.label);
+    setCoordinates({ latitude: addr.latitude, longitude: addr.longitude });
+    setSuggestions([]);
+  }, []);
 
   const handleSave = async () => {
+    setError(null);
+    setSuccess(null);
+    
     if (!label.trim() || !street.trim()) {
-      Alert.alert('Error', 'Por favor completa todos los campos requeridos');
+      setError('Por favor completa todos los campos requeridos');
+      return;
+    }
+
+    // On web, use default coordinates for Autlán center if no coordinates selected
+    const finalCoordinates = coordinates || (Platform.OS === 'web' ? AUTLAN_CENTER : null);
+    
+    if (!finalCoordinates) {
+      setError('Por favor selecciona la ubicación en el mapa');
+      return;
+    }
+
+    if (!isInCoverageArea(finalCoordinates.latitude, finalCoordinates.longitude)) {
+      setError('La ubicación está fuera de nuestra zona de cobertura');
       return;
     }
 
@@ -28,18 +97,20 @@ export default function AddAddressScreen() {
         city: city.trim(),
         state: state.trim(),
         zipCode: zipCode.trim(),
-        latitude: 19.7667,
-        longitude: -104.3667,
+        latitude: finalCoordinates.latitude,
+        longitude: finalCoordinates.longitude,
       });
 
       if (response.ok) {
-        Alert.alert('Éxito', 'Dirección guardada correctamente');
-        navigation.goBack();
+        setSuccess('✅ Dirección guardada correctamente');
+        setTimeout(() => {
+          navigation.goBack();
+        }, 1500);
       } else {
-        Alert.alert('Error', 'No se pudo guardar la dirección');
+        setError('❌ No se pudo guardar la dirección. Intenta de nuevo.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Error de conexión');
+      setError('🌐 Error de conexión. Verifica tu internet.');
     } finally {
       setLoading(false);
     }
@@ -48,6 +119,19 @@ export default function AddAddressScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.form}>
+        {error && (
+          <View style={styles.errorBox}>
+            <Feather name="alert-circle" size={16} color="#dc3545" />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+        
+        {success && (
+          <View style={styles.successBox}>
+            <Feather name="check-circle" size={16} color="#28a745" />
+            <Text style={styles.successText}>{success}</Text>
+          </View>
+        )}
         <Text style={styles.label}>Etiqueta *</Text>
         <TextInput
           style={styles.input}
@@ -60,9 +144,70 @@ export default function AddAddressScreen() {
         <TextInput
           style={styles.input}
           value={street}
-          onChangeText={setStreet}
+          onChangeText={(text) => {
+            setStreet(text);
+            setError(null);
+          }}
           placeholder="Ej: Calle Allende #123"
+          accessibilityLabel="Calle y número"
+          accessibilityHint="Ingresa la calle y número de tu dirección"
         />
+        
+        {/* Address suggestions */}
+        {suggestions.length > 0 && (
+          <View style={styles.suggestionsBox}>
+            <Text style={styles.suggestionsTitle}>📍 Direcciones similares:</Text>
+            {suggestions.map((addr) => (
+              <TouchableOpacity
+                key={addr.id}
+                style={styles.suggestionItem}
+                onPress={() => handleSuggestionSelect(addr)}
+              >
+                <Text style={styles.suggestionLabel}>{addr.label}</Text>
+                <Text style={styles.suggestionStreet}>{addr.street}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        
+        {/* Duplicate warning */}
+        {duplicateWarning && (
+          <View style={styles.warningBox}>
+            <Feather name="alert-triangle" size={16} color="#856404" />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.warningText}>
+                ⚠️ Esta dirección es muy similar a "{duplicateWarning.label}"
+              </Text>
+              <Text style={styles.warningSubtext}>
+                {duplicateWarning.street}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {Platform.OS !== 'web' ? (
+          <TouchableOpacity
+            style={styles.mapButton}
+            onPress={() => navigation.navigate('LocationPicker', {
+              onLocationSelected: (coords: any, addr: string) => {
+                setCoordinates(coords);
+                if (!street && addr) {
+                  setStreet(addr);
+                }
+              },
+            })}
+          >
+            <Text style={styles.mapButtonText}>
+              {coordinates ? '✓ Ubicación seleccionada' : '📍 Seleccionar en mapa *'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.webNotice}>
+            <Text style={styles.webNoticeText}>
+              🌍 En la versión web, se usará la ubicación del centro de Autlán por defecto.
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.label}>Ciudad</Text>
         <TextInput
@@ -88,13 +233,25 @@ export default function AddAddressScreen() {
         />
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.button, (loading || success) && styles.buttonDisabled]}
           onPress={handleSave}
-          disabled={loading}
+          disabled={loading || !!success}
+          accessibilityLabel="Guardar dirección"
+          accessibilityHint="Guarda la dirección con la información proporcionada"
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Guardando...' : 'Guardar Dirección'}
-          </Text>
+          {loading ? (
+            <View style={styles.buttonContent}>
+              <ActivityIndicator color="#fff" size="small" />
+              <Text style={[styles.buttonText, { marginLeft: 8 }]}>Guardando...</Text>
+            </View>
+          ) : success ? (
+            <View style={styles.buttonContent}>
+              <Feather name="check" size={16} color="#fff" />
+              <Text style={[styles.buttonText, { marginLeft: 8 }]}>Guardado</Text>
+            </View>
+          ) : (
+            <Text style={styles.buttonText}>Guardar Dirección</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -138,5 +295,121 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  mapButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  mapButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  webNotice: {
+    backgroundColor: '#e3f2fd',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#bbdefb',
+  },
+  webNoticeText: {
+    fontSize: 14,
+    color: '#1976d2',
+    textAlign: 'center',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8d7da',
+    borderColor: '#f5c6cb',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#721c24',
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#d4edda',
+    borderColor: '#c3e6cb',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    color: '#155724',
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionsBox: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  suggestionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#495057',
+    marginBottom: 8,
+  },
+  suggestionItem: {
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  suggestionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  suggestionStreet: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fff3cd',
+    borderColor: '#ffeaa7',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  warningText: {
+    color: '#856404',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  warningSubtext: {
+    color: '#856404',
+    fontSize: 12,
+    marginTop: 2,
   },
 });

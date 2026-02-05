@@ -302,7 +302,41 @@ export default function DeliveryDashboardScreen() {
   const { showToast } = useToast();
   const navigation = useNavigation<DeliveryDashboardNavigationProp>();
   const queryClient = useQueryClient();
-  const [isOnline, setIsOnline] = useState(true);
+  // Get driver status from backend
+  const {
+    data: statusData,
+    isLoading: statusLoading,
+  } = useQuery<{ success: boolean; isOnline: boolean; strikes: number }>({
+    queryKey: ["/api/delivery/status", user?.id],
+    enabled: !!user?.id,
+  });
+
+  // Sync local state with backend
+  useEffect(() => {
+    if (statusData?.isOnline !== undefined) {
+      setIsOnline(statusData.isOnline);
+    }
+  }, [statusData]);
+
+  // Toggle online status mutation
+  const toggleStatusMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/delivery/toggle-status", {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success && data.isOnline !== undefined) {
+        setIsOnline(data.isOnline);
+        showToast(data.message || (data.isOnline ? "Ahora estás en línea" : "Ahora estás desconectado"), "success");
+        queryClient.invalidateQueries({ queryKey: ["/api/delivery/status"] });
+      }
+    },
+    onError: (error) => {
+      console.error("Toggle status error:", error);
+      showToast("Error al cambiar estado", "error");
+    },
+  });
+  const [isOnline, setIsOnline] = useState(false); // Default to false until loaded from backend
   const [activeTab, setActiveTab] = useState<
     "available" | "active" | "history"
   >("available");
@@ -495,11 +529,15 @@ export default function DeliveryDashboardScreen() {
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setIsOnline(!isOnline);
+            toggleStatusMutation.mutate();
           }}
+          disabled={toggleStatusMutation.isPending}
           style={[
             styles.onlineToggle,
-            { backgroundColor: isOnline ? "#4CAF50" : theme.card },
+            { 
+              backgroundColor: isOnline ? "#4CAF50" : theme.card,
+              opacity: toggleStatusMutation.isPending ? 0.6 : 1
+            },
           ]}
         >
           <View
@@ -512,7 +550,12 @@ export default function DeliveryDashboardScreen() {
             type="small"
             style={{ color: isOnline ? "#FFFFFF" : theme.text, marginLeft: 6 }}
           >
-            {isOnline ? "En linea" : "Fuera de linea"}
+            {toggleStatusMutation.isPending 
+              ? "Cambiando..." 
+              : isOnline 
+                ? "En línea" 
+                : "Fuera de línea"
+            }
           </ThemedText>
         </Pressable>
       </View>

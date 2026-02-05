@@ -16,9 +16,12 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
+import { gpsService } from '@/services/gpsService';
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
+import { SmartOrderButton } from "@/components/SmartOrderButton";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
@@ -32,6 +35,10 @@ const statusLabels: Record<string, string> = {
   on_the_way: "En camino",
   in_transit: "En camino",
   delivered: "Entregado",
+  pending: "Pendiente",
+  confirmed: "Confirmado",
+  preparing: "Preparando",
+  cancelled: "Cancelado",
 };
 
 export default function DriverMyDeliveriesScreen() {
@@ -41,7 +48,10 @@ export default function DriverMyDeliveriesScreen() {
   const [orders, setOrders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
-  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [showPickupModal, setShowPickupModal] = useState(false);
+  const [pickupOrderId, setPickupOrderId] = useState<string | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -62,42 +72,12 @@ export default function DriverMyDeliveriesScreen() {
   }, []);
 
   const startLocationTracking = async () => {
-    if (Platform.OS === "web") {
-      console.log("Location tracking not available on web");
-      return;
-    }
-
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      console.log("Location permission denied");
-      return;
-    }
-
-    locationSubscription.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 10000,
-        distanceInterval: 50,
-      },
-      async (location) => {
-        try {
-          await apiRequest("POST", "/api/delivery/update-location", {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          });
-        } catch (error) {
-          console.error("Error updating location:", error);
-        }
-      }
-    );
-    setIsTracking(true);
+    const success = await gpsService.startTracking();
+    setIsTracking(success);
   };
 
   const stopLocationTracking = () => {
-    if (locationSubscription.current) {
-      locationSubscription.current.remove();
-      locationSubscription.current = null;
-    }
+    gpsService.stopTracking();
     setIsTracking(false);
   };
 
@@ -124,10 +104,34 @@ export default function DriverMyDeliveriesScreen() {
   };
 
   const updateStatus = async (orderId: string, status: string) => {
+    console.log('updateStatus called:', orderId, status);
     try {
-      await apiRequest("PUT", `/api/delivery/orders/${orderId}/status`, {
-        status,
-      });
+      let endpoint;
+      let method = 'POST';
+      
+      // Usar los endpoints correctos según el estado
+      switch (status) {
+        case 'picked_up':
+          endpoint = `/api/delivery/pickup/${orderId}`;
+          break;
+        case 'on_the_way':
+        case 'in_transit':
+          // Para "en camino" usamos el endpoint general de orders
+          endpoint = `/api/delivery/orders/${orderId}/status`;
+          method = 'PUT';
+          break;
+        case 'delivered':
+          endpoint = `/api/delivery/deliver/${orderId}`;
+          break;
+        default:
+          endpoint = `/api/delivery/orders/${orderId}/status`;
+          method = 'PUT';
+      }
+
+      console.log('Using endpoint:', method, endpoint);
+      const body = method === 'PUT' ? { status } : {};
+      await apiRequest(method as any, endpoint, body);
+      
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       loadOrders();
     } catch (error) {
@@ -137,13 +141,16 @@ export default function DriverMyDeliveriesScreen() {
   };
 
   const handlePickedUp = (orderId: string) => {
-    Alert.alert("Confirmar Recogida", "¿Ya recogiste el pedido?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar",
-        onPress: () => updateStatus(orderId, "picked_up"),
-      },
-    ]);
+    setPickupOrderId(orderId);
+    setShowPickupModal(true);
+  };
+
+  const confirmPickup = () => {
+    if (pickupOrderId) {
+      updateStatus(pickupOrderId, "picked_up");
+    }
+    setShowPickupModal(false);
+    setPickupOrderId(null);
   };
 
   const handleOnTheWay = (orderId: string) => {
@@ -151,31 +158,31 @@ export default function DriverMyDeliveriesScreen() {
   };
 
   const handleDelivered = async (orderId: string) => {
-    Alert.alert("Confirmar Entrega", "¿El pedido fue entregado?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar",
-        onPress: async () => {
-          try {
-            const response = await apiRequest("POST", `/api/orders/${orderId}/complete-delivery`);
-            const data = await response.json();
-            
-            if (data.success) {
-              Alert.alert(
-                "¡Entrega Completada!",
-                `Ganaste $${(data.distribution.driver / 100).toFixed(2)}`,
-                [{ text: "OK" }]
-              );
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              loadOrders();
-            }
-          } catch (error) {
-            console.error("Error completing delivery:", error);
-            Alert.alert("Error", "No se pudo completar la entrega");
-          }
-        },
-      },
-    ]);
+    console.log('handleDelivered called for:', orderId);
+    setPendingOrderId(orderId);
+    setShowConfirmModal(true);
+  };
+
+  const confirmDelivery = async () => {
+    if (pendingOrderId) {
+      const location = await gpsService.getLocationForDelivery();
+      const body = location ? { latitude: location.latitude, longitude: location.longitude } : {};
+      
+      try {
+        await apiRequest('POST', `/api/delivery/deliver/${pendingOrderId}`, body);
+        loadOrders();
+      } catch (error) {
+        console.error('Error confirming delivery:', error);
+      }
+    }
+    setShowConfirmModal(false);
+    setPendingOrderId(null);
+  };
+
+  const cancelDelivery = () => {
+    console.log('User cancelled delivery confirmation');
+    setShowConfirmModal(false);
+    setPendingOrderId(null);
   };
 
   const parseDeliveryAddress = (address: string | null): string => {
@@ -282,6 +289,8 @@ export default function DriverMyDeliveriesScreen() {
                 ? "warning"
                 : item.status === "delivered"
                 ? "success"
+                : item.status === "ready"
+                ? "primary"
                 : "secondary"
             }
           />
@@ -336,60 +345,44 @@ export default function DriverMyDeliveriesScreen() {
           </View>
         </View>
 
+        {/* Botón inteligente usando el componente reutilizable */}
         <View style={styles.actions}>
-          {item.status === "ready" && (
-            <Pressable
-              onPress={() => handlePickedUp(item.id)}
-              style={[
-                styles.actionButton,
-                { backgroundColor: NemyColors.primary },
-              ]}
-            >
-              <Feather name="package" size={18} color="#FFF" />
-              <ThemedText
-                type="body"
-                style={{ color: "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}
-              >
-                Recogí el Pedido
-              </ThemedText>
-            </Pressable>
-          )}
-
-          {item.status === "picked_up" && (
-            <Pressable
-              onPress={() => handleOnTheWay(item.id)}
-              style={[
-                styles.actionButton,
-                { backgroundColor: NemyColors.warning },
-              ]}
-            >
-              <Feather name="navigation" size={18} color="#FFF" />
-              <ThemedText
-                type="body"
-                style={{ color: "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}
-              >
-                En Camino
-              </ThemedText>
-            </Pressable>
-          )}
-
-          {(item.status === "on_the_way" || item.status === "in_transit") && (
-            <Pressable
-              onPress={() => handleDelivered(item.id)}
-              style={[
-                styles.actionButton,
-                { backgroundColor: NemyColors.success },
-              ]}
-            >
-              <Feather name="check-circle" size={18} color="#FFF" />
-              <ThemedText
-                type="body"
-                style={{ color: "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}
-              >
-                Marcar Entregado
-              </ThemedText>
-            </Pressable>
-          )}
+          <SmartOrderButton
+            orderStatus={item.status}
+            userRole="delivery_driver"
+            onPress={(canProceed, buttonInfo) => {
+              if (canProceed) {
+                // Ejecutar la acción real según el estado
+                switch (item.status) {
+                  case 'ready':
+                    console.log('Calling handlePickedUp for order:', item.id);
+                    handlePickedUp(item.id);
+                    break;
+                  case 'picked_up':
+                    handleOnTheWay(item.id);
+                    break;
+                  case 'on_the_way':
+                  case 'in_transit':
+                    console.log('Intentando marcar como entregado:', item.id, item.status);
+                    handleDelivered(item.id);
+                    break;
+                  default:
+                    Alert.alert(
+                      "Información",
+                      `Estado: ${buttonInfo.message}\n\n${buttonInfo.nextAction}`,
+                      [{ text: "OK" }]
+                    );
+                }
+              } else {
+                Alert.alert(
+                  "Estado del Pedido",
+                  `${buttonInfo.message}\n\n${buttonInfo.nextAction}${buttonInfo.requiresBusinessAction ? '\n\n⚠️ Se requiere que el negocio tome acción primero.' : ''}`,
+                  [{ text: "Entendido" }]
+                );
+              }
+            }}
+            showStatusInfo={true}
+          />
         </View>
       </View>
     );
@@ -503,6 +496,22 @@ export default function DriverMyDeliveriesScreen() {
           </>
         )}
       </ScrollView>
+      
+      <ConfirmModal
+        visible={showConfirmModal}
+        title="Confirmar Entrega"
+        message="¿El pedido fue entregado?"
+        onConfirm={confirmDelivery}
+        onCancel={cancelDelivery}
+      />
+      
+      <ConfirmModal
+        visible={showPickupModal}
+        title="Confirmar Recogida"
+        message="¿Ya recogiste el pedido?"
+        onConfirm={confirmPickup}
+        onCancel={() => { setShowPickupModal(false); setPickupOrderId(null); }}
+      />
     </LinearGradient>
   );
 }
