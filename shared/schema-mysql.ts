@@ -123,6 +123,7 @@ export const businesses = mysqlTable("businesses", {
   coverImage: text("cover_image"),
   address: text("address"),
   phone: text("phone"),
+  phoneVerified: boolean("phone_verified").notNull().default(false),
   email: text("email"),
   rating: int("rating").default(0), // stored as 0-50 (for 0.0-5.0)
   totalRatings: int("total_ratings").default(0),
@@ -157,6 +158,8 @@ export const businesses = mysqlTable("businesses", {
   // Stripe Connect
   stripeAccountId: text("stripe_account_id"), // ID de cuenta Stripe Connect
   stripeAccountStatus: text("stripe_account_status").default("pending"), // pending, active, restricted
+  verificationCode: text("verification_code"),
+  verificationExpires: timestamp("verification_expires"),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
 
@@ -515,3 +518,38 @@ export const deliveryZones = mysqlTable("delivery_zones", {
 });
 
 export type DeliveryZone = typeof deliveryZones.$inferSelect;
+
+// Coupons - Cupones de descuento
+export const coupons = mysqlTable("coupons", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  discountType: varchar("discount_type", { length: 20 }).notNull(), // percentage, fixed
+  discountValue: int("discount_value").notNull(), // en centavos o porcentaje
+  minOrderAmount: int("min_order_amount").default(0), // mínimo de pedido en centavos
+  maxUses: int("max_uses"), // null = ilimitado
+  maxUsesPerUser: int("max_uses_per_user").default(1),
+  usedCount: int("used_count").notNull().default(0),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(
+    sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`,
+  ),
+});
+
+export type Coupon = typeof coupons.$inferSelect;
+
+// Favorites - Favoritos de usuarios (negocios y productos)
+export const favorites = mysqlTable("favorites", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  businessId: varchar("business_id", { length: 255 }),
+  productId: varchar("product_id", { length: 255 }),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type Favorite = typeof favorites.$inferSelect;

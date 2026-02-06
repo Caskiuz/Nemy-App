@@ -705,6 +705,65 @@ router.get("/delivery/location/:deliveryPersonId", async (req, res) => {
 });
 
 
+// FAVORITES ROUTES MOVED TO favoritesRoutes.ts
+// Get user favorites
+// router.get("/favorites/:userId", authenticateToken, async (req, res) => {
+//   try {
+//     const { favorites } = await import("@shared/schema-mysql");
+//     const { db } = await import("./db");
+//     const { eq } = await import("drizzle-orm");
+
+//     const userFavorites = await db
+//       .select()
+//       .from(favorites)
+//       .where(eq(favorites.userId, req.params.userId));
+
+//     res.json({ success: true, favorites: userFavorites });
+//   } catch (error: any) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Add to favorites
+// router.post("/favorites", authenticateToken, async (req, res) => {
+//   try {
+//     const { favorites } = await import("@shared/schema-mysql");
+//     const { db } = await import("./db");
+//     const { businessId } = req.body;
+
+//     await db.insert(favorites).values({
+//       userId: req.user!.id,
+//       businessId,
+//     });
+
+//     res.json({ success: true, message: "Agregado a favoritos" });
+//   } catch (error: any) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Remove from favorites
+// router.delete("/favorites/:businessId", authenticateToken, async (req, res) => {
+//   try {
+//     const { favorites } = await import("@shared/schema-mysql");
+//     const { db } = await import("./db");
+//     const { eq, and } = await import("drizzle-orm");
+
+//     await db
+//       .delete(favorites)
+//       .where(
+//         and(
+//           eq(favorites.userId, req.user!.id),
+//           eq(favorites.businessId, req.params.businessId)
+//         )
+//       );
+
+//     res.json({ success: true, message: "Eliminado de favoritos" });
+//   } catch (error: any) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+
 // Reviews endpoint
 router.post("/reviews", authenticateToken, async (req, res) => {
   try {

@@ -383,31 +383,39 @@ router.get("/debug/wallets", authenticateToken, requireRole("admin", "super_admi
   }
 });
 
-// Get wallets
+// Get all wallets (admin)
 router.get("/wallets", authenticateToken, requireRole("admin", "super_admin"), async (req, res) => {
   try {
-    const { wallets, users } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
-    const { eq } = await import("drizzle-orm");
-
-    const allWallets = await db.select().from(wallets);
     
-    const walletsWithUsers = [];
-    for (const wallet of allWallets) {
-      const user = await db
-        .select({ id: users.id, name: users.name, email: users.email, role: users.role })
-        .from(users)
-        .where(eq(users.id, wallet.userId))
-        .limit(1);
-        
-      walletsWithUsers.push({
-        ...wallet,
-        user: user[0] || null
-      });
-    }
+    const result = await db.execute(sql`
+      SELECT 
+        w.id, w.user_id as userId, w.balance, w.pending_balance as pendingBalance, 
+        w.total_earned as totalEarned, w.total_withdrawn as totalWithdrawn,
+        u.id as user_id, u.name as user_name, u.phone as user_phone, u.role as user_role
+      FROM wallets w 
+      LEFT JOIN users u ON w.user_id = u.id
+    `);
+    
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+    const walletsWithUsers = rows.map((row: any) => ({
+      id: row.id,
+      userId: row.userId,
+      balance: row.balance || 0,
+      pendingBalance: row.pendingBalance || 0,
+      totalEarned: row.totalEarned || 0,
+      totalWithdrawn: row.totalWithdrawn || 0,
+      user: row.user_name ? {
+        id: row.user_id,
+        name: row.user_name,
+        phone: row.user_phone,
+        role: row.user_role
+      } : null
+    }));
 
     res.json({ success: true, wallets: walletsWithUsers });
   } catch (error: any) {
+    console.error('Wallets error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -451,16 +459,36 @@ router.post("/wallets/:walletId/release", authenticateToken, requireRole("admin"
 // Finance data
 router.get("/finance", authenticateToken, requireRole("admin", "super_admin"), async (req, res) => {
   try {
-    const { transactions, wallets } = await import("@shared/schema-mysql");
+    const { transactions, users } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
+    const { eq, desc } = await import("drizzle-orm");
 
-    const allTransactions = await db.select().from(transactions);
-    const allWallets = await db.select().from(wallets);
+    const allTransactions = await db.select().from(transactions).orderBy(desc(transactions.createdAt));
+    
+    const enrichedTransactions = [];
+    for (const transaction of allTransactions) {
+      const user = await db
+        .select({ id: users.id, name: users.name, email: users.email, role: users.role })
+        .from(users)
+        .where(eq(users.id, transaction.userId))
+        .limit(1);
+        
+      enrichedTransactions.push({
+        id: transaction.id,
+        type: transaction.type,
+        amount: transaction.amount,
+        description: transaction.description,
+        createdAt: transaction.createdAt,
+        userId: transaction.userId,
+        userName: user[0]?.name || 'Usuario desconocido',
+        userEmail: user[0]?.email || '',
+        userRole: user[0]?.role || ''
+      });
+    }
 
     res.json({ 
       success: true, 
-      transactions: allTransactions,
-      wallets: allWallets
+      transactions: enrichedTransactions
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

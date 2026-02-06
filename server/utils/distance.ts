@@ -29,14 +29,16 @@ function toRad(deg: number): number {
 
 /**
  * Calcula el delivery fee basado en la distancia
+ * Tarifas ajustadas para Autlán, Jalisco
  */
 export function calculateDeliveryFee(distance: number): number {
-  const BASE_FEE = 20; // $20 MXN base
-  const PER_KM = 5;    // $5 MXN por km
-  const MAX_FEE = 50;  // Máximo $50 MXN
+  const BASE_FEE = 15;  // $15 MXN base (reducido para ciudad pequeña)
+  const PER_KM = 8;     // $8 MXN por km
+  const MIN_FEE = 15;   // Mínimo $15 MXN
+  const MAX_FEE = 40;   // Máximo $40 MXN (Autlán es pequeño, ~5km diámetro)
   
   const fee = BASE_FEE + (distance * PER_KM);
-  return Math.min(fee, MAX_FEE);
+  return Math.max(MIN_FEE, Math.min(fee, MAX_FEE));
 }
 
 /**

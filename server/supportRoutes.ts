@@ -5,12 +5,7 @@ const router = express.Router();
 
 // Helper function for AI responses
 async function generateAIResponse(message: string, history: any[]): Promise<string> {
-  try {
-    // Check if we have API key
-    const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      // Fallback response without AI
-      return `Gracias por tu mensaje. Estoy aquí para ayudarte con NEMY.
+  const fallbackResponse = `Gracias por tu mensaje. Un agente de soporte revisará tu consulta pronto.
 
 ¿Necesitas ayuda con:
 • Realizar un pedido
@@ -19,16 +14,25 @@ async function generateAIResponse(message: string, history: any[]): Promise<stri
 • Problemas con pagos
 • Otra consulta
 
-Por favor, describe tu consulta y te ayudaré.`;
-    }
+Por favor, describe tu consulta con más detalle.`;
 
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+  try {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-
-    const NEMY_CONTEXT = `
-Eres un asistente de soporte para NEMY, una plataforma de delivery en Autlán, Jalisco, México.
+    if (openaiKey) {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `Eres un asistente de soporte para NEMY, una plataforma de delivery en Autlán, Jalisco, México.
 
 INFORMACIÓN CLAVE:
 - NEMY significa "vivir" en náhuatl
@@ -38,28 +42,60 @@ INFORMACIÓN CLAVE:
 - Autenticación solo por teléfono con SMS
 - Zona de cobertura: Autlán y alrededores
 
-Responde de manera amigable, profesional y concisa en español.
-`;
+Responde de manera amigable, profesional y concisa en español.`
+            },
+            { role: 'user', content: message }
+          ],
+          max_tokens: 500,
+          temperature: 0.7
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || fallbackResponse;
+      }
+    }
+    
+    if (geminiKey) {
+      // Primero intentar listar modelos disponibles
+      const listResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+      );
+      
+      if (listResponse.ok) {
+        const models = await listResponse.json();
+        console.log('Available models:', JSON.stringify(models, null, 2));
+      }
 
-    const chatMessages = history.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
-    }));
+      const contents = [{
+        role: "user",
+        parts: [{ text: `Eres un asistente de soporte para NEMY. Responde en español de forma amigable y concisa.\n\nUsuario: ${message}` }]
+      }];
 
-    const chat = model.startChat({
-      history: chatMessages,
-      generationConfig: {
-        maxOutputTokens: 500,
-        temperature: 0.7,
-      },
-      systemInstruction: NEMY_CONTEXT,
-    });
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents })
+        }
+      );
 
-    const result = await chat.sendMessage(message);
-    return result.response.text() || "Lo siento, no pude procesar tu mensaje.";
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Gemini response:', JSON.stringify(data));
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || fallbackResponse;
+      } else {
+        console.log('Gemini error:', response.status, await response.text());
+      }
+    }
+    
+    return fallbackResponse;
   } catch (error) {
     console.error('AI Error:', error);
-    return "Lo siento, estoy teniendo problemas técnicos. Por favor intenta de nuevo.";
+    return fallbackResponse;
   }
 }
 
@@ -116,6 +152,121 @@ router.post(
 
 // Create new support chat/ticket
 router.post(
+  "/tickets",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { supportChats, supportMessages } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { v4: uuidv4 } = await import("uuid");
+
+      const { message, subject, priority } = req.body;
+      const chatId = uuidv4();
+
+      await db.insert(supportChats).values({
+        id: chatId,
+        userId: req.user!.id,
+        status: "open",
+      });
+
+      await db.insert(supportMessages).values({
+        id: uuidv4(),
+        chatId,
+        userId: req.user!.id,
+        message: subject || message,
+        isBot: false,
+      });
+
+      res.json({ success: true, chatId });
+    } catch (error: any) {
+      console.error("Error creating ticket:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Get messages for a ticket (USER)
+router.get(
+  "/tickets/:id/messages",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { supportMessages, supportChats } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      // Verificar que el ticket pertenece al usuario
+      const [ticket] = await db
+        .select()
+        .from(supportChats)
+        .where(eq(supportChats.id, req.params.id))
+        .limit(1);
+
+      if (!ticket || (ticket.userId !== req.user!.id && req.user!.role !== "admin" && req.user!.role !== "super_admin")) {
+        return res.status(403).json({ error: "No tienes acceso a este ticket" });
+      }
+
+      const messages = await db
+        .select()
+        .from(supportMessages)
+        .where(eq(supportMessages.chatId, req.params.id))
+        .orderBy(supportMessages.createdAt);
+
+      res.json({ success: true, messages });
+    } catch (error: any) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Send message to ticket (USER)
+router.post(
+  "/tickets/:id/messages",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { supportMessages, supportChats } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { v4: uuidv4 } = await import("uuid");
+      const { eq } = await import("drizzle-orm");
+
+      // Verificar que el ticket pertenece al usuario
+      const [ticket] = await db
+        .select()
+        .from(supportChats)
+        .where(eq(supportChats.id, req.params.id))
+        .limit(1);
+
+      if (!ticket || (ticket.userId !== req.user!.id && req.user!.role !== "admin" && req.user!.role !== "super_admin")) {
+        return res.status(403).json({ error: "No tienes acceso a este ticket" });
+      }
+
+      const { message } = req.body;
+
+      const isAdmin = req.user!.role === "admin" || req.user!.role === "super_admin";
+
+      const newMessage = {
+        id: uuidv4(),
+        chatId: req.params.id,
+        userId: req.user!.id,
+        message,
+        isBot: false,
+        isAdmin,
+      };
+
+      await db.insert(supportMessages).values(newMessage);
+
+      res.json({ success: true, message: newMessage });
+    } catch (error: any) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Create new support chat/ticket (legacy)
+router.post(
   "/create-ticket",
   authenticateToken,
   async (req, res) => {
@@ -159,9 +310,9 @@ router.post(
 // ADMIN SUPPORT ROUTES
 // ============================================
 
-// Get all support tickets
+// Get all support tickets (ADMIN)
 router.get(
-  "/tickets",
+  "/admin/tickets",
   authenticateToken,
   requireRole("admin", "super_admin"),
   async (req, res) => {
@@ -200,63 +351,6 @@ router.get(
       res.json({ success: true, tickets: enrichedTickets });
     } catch (error: any) {
       console.error("Error fetching tickets:", error);
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Get messages for a ticket
-router.get(
-  "/tickets/:id/messages",
-  authenticateToken,
-  requireRole("admin", "super_admin"),
-  async (req, res) => {
-    try {
-      const { supportMessages } = await import("@shared/schema-mysql");
-      const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
-
-      const messages = await db
-        .select()
-        .from(supportMessages)
-        .where(eq(supportMessages.chatId, req.params.id))
-        .orderBy(supportMessages.createdAt);
-
-      res.json({ success: true, messages });
-    } catch (error: any) {
-      console.error("Error fetching messages:", error);
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Send message to ticket
-router.post(
-  "/tickets/:id/messages",
-  authenticateToken,
-  requireRole("admin", "super_admin"),
-  async (req, res) => {
-    try {
-      const { supportMessages } = await import("@shared/schema-mysql");
-      const { db } = await import("./db");
-      const { v4: uuidv4 } = await import("uuid");
-
-      const { message } = req.body;
-
-      const newMessage = {
-        id: uuidv4(),
-        chatId: req.params.id,
-        userId: req.user!.id,
-        message,
-        isBot: false,
-        isAdmin: true,
-      };
-
-      await db.insert(supportMessages).values(newMessage);
-
-      res.json({ success: true, message: newMessage });
-    } catch (error: any) {
-      console.error("Error sending message:", error);
       res.status(500).json({ error: error.message });
     }
   }

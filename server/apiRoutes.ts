@@ -43,6 +43,7 @@ import {
   initializeDefaultSettings,
 } from "./systemSettingsService";
 import supportRoutes from "./supportRoutes";
+import adminRoutes from "./routes/adminRoutes";
 
 const router = express.Router();
 
@@ -190,6 +191,23 @@ router.get("/businesses/featured", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Validate coupon
+router.post(
+  "/coupons/validate",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { validateCoupon } = await import("./couponService");
+      const { code, userId, orderTotal } = req.body;
+      
+      const result = await validateCoupon(code, userId || req.user!.id, orderTotal);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ valid: false, error: error.message });
+    }
+  },
+);
 
 // Stripe webhooks (raw body required) - OPTIONAL
 router.post(
@@ -1351,22 +1369,23 @@ router.post(
 
       const userId = req.params.userId;
       
-      if (String(req.user!.id) !== userId && req.user!.role !== 'admin') {
+      if (!req.user || (String(req.user.id) !== userId && req.user.role !== 'admin')) {
         return res.status(403).json({ error: "No tienes permiso para agregar direcciones" });
       }
 
       const { label, street, city, state, zipCode, isDefault, latitude, longitude } = req.body;
 
+      const { eq, desc } = await import("drizzle-orm");
+
       // If this is the default, unset other defaults
       if (isDefault) {
-        const { eq } = await import("drizzle-orm");
         await db
           .update(addresses)
           .set({ isDefault: false })
           .where(eq(addresses.userId, userId));
       }
 
-      const [newAddress] = await db
+      await db
         .insert(addresses)
         .values({
           userId,
@@ -1378,8 +1397,15 @@ router.post(
           isDefault: isDefault || false,
           latitude,
           longitude,
-        })
-        .$returningId();
+        });
+
+      // Get the created address
+      const [newAddress] = await db
+        .select()
+        .from(addresses)
+        .where(eq(addresses.userId, userId))
+        .orderBy(desc(addresses.createdAt))
+        .limit(1);
 
       res.json({ success: true, addressId: newAddress.id });
     } catch (error: any) {
@@ -1400,7 +1426,7 @@ router.put(
 
       const { userId, addressId } = req.params;
       
-      if (String(req.user!.id) !== userId && req.user!.role !== 'admin') {
+      if (!req.user || (String(req.user.id) !== userId && req.user.role !== 'admin')) {
         return res.status(403).json({ error: "No tienes permiso" });
       }
 
@@ -1435,7 +1461,7 @@ router.delete(
 
       const { userId, addressId } = req.params;
       
-      if (String(req.user!.id) !== userId && req.user!.role !== 'admin') {
+      if (!req.user || (String(req.user.id) !== userId && req.user.role !== 'admin')) {
         return res.status(403).json({ error: "No tienes permiso" });
       }
 
@@ -3024,6 +3050,8 @@ router.post(
         total: req.body.total,
         paymentMethod: req.body.paymentMethod,
         deliveryAddress: req.body.deliveryAddress,
+        deliveryLatitude: req.body.deliveryLatitude,
+        deliveryLongitude: req.body.deliveryLongitude,
         notes: req.body.notes,
         substitutionPreference: req.body.substitutionPreference,
         itemSubstitutionPreferences: req.body.itemSubstitutionPreferences,
@@ -3043,6 +3071,29 @@ router.post(
       
       const orderId = createdOrder[0].id;
       console.log('✅ Order created with ID:', orderId);
+
+      // Calcular ETA dinámico
+      if (req.body.deliveryLatitude && req.body.deliveryLongitude) {
+        const { calculateDynamicETA } = await import("./dynamicETAService");
+        const eta = await calculateDynamicETA(
+          req.body.businessId,
+          parseFloat(req.body.deliveryLatitude),
+          parseFloat(req.body.deliveryLongitude)
+        );
+
+        await db
+          .update(orders)
+          .set({
+            estimatedPrepTime: eta.prepTime,
+            estimatedDeliveryTime: eta.deliveryTime,
+            estimatedTotalTime: eta.totalTime,
+            estimatedDelivery: eta.estimatedArrival,
+          })
+          .where(eq(orders.id, orderId));
+
+        console.log(`⏱️ ETA calculated: ${eta.totalTime} min (Prep: ${eta.prepTime}, Delivery: ${eta.deliveryTime})`);
+      }
+
       res.json({ success: true, id: orderId, orderId, order: { id: orderId } });
     } catch (error: any) {
       console.error('Create order error:', error);
@@ -3091,7 +3142,7 @@ router.post(
 
       await db
         .update(orders)
-        .set({ status: "confirmed" })
+        .set({ status: "accepted" })
         .where(eq(orders.id, req.params.id));
 
       res.json({ success: true, message: "Order confirmed" });
@@ -3915,44 +3966,7 @@ router.put(
   },
 );
 
-// Get all wallets (admin)
-router.get(
-  "/admin/wallets",
-  authenticateToken,
-  requireRole("admin", "super_admin"),
-  async (req, res) => {
-    try {
-      const { wallets, users } = await import("@shared/schema-mysql");
-      const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
-
-      const allWallets = await db.select().from(wallets);
-
-      const walletsWithUsers = await Promise.all(
-        allWallets.map(async (wallet) => {
-          const user = await db
-            .select({ id: users.id, name: users.name, role: users.role })
-            .from(users)
-            .where(eq(users.id, wallet.userId))
-            .limit(1);
-
-          return {
-            id: wallet.id,
-            userId: wallet.userId,
-            userName: user[0]?.name || "Usuario",
-            userRole: user[0]?.role || "customer",
-            balance: wallet.balance,
-            pendingBalance: wallet.pendingBalance || 0,
-          };
-        })
-      );
-
-      res.json({ wallets: walletsWithUsers });
-    } catch (error: any) {
-      res.json({ wallets: [] });
-    }
-  },
-);
+// REMOVED: Duplicate /admin/wallets endpoint - now handled by adminRoutes.ts
 
 // Get withdrawal requests (admin)
 router.get(
@@ -4049,9 +4063,17 @@ router.post(
       const { db } = await import("./db");
       const { randomUUID } = await import("crypto");
 
+      const { code, discountType, discountValue, minOrderAmount, maxUses, maxUsesPerUser, expiresAt } = req.body;
+
       await db.insert(coupons).values({
         id: randomUUID(),
-        ...req.body,
+        code,
+        discountType,
+        discountValue,
+        minOrderAmount: minOrderAmount || 0,
+        maxUses: maxUses || null,
+        maxUsesPerUser: maxUsesPerUser || 1,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
         usedCount: 0,
         isActive: true,
       });
@@ -4405,10 +4427,10 @@ router.get(
         const existingZones = await db.execute(sql`SELECT COUNT(*) as count FROM delivery_zones`);
         const count = existingZones[0]?.count || 0;
         
-        // Si no hay datos, insertar zonas reales de Autlán
+        // Si no hay datos, insertar zonas reales de Autlán usando INSERT IGNORE
         if (count === 0) {
           await db.execute(sql`
-            INSERT INTO delivery_zones (id, name, description, deliveryFee, maxDeliveryTime, isActive, centerLatitude, centerLongitude, radiusKm) VALUES
+            INSERT IGNORE INTO delivery_zones (id, name, description, deliveryFee, maxDeliveryTime, isActive, centerLatitude, centerLongitude, radiusKm) VALUES
             ('zone-centro-autlan', 'Centro Autlán', 'Centro histórico y comercial de Autlán de Navarro', 2500, 30, TRUE, '20.6736', '-104.3647', 3),
             ('zone-norte-autlan', 'Norte Autlán', 'Zona norte incluyendo colonias residenciales', 3000, 35, TRUE, '20.6800', '-104.3647', 4),
             ('zone-sur-autlan', 'Sur Autlán', 'Zona sur hacia carretera a Colima', 3000, 35, TRUE, '20.6672', '-104.3647', 4),
@@ -4586,6 +4608,9 @@ function getSettingDescription(key: string): string {
 
 // Register support routes
 router.use("/support", supportRoutes);
+
+// Register admin routes
+router.use("/admin", adminRoutes);
 
 // Create business (admin)
 router.post(
@@ -5304,5 +5329,19 @@ Asistente:`;
     return "Lo siento, no pude procesar tu mensaje. Un administrador te responderá pronto.";
   }
 }
+
+// Delivery config routes
+import deliveryConfigRoutes from "./routes/deliveryConfigRoutes";
+import deliveryRoutes from "./deliveryRoutes";
+router.use("/delivery", deliveryRoutes);
+router.use("/delivery", deliveryConfigRoutes);
+
+// Stripe payment routes
+import stripePaymentRoutes from "./routes/stripePaymentRoutes";
+router.use("/stripe", stripePaymentRoutes);
+
+// Business verification routes
+import businessVerificationRoutes from "./routes/businessVerificationRoutes";
+router.use("/business-verification", businessVerificationRoutes);
 
 export default router;

@@ -39,11 +39,48 @@ export async function getAvailableOrdersForDriver(driverId: string) {
     .where(eq(deliveryDrivers.userId, driverId))
     .limit(1);
 
-  if (!driver?.latitude || !driver?.longitude) {
+  if (!driver) {
     return {
       success: false,
-      error: "Driver location not available",
+      error: "Driver not found",
       orders: [],
+    };
+  }
+
+  // If no location, return all available orders without distance filtering
+  if (!driver?.latitude || !driver?.longitude) {
+    const availableOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        or(
+          eq(orders.status, "confirmed"),
+          eq(orders.status, "ready"),
+          eq(orders.status, "preparing")
+        )
+      );
+
+    const ordersWithBusiness = [];
+    for (const order of availableOrders) {
+      if (order.deliveryPersonId) continue;
+
+      const [business] = await db
+        .select({ name: businesses.name })
+        .from(businesses)
+        .where(eq(businesses.id, order.businessId))
+        .limit(1);
+
+      if (business) {
+        ordersWithBusiness.push({
+          ...order,
+          businessName: business.name,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      orders: ordersWithBusiness,
     };
   }
 

@@ -74,7 +74,8 @@ router.post(
   "/location",
   authenticateToken,
   asyncHandler(async (req, res) => {
-    const { deliveryPersonId, latitude, longitude, isOnline } = req.body;
+    const userId = (req as any).user.id;
+    const { latitude, longitude } = req.body;
 
     if (!latitude || !longitude) {
       throw new ValidationError("Latitude and longitude required");
@@ -86,33 +87,139 @@ router.post(
         currentLatitude: latitude.toString(),
         currentLongitude: longitude.toString(),
         lastLocationUpdate: new Date(),
-        isAvailable: isOnline,
       })
-      .where(eq(deliveryDrivers.userId, deliveryPersonId));
+      .where(eq(deliveryDrivers.userId, userId));
+
+    // Verificar si el driver está cerca de alguna entrega
+    const { checkAndUpdateArrivingStatus } = await import("./arrivingStatusService");
+    const activeOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.deliveryPersonId, userId),
+          inArray(orders.status, ["picked_up", "on_the_way", "in_transit"])
+        )
+      );
+
+    for (const order of activeOrders) {
+      await checkAndUpdateArrivingStatus(order.id, latitude, longitude);
+    }
 
     res.json({ success: true });
   }),
 );
 
-router.post(
-  "/toggle-online",
+router.get(
+  "/status",
   authenticateToken,
   asyncHandler(async (req, res) => {
-    const { deliveryPersonId, isOnline } = req.body;
+    const userId = (req as any).user.id;
+
+    const [driver] = await db
+      .select()
+      .from(deliveryDrivers)
+      .where(eq(deliveryDrivers.userId, userId))
+      .limit(1);
+
+    if (!driver) {
+      throw new NotFoundError("Driver not found");
+    }
+
+    res.json({ success: true, isOnline: driver.isAvailable });
+  }),
+);
+
+router.get(
+  "/stats",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const userId = (req as any).user.id;
+
+    const [driver] = await db
+      .select()
+      .from(deliveryDrivers)
+      .where(eq(deliveryDrivers.userId, userId))
+      .limit(1);
+
+    if (!driver) {
+      throw new NotFoundError("Driver not found");
+    }
+
+    const [wallet] = await db
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId))
+      .limit(1);
+
+    const completedOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.deliveryPersonId, userId),
+          eq(orders.status, "delivered")
+        )
+      );
+
+    const totalEarnings = completedOrders.reduce((sum, order) => {
+      return sum + Math.round(order.total * 0.15);
+    }, 0);
+
+    const avgTimeMinutes = completedOrders.length > 0
+      ? completedOrders.reduce((sum, order) => {
+          if (order.deliveredAt && order.createdAt) {
+            const diff = new Date(order.deliveredAt).getTime() - new Date(order.createdAt).getTime();
+            return sum + Math.floor(diff / 60000);
+          }
+          return sum;
+        }, 0) / completedOrders.length
+      : 0;
+
+    res.json({
+      success: true,
+      stats: {
+        totalDeliveries: driver.totalDeliveries,
+        rating: driver.rating,
+        totalRatings: driver.totalRatings,
+        completionRate: 100,
+        totalEarnings: totalEarnings,
+        balance: wallet?.balance || 0,
+        avgDeliveryTime: Math.round(avgTimeMinutes),
+      },
+    });
+  }),
+);
+
+router.post(
+  "/toggle-status",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const userId = (req as any).user.id;
+
+    const [driver] = await db
+      .select()
+      .from(deliveryDrivers)
+      .where(eq(deliveryDrivers.userId, userId))
+      .limit(1);
+
+    if (!driver) {
+      throw new NotFoundError("Driver not found");
+    }
+
+    const newStatus = !driver.isAvailable;
 
     await db
       .update(deliveryDrivers)
       .set({
-        isAvailable: isOnline,
+        isAvailable: newStatus,
         lastLocationUpdate: new Date(),
       })
-      .where(eq(deliveryDrivers.userId, deliveryPersonId));
+      .where(eq(deliveryDrivers.userId, userId));
 
-    logger.delivery(`Driver ${isOnline ? "online" : "offline"}`, {
-      userId: deliveryPersonId,
-    });
+    logger.delivery(`Driver ${newStatus ? "online" : "offline"}`, { userId });
 
-    res.json({ success: true, isOnline });
+    res.json({ success: true, isOnline: newStatus });
   }),
 );
 
@@ -144,6 +251,37 @@ router.get(
       .limit(10);
 
     res.json({ orders: myOrders, availableOrders });
+  }),
+);
+
+router.get(
+  "/available-orders",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const userId = (req as any).user.id;
+
+    const [driver] = await db
+      .select()
+      .from(deliveryDrivers)
+      .where(eq(deliveryDrivers.userId, userId))
+      .limit(1);
+
+    if (!driver) {
+      return res.json({ success: false, error: "Driver not found", orders: [] });
+    }
+
+    const availableOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.status, "ready"),
+          eq(orders.deliveryPersonId, null as any),
+        ),
+      )
+      .limit(20);
+
+    res.json({ success: true, orders: availableOrders });
   }),
 );
 
@@ -222,7 +360,10 @@ router.post(
 
     await db
       .update(orders)
-      .set({ status: "picked_up" })
+      .set({ 
+        status: "picked_up",
+        pickedUpAt: new Date(),
+      })
       .where(eq(orders.id, orderId));
 
     logger.delivery("Order picked up", { orderId, driverId: userId });
@@ -293,13 +434,23 @@ router.post(
     }
 
     // Mark as delivered
+    const deliveredAt = new Date();
+    const actualDeliveryTime = order.pickedUpAt
+      ? Math.floor((deliveredAt.getTime() - new Date(order.pickedUpAt).getTime()) / 60000)
+      : null;
+    const actualPrepTime = order.pickedUpAt && order.createdAt
+      ? Math.floor((new Date(order.pickedUpAt).getTime() - new Date(order.createdAt).getTime()) / 60000)
+      : null;
+
     await db
       .update(orders)
       .set({
         status: "delivered",
-        deliveredAt: new Date(),
+        deliveredAt,
         deliveryLatitude: latitude?.toString(),
         deliveryLongitude: longitude?.toString(),
+        actualDeliveryTime,
+        actualPrepTime,
       })
       .where(eq(orders.id, orderId));
 
@@ -316,9 +467,14 @@ router.post(
       })
       .where(eq(deliveryDrivers.userId, userId));
 
+    // Update metrics
+    const { updateBusinessPrepTimeMetrics, updateDriverSpeedMetrics } = await import("./metricsService");
+    updateBusinessPrepTimeMetrics(order.businessId).catch(console.error);
+    updateDriverSpeedMetrics(userId).catch(console.error);
+
     // Send notification to customer
-    const { notifyOrderStatusChange } = await import("./pushNotificationService");
-    await notifyOrderStatusChange(orderId, order.userId, "delivered");
+    const { sendOrderStatusNotification } = await import("./enhancedPushService");
+    await sendOrderStatusNotification(orderId, order.userId, "delivered");
 
     logger.delivery("Order delivered", { orderId, driverId: userId });
 

@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
-import apiRoutes from './apiRoutesCompact';
+import apiRoutes from './apiRoutes';
 import devRoutes from './devRoutes';
 import financialTestRoute from './financialTestRoute';
 import walletRoutes from './walletRoutes';
@@ -54,7 +54,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Serve Expo static bundles (for Expo Go deployment)
 const staticBuildPath = path.join(process.cwd(), 'static-build');
@@ -75,6 +80,11 @@ app.use('/api', apiRoutes);
 // Wallet routes
 import walletRoutes from './walletRoutes';
 app.use('/api/wallet', walletRoutes);
+
+// Favorites routes
+import favoritesRoutes from './favoritesRoutes';
+console.log('🔧 Registering favorites routes at /api/favorites');
+app.use('/api/favorites', favoritesRoutes);
 
 // Financial system test routes
 app.use('/api/financial', financialTestRoute);
