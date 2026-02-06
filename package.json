@@ -26,7 +26,9 @@
     "check:types": "tsc --noEmit",
     "check:format": "prettier --check \"**/*.{js,ts,tsx,css,json}\"",
     "format": "prettier --write \"**/*.{js,ts,tsx,css,json}\"",
-    "security-audit": "npm audit && npm run lint"
+    "security-audit": "npm audit && npm run lint",
+    "build:apk:production": "eas build --platform android --profile production --local",
+    "build:apk:preview": "eas build --platform android --profile preview --local"
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",

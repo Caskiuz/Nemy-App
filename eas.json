@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 16.32.0",
-    "appVersionSource": "remote"
+    "version": ">= 5.9.0"
   },
   "build": {
     "development": {
@@ -10,14 +9,19 @@
     },
     "preview": {
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://8417c296-af24-4e86-b854-5d86385fbca9-00-39wlkmta8vwmp.spock.replit.dev"
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
-      "autoIncrement": true,
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://nemy-app.replit.app",
+        "EXPO_PUBLIC_BACKEND_URL": "https://nemy-app.replit.app",
+        "EXPO_PUBLIC_FRONTEND_URL": "https://nemy-app.replit.app",
+        "EXPO_PUBLIC_NODE_ENV": "production"
       }
     }
   },
