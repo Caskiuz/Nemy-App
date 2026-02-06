@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, ActivityIndicator, Pressable } from "react-native";
+import { View, ActivityIndicator, Pressable, Modal, TextInput, ScrollView } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Spacing, NemyColors } from "@/constants/theme";
@@ -16,6 +16,14 @@ interface SupportTicket {
   createdAt: string;
 }
 
+interface Message {
+  id: string;
+  message: string;
+  isBot: boolean;
+  senderName: string;
+  createdAt: string;
+}
+
 interface TabProps {
   theme: any;
   showToast: (message: string, type: "success" | "error") => void;
@@ -25,6 +33,11 @@ export function SupportTab({ theme, showToast }: TabProps) {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchTickets();
@@ -32,7 +45,7 @@ export function SupportTab({ theme, showToast }: TabProps) {
 
   const fetchTickets = async () => {
     try {
-      const res = await apiRequest("GET", "/api/admin/support/tickets");
+      const res = await apiRequest("GET", "/api/support/admin/tickets");
       const data = await res.json();
       setTickets(data.tickets || []);
     } catch (error) {
@@ -44,11 +57,43 @@ export function SupportTab({ theme, showToast }: TabProps) {
 
   const updateTicketStatus = async (id: string, status: string) => {
     try {
-      await apiRequest("PUT", `/api/admin/support/tickets/${id}`, { status });
+      await apiRequest("PUT", `/api/support/tickets/${id}`, { status });
       showToast("Estado actualizado", "success");
       fetchTickets();
     } catch (error) {
       showToast("Error al actualizar ticket", "error");
+    }
+  };
+
+  const openTicket = async (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    setLoadingMessages(true);
+    try {
+      const res = await apiRequest("GET", `/api/support/tickets/${ticket.id}/messages`);
+      const data = await res.json();
+      setMessages(data.messages || []);
+    } catch (error) {
+      showToast("Error al cargar mensajes", "error");
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const sendReply = async () => {
+    if (!replyText.trim() || !selectedTicket) return;
+    setSending(true);
+    try {
+      await apiRequest("POST", `/api/support/tickets/${selectedTicket.id}/messages`, {
+        message: replyText,
+        isBot: false,
+      });
+      setReplyText("");
+      openTicket(selectedTicket);
+      showToast("Respuesta enviada", "success");
+    } catch (error) {
+      showToast("Error al enviar respuesta", "error");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -122,6 +167,14 @@ export function SupportTab({ theme, showToast }: TabProps) {
               </View>
             </View>
             <View style={tabStyles.cardActions}>
+              <Pressable
+                onPress={() => openTicket(ticket)}
+                style={[tabStyles.actionBtn, { backgroundColor: NemyColors.primary + "20" }]}
+              >
+                <ThemedText type="small" style={{ color: NemyColors.primary }}>
+                  Ver / Responder
+                </ThemedText>
+              </Pressable>
               {ticket.status !== "closed" ? (
                 <>
                   <Pressable
@@ -152,6 +205,67 @@ export function SupportTab({ theme, showToast }: TabProps) {
           </View>
         ))
       )}
+
+      <Modal visible={!!selectedTicket} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: theme.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%" }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+              <ThemedText type="h4">{selectedTicket?.subject}</ThemedText>
+              <Pressable onPress={() => setSelectedTicket(null)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+
+            {loadingMessages ? (
+              <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                <ActivityIndicator size="large" color={NemyColors.primary} />
+              </View>
+            ) : (
+              <>
+                <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
+                  {messages.map((msg) => (
+                    <View key={msg.id} style={{ marginBottom: Spacing.md, alignItems: msg.isBot ? "flex-start" : "flex-end" }}>
+                      <View style={{ backgroundColor: msg.isBot ? theme.card : NemyColors.primary + "20", padding: Spacing.md, borderRadius: 12, maxWidth: "80%" }}>
+                        <ThemedText type="small" style={{ fontWeight: "600", marginBottom: 4 }}>
+                          {msg.senderName}
+                        </ThemedText>
+                        <ThemedText type="body">{msg.message}</ThemedText>
+                        <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                          {new Date(msg.createdAt).toLocaleString("es-MX")}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <View style={{ padding: Spacing.lg, borderTopWidth: 1, borderTopColor: theme.border }}>
+                  <TextInput
+                    value={replyText}
+                    onChangeText={setReplyText}
+                    placeholder="Escribe tu respuesta..."
+                    placeholderTextColor={theme.textSecondary}
+                    multiline
+                    style={{ backgroundColor: theme.card, color: theme.text, padding: Spacing.md, borderRadius: 8, minHeight: 80, marginBottom: Spacing.md }}
+                  />
+                  <Pressable
+                    onPress={sendReply}
+                    disabled={sending || !replyText.trim()}
+                    style={{ backgroundColor: NemyColors.primary, padding: Spacing.md, borderRadius: 8, alignItems: "center", opacity: sending || !replyText.trim() ? 0.5 : 1 }}
+                  >
+                    {sending ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <ThemedText type="body" style={{ color: "#fff", fontWeight: "600" }}>
+                        Enviar Respuesta
+                      </ThemedText>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
