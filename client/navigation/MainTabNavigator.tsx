@@ -48,12 +48,9 @@ export default function MainTabNavigator() {
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: Platform.select({
-            ios: "transparent",
-            android: theme.backgroundRoot,
-            web: theme.backgroundRoot,
-          }),
-          borderTopWidth: 0,
+          backgroundColor: theme.background,
+          borderTopWidth: 1,
+          borderTopColor: theme.border,
           elevation: 8,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
@@ -63,14 +60,7 @@ export default function MainTabNavigator() {
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: Spacing.xs,
         },
-        tabBarBackground: () =>
-          Platform.OS === "ios" ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : null,
+        tabBarBackground: undefined,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "600",

@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
 import { gpsService } from '@/services/gpsService';
+import { GPS_CONFIG } from '@/constants/api';
 
 export default function DriverAvailableOrdersScreen() {
   const insets = useSafeAreaInsets();
@@ -88,7 +89,11 @@ export default function DriverAvailableOrdersScreen() {
         
         // Start/stop GPS tracking based on status
         if (newStatus) {
-          gpsService.startTracking();
+          if (!GPS_CONFIG.DISABLE_IN_DEV) {
+            gpsService.startTracking();
+          } else {
+            console.log('⚠️ GPS disabled by GPS_CONFIG.DISABLE_IN_DEV');
+          }
         } else {
           gpsService.stopTracking();
         }
@@ -115,7 +120,7 @@ export default function DriverAvailableOrdersScreen() {
     const interval = setInterval(loadOrders, 5000);
     
     // Start GPS tracking if online
-    if (isOnline) {
+    if (isOnline && !GPS_CONFIG.DISABLE_IN_DEV) {
       gpsService.startTracking();
     }
     
@@ -221,7 +226,7 @@ export default function DriverAvailableOrdersScreen() {
               Ganancia estimada
             </ThemedText>
             <ThemedText type="h3" style={{ color: NemyColors.success }}>
-              ${(item.total * 0.15).toFixed(2)}
+              ${((item.total / 100) * 0.15).toFixed(2)}
             </ThemedText>
           </View>
           <Pressable
@@ -245,13 +250,8 @@ export default function DriverAvailableOrdersScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={[theme.gradientStart, theme.gradientEnd]}
-      style={styles.container}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, backgroundColor: theme.background }]}>
         <View style={styles.headerTop}>
           <ThemedText type="h2">Pedidos Disponibles</ThemedText>
           <View style={styles.statusToggle}>
@@ -334,7 +334,7 @@ export default function DriverAvailableOrdersScreen() {
         confirmText="Entendido"
         showCancel={false}
       />
-    </LinearGradient>
+    </View>
   );
 }
 

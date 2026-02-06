@@ -2,7 +2,7 @@ import { db } from "./db";
 import { orders, businesses, deliveryDrivers } from "@shared/schema-mysql";
 import { eq, or, isNull } from "drizzle-orm";
 
-const MAX_DELIVERY_DISTANCE_KM = 10;
+const MAX_DELIVERY_DISTANCE_KM = 999999; // SIN LÍMITE - Muestra todos los pedidos
 
 export function calculateDistance(
   lat1: number,
@@ -30,6 +30,8 @@ function toRad(degrees: number): number {
 }
 
 export async function getAvailableOrdersForDriver(driverId: string) {
+  console.log('🔍 getAvailableOrdersForDriver called for:', driverId);
+  
   const [driver] = await db
     .select({
       latitude: deliveryDrivers.currentLatitude,
@@ -39,7 +41,10 @@ export async function getAvailableOrdersForDriver(driverId: string) {
     .where(eq(deliveryDrivers.userId, driverId))
     .limit(1);
 
+  console.log('📍 Driver location:', driver);
+
   if (!driver) {
+    console.log('❌ Driver not found');
     return {
       success: false,
       error: "Driver not found",
@@ -87,6 +92,8 @@ export async function getAvailableOrdersForDriver(driverId: string) {
   const driverLat = parseFloat(driver.latitude);
   const driverLng = parseFloat(driver.longitude);
 
+  console.log('📍 Parsed driver location:', driverLat, driverLng);
+
   const availableOrders = await db
     .select()
     .from(orders)
@@ -100,8 +107,13 @@ export async function getAvailableOrdersForDriver(driverId: string) {
 
   const ordersInZone = [];
 
+  console.log(`📦 Checking ${availableOrders.length} available orders`);
+
   for (const order of availableOrders) {
-    if (order.deliveryPersonId) continue;
+    if (order.deliveryPersonId) {
+      console.log(`  ⏭️ Order ${order.id.slice(-6)} already has driver`);
+      continue;
+    }
 
     const [business] = await db
       .select({
@@ -113,7 +125,10 @@ export async function getAvailableOrdersForDriver(driverId: string) {
       .where(eq(businesses.id, order.businessId))
       .limit(1);
 
-    if (!business?.latitude || !business?.longitude) continue;
+    if (!business?.latitude || !business?.longitude) {
+      console.log(`  ❌ Order ${order.id.slice(-6)}: Business has no location`);
+      continue;
+    }
 
     const businessLat = parseFloat(business.latitude);
     const businessLng = parseFloat(business.longitude);
@@ -124,6 +139,8 @@ export async function getAvailableOrdersForDriver(driverId: string) {
       businessLat,
       businessLng
     );
+
+    console.log(`  📍 Order ${order.id.slice(-6)}: ${business.name} at (${businessLat}, ${businessLng}) - Distance: ${distance.toFixed(2)}km`);
 
     if (distance <= MAX_DELIVERY_DISTANCE_KM) {
       ordersInZone.push({
@@ -136,6 +153,8 @@ export async function getAvailableOrdersForDriver(driverId: string) {
   }
 
   ordersInZone.sort((a, b) => a.distance - b.distance);
+
+  console.log(`✅ Returning ${ordersInZone.length} orders in zone`);
 
   return {
     success: true,

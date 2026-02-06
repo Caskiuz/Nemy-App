@@ -1,17 +1,13 @@
 import { db } from "./db";
 import { orders, businesses, deliveryDrivers } from "@shared/schema-mysql";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export async function updateBusinessPrepTimeMetrics(businessId: string): Promise<void> {
   const completedOrders = await db
     .select()
     .from(orders)
     .where(
-      and(
-        eq(orders.businessId, businessId),
-        eq(orders.status, "delivered"),
-        sql`${orders.actualPrepTime} IS NOT NULL`
-      )
+      sql`business_id = ${businessId} AND status = 'delivered' AND actual_prep_time IS NOT NULL`
     )
     .limit(50);
 
@@ -34,11 +30,7 @@ export async function updateDriverSpeedMetrics(driverId: string): Promise<void> 
     .select()
     .from(orders)
     .where(
-      and(
-        eq(orders.deliveryPersonId, driverId),
-        eq(orders.status, "delivered"),
-        sql`${orders.actualDeliveryTime} IS NOT NULL`
-      )
+      sql`delivery_person_id = ${driverId} AND status = 'delivered' AND actual_delivery_time IS NOT NULL`
     )
     .limit(50);
 

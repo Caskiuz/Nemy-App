@@ -17,12 +17,17 @@ export default function DriverTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: theme.background,
+        },
+        headerTintColor: theme.text,
         tabBarActiveTintColor: NemyColors.primary,
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: {
-          backgroundColor: theme.card,
+          backgroundColor: theme.background,
           borderTopColor: theme.border,
+          borderTopWidth: 1,
         },
       }}
     >

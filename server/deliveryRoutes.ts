@@ -162,9 +162,17 @@ router.get(
         )
       );
 
-    const totalEarnings = completedOrders.reduce((sum, order) => {
-      return sum + Math.round(order.total * 0.15);
-    }, 0);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - 7);
+
+    const todayOrders = completedOrders.filter(o => new Date(o.deliveredAt!) >= todayStart);
+    const weekOrders = completedOrders.filter(o => new Date(o.deliveredAt!) >= weekStart);
+
+    const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryEarningsAmount || Math.round(o.total * 0.15)), 0);
+    const weekEarnings = weekOrders.reduce((sum, o) => sum + (o.deliveryEarningsAmount || Math.round(o.total * 0.15)), 0);
+    const totalEarnings = completedOrders.reduce((sum, o) => sum + (o.deliveryEarningsAmount || Math.round(o.total * 0.15)), 0);
 
     const avgTimeMinutes = completedOrders.length > 0
       ? completedOrders.reduce((sum, order) => {
@@ -179,11 +187,13 @@ router.get(
     res.json({
       success: true,
       stats: {
-        totalDeliveries: driver.totalDeliveries,
+        totalDeliveries: completedOrders.length,
         rating: driver.rating,
         totalRatings: driver.totalRatings,
         completionRate: 100,
-        totalEarnings: totalEarnings,
+        todayEarnings,
+        weekEarnings,
+        totalEarnings,
         balance: wallet?.balance || 0,
         avgDeliveryTime: Math.round(avgTimeMinutes),
       },
@@ -254,6 +264,24 @@ router.get(
   }),
 );
 
+// Get my orders (for driver profile)
+router.get(
+  "/my-orders",
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const userId = (req as any).user.id;
+
+    const myOrders = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.deliveryPersonId, userId))
+      .orderBy(sql`created_at DESC`)
+      .limit(50);
+
+    res.json({ success: true, orders: myOrders });
+  }),
+);
+
 router.get(
   "/available-orders",
   authenticateToken,
@@ -270,6 +298,7 @@ router.get(
       return res.json({ success: false, error: "Driver not found", orders: [] });
     }
 
+    // SIN RESTRICCIÓN DE DISTANCIA - Muestra TODOS los pedidos disponibles
     const availableOrders = await db
       .select()
       .from(orders)
@@ -279,7 +308,7 @@ router.get(
           eq(orders.deliveryPersonId, null as any),
         ),
       )
-      .limit(20);
+      .limit(100); // Aumentado a 100 pedidos
 
     res.json({ success: true, orders: availableOrders });
   }),
