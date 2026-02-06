@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -21,10 +22,12 @@ import { Badge } from "@/components/Badge";
 import { CartButton } from "@/components/CartButton";
 import { ProductCardSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { mockBusinesses, mockProducts } from "@/data/mockData";
 import { Business, Product } from "@/types";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { apiRequest } from "@/lib/query-client";
 
 type BusinessDetailRouteProp = RouteProp<RootStackParamList, "BusinessDetail">;
 type BusinessDetailNavigationProp = NativeStackNavigationProp<
@@ -37,6 +40,8 @@ export default function BusinessDetailScreen() {
   const route = useRoute<BusinessDetailRouteProp>();
   const navigation = useNavigation<BusinessDetailNavigationProp>();
   const { theme } = useTheme();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { businessId } = route.params;
   const [isLoading, setIsLoading] = useState(true);

@@ -25,7 +25,6 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { apiRequest } from "@/lib/query-client";
 import { useToast } from "@/contexts/ToastContext";
 import { calculateDistance, calculateDeliveryFee, estimateDeliveryTime } from "@/utils/distance";
-import { useQuery } from "@tanstack/react-query";
 
 type SubstitutionOption = "refund" | "call" | "substitute";
 
@@ -44,12 +43,7 @@ export default function CheckoutScreen() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const { data: addressesData } = useQuery<{ addresses: any[] }>({
-    queryKey: ["/api/users", user?.id, "addresses"],
-    enabled: !!user?.id,
-  });
-
-  const addresses = addressesData?.addresses || [];
+  const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
@@ -70,6 +64,27 @@ export default function CheckoutScreen() {
   // Pago en efectivo
   const [cashPaymentAmount, setCashPaymentAmount] = useState("");
   const [cashError, setCashError] = useState("");
+
+  // Cupón
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponLoading, setCouponLoading] = useState(false);
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      if (!user?.id) return;
+      try {
+        const response = await apiRequest("GET", `/api/users/${user.id}/addresses`);
+        const data = await response.json();
+        console.log('📍 Addresses loaded:', data.addresses?.length || 0, data.addresses);
+        setAddresses(data.addresses || []);
+      } catch (error) {
+        console.error('Error loading addresses:', error);
+      }
+    };
+    loadAddresses();
+  }, [user?.id]);
 
   useEffect(() => {
     if (cart?.businessId) {
@@ -95,24 +110,30 @@ export default function CheckoutScreen() {
   }, [addresses]);
 
 
-  const deliveryFee = dynamicDeliveryFee ?? business?.deliveryFee ?? 0;
-  const total = subtotal + deliveryFee;
+  const deliveryFee = dynamicDeliveryFee ?? (business?.deliveryFee ? business.deliveryFee / 100 : 0);
+  const total = subtotal + deliveryFee - couponDiscount;
 
   // Calcular delivery fee dinámico cuando cambia la dirección
   useEffect(() => {
     if (business && selectedAddress && selectedAddress.latitude && selectedAddress.longitude) {
-      const distance = calculateDistance(
-        business.latitude || 19.7708,
-        business.longitude || -104.3636,
-        selectedAddress.latitude,
-        selectedAddress.longitude
-      );
-      const fee = calculateDeliveryFee(distance);
-      const time = estimateDeliveryTime(distance);
-      setDynamicDeliveryFee(fee);
-      setEstimatedTime(time);
+      calculateFee();
     }
   }, [business, selectedAddress]);
+
+  const calculateFee = async () => {
+    if (!business || !selectedAddress) return;
+    
+    const distance = calculateDistance(
+      business.latitude || 19.7708,
+      business.longitude || -104.3636,
+      selectedAddress.latitude,
+      selectedAddress.longitude
+    );
+    const fee = await calculateDeliveryFee(distance);
+    const time = estimateDeliveryTime(distance);
+    setDynamicDeliveryFee(fee);
+    setEstimatedTime(time);
+  };
 
   // Calcular cambio para efectivo
   const cashAmountNumber = parseFloat(cashPaymentAmount) || 0;
@@ -188,6 +209,11 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (!selectedAddress) {
+      showToast("Selecciona una dirección de entrega", "error");
+      return;
+    }
+
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -214,18 +240,18 @@ export default function CheckoutScreen() {
       const regretPeriodEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
 
       const orderResponse = await apiRequest("POST", "/api/orders", {
-        userId: user.id,
         businessId: cart.businessId,
         businessName: cart.businessName,
         businessImage: business?.profileImage || "",
         items: JSON.stringify(cart.items),
-        status: "pending_confirmation", // Nuevo estado durante período de arrepentimiento
+        status: "pending",
         subtotal: Math.round(subtotal * 100),
         deliveryFee: Math.round(deliveryFee * 100),
         total: Math.round(total * 100),
         paymentMethod,
         deliveryAddress: `${selectedAddress.street}, ${selectedAddress.city}`,
-        // Nuevos campos
+        deliveryLatitude: selectedAddress.latitude,
+        deliveryLongitude: selectedAddress.longitude,
         substitutionPreference: globalSubstitution,
         itemSubstitutionPreferences:
           Object.keys(finalItemSubstitutions).length > 0
@@ -235,6 +261,8 @@ export default function CheckoutScreen() {
           paymentMethod === "cash" ? Math.round(cashAmountNumber * 100) : null,
         cashChangeAmount:
           paymentMethod === "cash" ? Math.round(changeAmount * 100) : null,
+        couponCode: appliedCoupon ? couponCode.toUpperCase() : null,
+        couponDiscount: appliedCoupon ? Math.round(couponDiscount * 100) : null,
       });
 
       const order = await orderResponse.json();
@@ -302,6 +330,51 @@ export default function CheckoutScreen() {
           desc: "Producto similar",
         };
     }
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      showToast("Ingresa un código de cupón", "error");
+      return;
+    }
+
+    setCouponLoading(true);
+    try {
+      const response = await apiRequest("POST", "/api/coupons/validate", {
+        code: couponCode.toUpperCase(),
+        userId: user?.id,
+        orderTotal: Math.round((subtotal + deliveryFee) * 100),
+      });
+      const data = await response.json();
+
+      if (data.valid) {
+        const discount = data.discountType === "percentage"
+          ? ((subtotal + deliveryFee) * data.discount) / 100
+          : data.discount / 100;
+        
+        const maxDiscount = data.coupon.maxDiscountAmount ? data.coupon.maxDiscountAmount / 100 : discount;
+        const finalDiscount = Math.min(discount, maxDiscount);
+
+        setAppliedCoupon(data.coupon);
+        setCouponDiscount(finalDiscount);
+        showToast(`¡Cupón aplicado! Ahorras $${finalDiscount.toFixed(2)}`, "success");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        showToast(data.error || "Cupón inválido", "error");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch (error) {
+      showToast("Error al validar cupón", "error");
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponCode("");
+    Haptics.selectionAsync();
   };
 
   return (
@@ -393,7 +466,7 @@ export default function CheckoutScreen() {
                 ) : null}
               </Pressable>
             ))
-          )}}
+          )}
         </View>
 
         <View
@@ -568,6 +641,59 @@ export default function CheckoutScreen() {
               ) : null}
             </View>
           ) : null}
+        </View>
+
+        {/* Sección de cupón */}
+        <View
+          style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
+        >
+          <View style={styles.sectionHeader}>
+            <Feather name="tag" size={20} color={NemyColors.primary} />
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Cupón de descuento
+            </ThemedText>
+          </View>
+          
+          {appliedCoupon ? (
+            <View style={[styles.appliedCouponBox, { backgroundColor: NemyColors.success + "15", borderColor: NemyColors.success }]}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="body" style={{ fontWeight: "600", color: NemyColors.success }}>
+                  {couponCode.toUpperCase()}
+                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                  Ahorras ${couponDiscount.toFixed(2)}
+                </ThemedText>
+              </View>
+              <Pressable onPress={handleRemoveCoupon} style={styles.removeCouponButton}>
+                <Feather name="x" size={20} color={NemyColors.error} />
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.couponInputContainer}>
+              <TextInput
+                style={[styles.couponInput, { color: theme.text, backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                value={couponCode}
+                onChangeText={setCouponCode}
+                placeholder="Ingresa tu código"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="characters"
+                editable={!couponLoading}
+              />
+              <Pressable
+                onPress={handleApplyCoupon}
+                disabled={couponLoading || !couponCode.trim()}
+                style={[styles.applyCouponButton, { backgroundColor: couponLoading || !couponCode.trim() ? theme.textSecondary : NemyColors.primary }]}
+              >
+                {couponLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <ThemedText type="body" style={{ color: "#FFF", fontWeight: "600" }}>
+                    Aplicar
+                  </ThemedText>
+                )}
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* Sección de sustituciones */}
@@ -765,6 +891,16 @@ export default function CheckoutScreen() {
           </ThemedText>
           <ThemedText type="body">${deliveryFee.toFixed(2)}</ThemedText>
         </View>
+        {couponDiscount > 0 && (
+          <View style={styles.totalRow}>
+            <ThemedText type="body" style={{ color: NemyColors.success }}>
+              Cupón ({couponCode})
+            </ThemedText>
+            <ThemedText type="body" style={{ color: NemyColors.success }}>
+              -${couponDiscount.toFixed(2)}
+            </ThemedText>
+          </View>
+        )}
         <View style={[styles.totalRow, styles.grandTotal]}>
           <ThemedText type="h3">Total</ThemedText>
           <ThemedText type="h2" style={{ color: NemyColors.primary }}>
@@ -943,5 +1079,37 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // Estilos para cupón
+  couponInputContainer: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  couponInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  applyCouponButton: {
+    height: 48,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 100,
+  },
+  appliedCouponBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+  },
+  removeCouponButton: {
+    padding: Spacing.xs,
   },
 });

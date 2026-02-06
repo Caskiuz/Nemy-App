@@ -34,10 +34,12 @@ const statusLabels: Record<string, string> = {
   picked_up: "Recogido",
   on_the_way: "En camino",
   in_transit: "En camino",
+  arriving: "Llegando (2 min)",
   delivered: "Entregado",
   pending: "Pendiente",
-  confirmed: "Confirmado",
+  accepted: "Aceptado",
   preparing: "Preparando",
+  assigned_driver: "Repartidor asignado",
   cancelled: "Cancelado",
 };
 

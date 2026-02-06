@@ -71,11 +71,19 @@ export default function PaymentMethodsScreen() {
     if (!user?.id) return;
 
     try {
+      const { getAuthToken } = await import("@/lib/query-client");
+      const token = await getAuthToken();
+      
       const response = await fetch(
         new URL(
           `/api/stripe/payment-method/${user.id}`,
           getApiUrl(),
         ).toString(),
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        },
       );
       const data = await response.json();
 
@@ -171,12 +179,20 @@ export default function PaymentMethodsScreen() {
     setShowDeleteModal(false);
 
     try {
+      const { getAuthToken } = await import("@/lib/query-client");
+      const token = await getAuthToken();
+      
       const response = await fetch(
         new URL(
           `/api/stripe/payment-method/${user.id}`,
           getApiUrl(),
         ).toString(),
-        { method: "DELETE" },
+        { 
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        },
       );
       const data = await response.json();
 
@@ -294,20 +310,23 @@ export default function PaymentMethodsScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <View style={[styles.header, { paddingTop: headerHeight + Spacing.md }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Feather name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
+        <ThemedText type="h3">Métodos de pago</ThemedText>
+        <View style={{ width: 44 }} />
+      </View>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.lg,
             paddingBottom: insets.bottom + Spacing.xl,
           },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <ThemedText type="h3" style={styles.sectionTitle}>
-          Métodos de pago
-        </ThemedText>
         <ThemedText
           type="body"
           style={[styles.description, { color: theme.textSecondary }]}
@@ -533,6 +552,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -543,9 +575,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-  },
-  sectionTitle: {
-    marginBottom: Spacing.xs,
+    paddingTop: Spacing.md,
   },
   description: {
     marginBottom: Spacing.xl,

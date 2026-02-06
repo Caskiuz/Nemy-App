@@ -267,15 +267,21 @@ export default function SupportScreen() {
               </View>
             ) : (
               tickets.map((ticket, index) => (
-                <Animated.View
+                <Pressable
                   key={ticket.id}
-                  entering={FadeInDown.delay(index * 50)}
-                  style={[
-                    styles.ticketCard,
-                    { backgroundColor: theme.card },
-                    Shadows.sm,
-                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    navigation.navigate("TicketDetail", { ticketId: ticket.id });
+                  }}
                 >
+                  <Animated.View
+                    entering={FadeInDown.delay(index * 50)}
+                    style={[
+                      styles.ticketCard,
+                      { backgroundColor: theme.card },
+                      Shadows.sm,
+                    ]}
+                  >
                   <View style={styles.ticketHeader}>
                     <View
                       style={[
@@ -323,6 +329,7 @@ export default function SupportScreen() {
                     {ticket.message}
                   </ThemedText>
                 </Animated.View>
+              </Pressable>
               ))
             )}
           </ScrollView>

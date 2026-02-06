@@ -126,16 +126,62 @@ export default function FavoritesScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<FavoritesNavigationProp>();
   const queryClient = useQueryClient();
+  const [testData, setTestData] = React.useState<any>(null);
+
+  // TEST DIRECTO
+  React.useEffect(() => {
+    if (user?.id) {
+      console.log('🧪 TEST: Haciendo petición directa a /api/favorites/' + user.id);
+      fetch(`http://localhost:5000/api/favorites/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
+        }
+      })
+        .then(r => r.json())
+        .then(data => {
+          console.log('🧪 TEST: Respuesta recibida:', data);
+          setTestData(data);
+        })
+        .catch(err => console.error('🧪 TEST: Error:', err));
+    }
+  }, [user?.id]);
+
+  console.log('FavoritesScreen - user:', user?.id);
+  console.log('FavoritesScreen - user exists:', !!user?.id);
+  console.log('🧪 TEST DATA:', testData);
 
   const {
-    data: favorites = [],
+    data: favoritesResponse,
     isLoading,
     refetch,
     isRefetching,
+    error,
   } = useQuery<Favorite[]>({
     queryKey: ["/api/favorites", user?.id],
+    queryFn: async () => {
+      if (!user?.id) {
+        console.log('❌ No user ID, returning empty array');
+        return [];
+      }
+      console.log('🔍 Fetching favorites for user:', user?.id);
+      const response = await apiRequest("GET", `/api/favorites/${user?.id}`);
+      if (!response.ok) {
+        console.error('❌ Favorites request failed:', response.status);
+        throw new Error('Failed to fetch favorites');
+      }
+      const data = await response.json();
+      console.log('✅ Favorites data received:', data);
+      return Array.isArray(data) ? data : [];
+    },
     enabled: !!user?.id,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
+
+  const favorites = favoritesResponse || [];
+
+  console.log('Favorites:', favorites, 'isLoading:', isLoading, 'error:', error);
 
   const removeFavoriteMutation = useMutation({
     mutationFn: async (favoriteId: string) => {
@@ -177,8 +223,8 @@ export default function FavoritesScreen() {
       >
         <EmptyState
           image={require("../../assets/images/market-basket.png")}
-          title="Sin favoritos aún"
-          description="Guarda tus negocios y productos favoritos para acceder rápidamente"
+          title="🔴 PRUEBA - Sin favoritos aún"
+          description="SI VES ESTO EL ARCHIVO ES CORRECTO - Guarda tus negocios y productos favoritos para acceder rápidamente"
         />
       </LinearGradient>
     );

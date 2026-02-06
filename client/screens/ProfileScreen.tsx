@@ -463,7 +463,13 @@ export default function ProfileScreen() {
             <SettingsItem
               icon="dollar-sign"
               label="Mi Billetera"
-              onPress={() => navigation.navigate("Wallet")}
+              onPress={() => {
+                if (user?.role === 'delivery_driver') {
+                  navigation.navigate('DriverEarnings' as any);
+                } else {
+                  navigation.navigate("Wallet");
+                }
+              }}
             />
           )}
         </View>
@@ -612,7 +618,7 @@ export default function ProfileScreen() {
             label="Términos y condiciones"
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowTermsModal(true);
+              navigation.navigate('Terms' as any);
             }}
           />
           <SettingsItem
@@ -620,7 +626,7 @@ export default function ProfileScreen() {
             label="Política de privacidad"
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowPrivacyModal(true);
+              navigation.navigate('Privacy' as any);
             }}
           />
         </View>

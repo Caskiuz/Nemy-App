@@ -12,11 +12,13 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { mockProducts } from "@/data/mockData";
@@ -24,6 +26,7 @@ import { Product } from "@/types";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useToast } from "@/contexts/ToastContext";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { apiRequest } from "@/lib/query-client";
 
 type ProductDetailRouteProp = RouteProp<RootStackParamList, "ProductDetail">;
 type ProductDetailNavigationProp = NativeStackNavigationProp<
@@ -36,8 +39,10 @@ export default function ProductDetailScreen() {
   const route = useRoute<ProductDetailRouteProp>();
   const navigation = useNavigation<ProductDetailNavigationProp>();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const { addToCart, cart, getCartItem } = useCart();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
   const { productId, businessId, businessName } = route.params;
   const [product, setProduct] = useState<Product | null>(null);
@@ -45,6 +50,29 @@ export default function ProductDetailScreen() {
   const [unitAmount, setUnitAmount] = useState("1");
   const [note, setNote] = useState("");
   const [showBusinessChangeModal, setShowBusinessChangeModal] = useState(false);
+
+  const { data: favoriteData } = useQuery({
+    queryKey: ["/api/favorites/check", user?.id, productId],
+    enabled: !!user?.id,
+  });
+
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async () => {
+      if (favoriteData?.isFavorite) {
+        await apiRequest("DELETE", `/api/favorites/${favoriteData.favoriteId}`);
+      } else {
+        await apiRequest("POST", "/api/favorites", {
+          userId: user?.id,
+          productId,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/favorites/check", user?.id, productId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/favorites", user?.id] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+  });
 
   useEffect(() => {
     // Get product from navigation params (passed from BusinessDetailScreen)
@@ -142,6 +170,17 @@ export default function ProductDetailScreen() {
             style={[styles.closeButton, { backgroundColor: theme.card }]}
           >
             <Feather name="x" size={24} color={theme.text} />
+          </Pressable>
+          <Pressable
+            onPress={() => toggleFavoriteMutation.mutate()}
+            style={[styles.favoriteButton, { backgroundColor: theme.card }]}
+          >
+            <Feather
+              name="heart"
+              size={24}
+              color={favoriteData?.isFavorite ? "#F44336" : theme.text}
+              fill={favoriteData?.isFavorite ? "#F44336" : "none"}
+            />
           </Pressable>
         </View>
 
@@ -350,6 +389,16 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 50,
     right: Spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  favoriteButton: {
+    position: "absolute",
+    top: 50,
+    left: Spacing.lg,
     width: 44,
     height: 44,
     borderRadius: 22,

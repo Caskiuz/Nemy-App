@@ -20,6 +20,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ThemedText } from "@/components/ThemedText";
 import { OrderStatusBar } from "@/components/OrderStatusBar";
 import { Badge } from "@/components/Badge";
+import { CountdownTimer } from "@/components/CountdownTimer";
+import { OrderProgressBar } from "@/components/OrderProgressBar";
 import { CollapsibleMap } from "@/components/CollapsibleMap";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
@@ -334,6 +336,31 @@ export default function OrderTrackingScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Countdown Timer */}
+        {dynamicEta && (
+          <View style={[styles.statusCard, { backgroundColor: theme.card }, Shadows.md]}>
+            <View style={styles.businessRow}>
+              <View style={[styles.iconContainer, { backgroundColor: NemyColors.primary + '20' }]}>
+                <Feather name="clock" size={24} color={NemyColors.primary} />
+              </View>
+              <View style={styles.businessInfo}>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {order.status === 'accepted' ? 'Pedido aceptado' : 
+                   order.status === 'preparing' ? 'Preparando tu pedido' :
+                   order.status === 'ready' ? 'Listo para recoger' :
+                   order.status === 'picked_up' ? 'En camino' : 'Procesando'}
+                </ThemedText>
+                <ThemedText type="h3" style={{ color: NemyColors.primary }}>
+                  {dynamicEta}
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Progress Bar */}
+        <OrderProgressBar status={order.status} />
+
         <View
           style={[
             styles.statusCard,
@@ -719,6 +746,13 @@ const styles = StyleSheet.create({
   businessInfo: {
     flex: 1,
     marginLeft: Spacing.md,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   etaContainer: {
     alignItems: "flex-end",

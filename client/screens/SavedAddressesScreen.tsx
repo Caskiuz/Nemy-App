@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -59,31 +60,40 @@ export default function SavedAddressesScreen() {
     }
   };
 
-  const handleDelete = async (addressId: string) => {
-    Alert.alert(
-      "Eliminar dirección",
-      "¿Estás seguro de eliminar esta dirección?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await apiRequest("DELETE", `/api/users/${user?.id}/addresses/${addressId}`);
-              await loadAddresses();
-              showToast("Dirección eliminada", "success");
-            } catch (error) {
-              showToast("Error al eliminar dirección", "error");
-            }
-          },
-        },
-      ]
-    );
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState<string | null>(null);
+
+  const handleDelete = (addressId: string) => {
+    console.log('🗑️ Delete button pressed for:', addressId);
+    setAddressToDelete(addressId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!addressToDelete) return;
+    
+    try {
+      await apiRequest("DELETE", `/api/users/${user?.id}/addresses/${addressToDelete}`);
+      await loadAddresses();
+      showToast("Dirección eliminada", "success");
+    } catch (error) {
+      showToast("Error al eliminar dirección", "error");
+    } finally {
+      setShowDeleteModal(false);
+      setAddressToDelete(null);
+    }
   };
 
   return (
     <ThemedView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Feather name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
+        <ThemedText type="h3">Direcciones</ThemedText>
+        <View style={{ width: 24 }} />
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
@@ -223,6 +233,18 @@ export default function SavedAddressesScreen() {
           </ThemedText>
         </Button>
       </View>
+
+      <ConfirmModal
+        visible={showDeleteModal}
+        title="Eliminar dirección"
+        message="¿Estás seguro de eliminar esta dirección?"
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setShowDeleteModal(false);
+          setAddressToDelete(null);
+        }}
+        confirmText="Eliminar"
+      />
     </ThemedView>
   );
 }
@@ -230,6 +252,16 @@ export default function SavedAddressesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  backButton: {
+    padding: Spacing.xs,
   },
   scrollView: {
     flex: 1,
@@ -286,3 +318,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+

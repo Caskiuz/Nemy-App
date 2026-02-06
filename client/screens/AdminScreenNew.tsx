@@ -130,6 +130,13 @@ const menuItems: MenuItem[] = [
     color: "#607D8B",
   },
   {
+    title: "Tarifas Delivery",
+    subtitle: "Configurar costos de envío",
+    icon: "navigation",
+    tab: "delivery-config",
+    color: "#00BCD4",
+  },
+  {
     title: "Soporte",
     subtitle: "Tickets de ayuda",
     icon: "message-circle",
@@ -1311,6 +1318,9 @@ export default function AdminMenuScreen() {
       case "settings":
       case "configuracion":
         return <SettingsTab theme={theme} showToast={showToast} />;
+      case "delivery-config":
+        const DeliveryConfigScreen = require("./DeliveryConfigScreen").default;
+        return <DeliveryConfigScreen />;
       case "finance":
         return (
           <View style={{ flex: 1 }}>

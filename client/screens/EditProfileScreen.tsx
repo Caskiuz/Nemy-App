@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { Image } from "expo-image";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -28,6 +30,7 @@ export default function EditProfileScreen() {
   const [phone, setPhone] = useState(user?.phone || "");
   const [email, setEmail] = useState(user?.email || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
 
   React.useLayoutEffect(() => {
@@ -96,6 +99,58 @@ export default function EditProfileScreen() {
     }
   };
 
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Se necesita permiso para acceder a las fotos', 'error');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadImage(result.assets[0].uri);
+      }
+    } catch (error: any) {
+      showToast('Error al seleccionar imagen', 'error');
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    setIsUploadingImage(true);
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        const base64data = reader.result as string;
+        
+        const apiResponse = await apiRequest('POST', '/api/user/profile-image', {
+          image: base64data,
+        });
+
+        const data = await apiResponse.json();
+        if (data.success) {
+          await updateUser({ profileImage: data.profileImage });
+          showToast('Foto actualizada', 'success');
+        }
+      };
+      
+      reader.readAsDataURL(blob);
+    } catch (error: any) {
+      showToast('Error al subir imagen', 'error');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView
@@ -117,19 +172,34 @@ export default function EditProfileScreen() {
             Shadows.md,
           ]}
         >
-          <View
-            style={[
-              styles.avatar,
-              { backgroundColor: NemyColors.primary + "20" },
-            ]}
-          >
-            <Feather name="user" size={40} color={NemyColors.primary} />
-          </View>
+          <Pressable onPress={handlePickImage} disabled={isUploadingImage}>
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: NemyColors.primary + "20" },
+              ]}
+            >
+              {isUploadingImage ? (
+                <ActivityIndicator size="large" color={NemyColors.primary} />
+              ) : user?.profileImage ? (
+                <Image
+                  source={{ uri: user.profileImage }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <Feather name="user" size={40} color={NemyColors.primary} />
+              )}
+            </View>
+            <View style={[styles.cameraButton, { backgroundColor: NemyColors.primary }]}>
+              <Feather name="camera" size={16} color="#fff" />
+            </View>
+          </Pressable>
           <ThemedText
             type="caption"
             style={{ color: theme.textSecondary, marginTop: Spacing.sm }}
           >
-            Tu información de perfil
+            Toca para cambiar foto
           </ThemedText>
         </View>
 
@@ -240,6 +310,24 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   formSection: {
     padding: Spacing.lg,

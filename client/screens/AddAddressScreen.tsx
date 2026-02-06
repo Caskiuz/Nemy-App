@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ProfileStackParamList } from '@/navigation/ProfileStackNavigator';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '@/lib/query-client';
 import { isInCoverageArea, AUTLAN_CENTER } from '@/utils/coverage';
@@ -9,8 +11,10 @@ import { useDebounce, usePerformanceMonitor } from '@/hooks/usePerformance';
 import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 
+type NavigationProp = NativeStackNavigationProp<ProfileStackParamList, 'AddAddress'>;
+
 export default function AddAddressScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
   usePerformanceMonitor('AddAddressScreen');
   
@@ -189,7 +193,7 @@ export default function AddAddressScreen() {
           <TouchableOpacity
             style={styles.mapButton}
             onPress={() => navigation.navigate('LocationPicker', {
-              onLocationSelected: (coords: any, addr: string) => {
+              onLocationSelected: (coords, addr) => {
                 setCoordinates(coords);
                 if (!street && addr) {
                   setStreet(addr);
