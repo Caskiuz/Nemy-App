@@ -2,11 +2,25 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import ProfileScreen from "@/screens/ProfileScreen";
+import SavedAddressesScreen from "@/screens/SavedAddressesScreen";
+import AddAddressScreen from "@/screens/AddAddressScreen";
+import LocationPickerScreen from "@/screens/LocationPickerScreen";
+import PaymentMethodsScreen from "@/screens/PaymentMethodsScreen";
+import TermsScreen from "@/screens/TermsScreen";
+import PrivacyScreen from "@/screens/PrivacyScreen";
 import { ThemeToggleButton } from "@/components/ThemeToggleButton";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type ProfileStackParamList = {
   Profile: undefined;
+  SavedAddresses: undefined;
+  AddAddress: undefined;
+  LocationPicker: {
+    onLocationSelected: (coords: { latitude: number; longitude: number }, address: string) => void;
+  };
+  PaymentMethods: undefined;
+  Terms: undefined;
+  Privacy: undefined;
 };
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
@@ -23,6 +37,36 @@ export default function ProfileStackNavigator() {
           headerTitle: "Mi Perfil",
           headerRight: () => <ThemeToggleButton />,
         }}
+      />
+      <Stack.Screen
+        name="SavedAddresses"
+        component={SavedAddressesScreen}
+        options={{ headerTitle: "Direcciones Guardadas" }}
+      />
+      <Stack.Screen
+        name="AddAddress"
+        component={AddAddressScreen}
+        options={{ headerTitle: "Agregar Dirección" }}
+      />
+      <Stack.Screen
+        name="LocationPicker"
+        component={LocationPickerScreen}
+        options={{ headerTitle: "Seleccionar Ubicación" }}
+      />
+      <Stack.Screen
+        name="PaymentMethods"
+        component={PaymentMethodsScreen}
+        options={{ headerTitle: "Métodos de Pago", headerShown: false }}
+      />
+      <Stack.Screen
+        name="Terms"
+        component={TermsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Privacy"
+        component={PrivacyScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

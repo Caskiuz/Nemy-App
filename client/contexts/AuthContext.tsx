@@ -167,21 +167,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(newUser);
       return { success: true };
     } else {
-      // Use regular login for phone/password
-      const response = await apiRequest("POST", "/api/auth/login", {
-        identifier,
-        password,
+      // Use phone-login endpoint directly
+      const response = await apiRequest("POST", "/api/auth/phone-login", {
+        phone: identifier,
+        code: password, // Treat password as verification code for now
       });
       const data = await response.json();
 
       if (!data.success) {
         throw new Error(data.error || "Credenciales incorrectas");
-      }
-
-      if (data.requiresVerification) {
-        await AsyncStorage.setItem(PENDING_PHONE_KEY, data.phone);
-        setPendingVerificationPhone(data.phone);
-        return { success: true, requiresVerification: true };
       }
 
       const newUser: User = {
@@ -211,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email?: string,
     password?: string,
   ): Promise<{ requiresVerification: boolean }> => {
-    const response = await apiRequest("POST", "/api/auth/signup", {
+    const response = await apiRequest("POST", "/api/auth/phone-signup", {
       name,
       role,
       phone,

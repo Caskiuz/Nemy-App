@@ -7,9 +7,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import OrdersStackNavigator from "@/navigation/OrdersStackNavigator";
-import FavoritesStackNavigator from "@/navigation/FavoritesStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
-import AdminScreenNew from "@/screens/AdminScreenNew"; // 🔧 ESTE ES EL ARCHIVO CORRECTO
+import AdminScreenNew from "@/screens/AdminScreenNew";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import DeliveryDashboardScreen from "@/screens/DeliveryDashboardScreen";
 import { useTheme } from "@/hooks/useTheme";
@@ -19,7 +18,6 @@ import { NemyColors, Spacing } from "@/constants/theme";
 export type MainTabParamList = {
   HomeTab: undefined;
   OrdersTab: undefined;
-  FavoritesTab: undefined;
   ProfileTab: undefined;
   AdminTab: undefined;
   BusinessTab: undefined;
@@ -100,18 +98,6 @@ export default function MainTabNavigator() {
           ),
         }}
       />
-      {!isAdmin ? (
-        <Tab.Screen
-          name="FavoritesTab"
-          component={FavoritesStackNavigator}
-          options={{
-            title: "Favoritos",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="heart" size={size} color={color} />
-            ),
-          }}
-        />
-      ) : null}
       <Tab.Screen
         name="ProfileTab"
         component={ProfileStackNavigator}

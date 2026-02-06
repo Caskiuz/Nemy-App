@@ -36,6 +36,8 @@ import WalletScreen from "@/screens/WalletScreen";
 import ReportIssueScreen from "@/screens/ReportIssueScreen";
 import OrderConfirmationScreen from "@/screens/OrderConfirmationScreen";
 import BecomeDriverScreen from "@/screens/BecomeDriverScreen";
+import TermsScreen from "@/screens/TermsScreen";
+import PrivacyScreen from "@/screens/PrivacyScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -93,6 +95,8 @@ export type RootStackParamList = {
   BusinessHours: undefined;
   BusinessCategories: undefined;
   MyBusinesses: undefined;
+  Terms: undefined;
+  Privacy: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -274,6 +278,16 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="MyBusinesses"
             component={MyBusinessesScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Terms"
+            component={TermsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Privacy"
+            component={PrivacyScreen}
             options={{ headerShown: false }}
           />
         </>

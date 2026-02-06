@@ -3,17 +3,17 @@ import { Platform } from "react-native";
 
 // Get API base URL dynamically at runtime
 export const getApiBaseUrl = (): string => {
-  // Development mode - use localhost
-  if (__DEV__) {
-    console.log('🔧 Development mode: using localhost:5000');
-    return "http://localhost:5000";
-  }
-
-  // Check for environment variable (production)
+  // Check for environment variable first (production)
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (envBackendUrl) {
     console.log('Using EXPO_PUBLIC_BACKEND_URL:', envBackendUrl);
     return envBackendUrl;
+  }
+
+  // Development mode - use localhost
+  if (__DEV__) {
+    console.log('🔧 Development mode: using localhost:5000');
+    return "http://localhost:5000";
   }
 
   // For web in production, use current origin (same domain)

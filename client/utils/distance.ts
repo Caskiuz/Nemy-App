@@ -25,16 +25,39 @@ export const calculateDistance = (
 
 const toRad = (deg: number) => deg * (Math.PI / 180);
 
+let cachedConfig: any = null;
+let lastFetch = 0;
+
+async function getConfig() {
+  const now = Date.now();
+  if (cachedConfig && (now - lastFetch) < 60000) {
+    return cachedConfig;
+  }
+
+  try {
+    const { apiRequest } = await import('@/lib/query-client');
+    const response = await apiRequest('GET', '/api/delivery/config');
+    const data = await response.json();
+    if (data.success) {
+      cachedConfig = data.config;
+      lastFetch = now;
+      return data.config;
+    }
+  } catch (error) {
+    console.error('Error loading delivery config:', error);
+  }
+
+  return { baseFee: 15, perKm: 8, minFee: 15, maxFee: 40 };
+}
+
 /**
  * Calcula el delivery fee basado en la distancia
+ * Tarifas ajustadas para Autlán, Jalisco
  */
-export const calculateDeliveryFee = (distance: number): number => {
-  const BASE_FEE = 20; // $20 MXN base
-  const PER_KM = 5;    // $5 MXN por km
-  const MAX_FEE = 50;  // Máximo $50 MXN
-  
-  const fee = BASE_FEE + (distance * PER_KM);
-  return Math.min(fee, MAX_FEE);
+export const calculateDeliveryFee = async (distance: number): Promise<number> => {
+  const config = await getConfig();
+  const fee = config.baseFee + (distance * config.perKm);
+  return Math.max(config.minFee, Math.min(fee, config.maxFee));
 };
 
 /**
