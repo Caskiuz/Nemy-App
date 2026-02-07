@@ -54,7 +54,10 @@ verify-aiven.bat
 *.sql.backup
 *.dump
 
-# Uploads
-server/uploads/profiles/
-server/uploads/businesses/
-server/uploads/products/
+# Uploads (keep folders, ignore files)
+server/uploads/profiles/*
+!server/uploads/profiles/.gitkeep
+server/uploads/businesses/*
+!server/uploads/businesses/.gitkeep
+server/uploads/products/*
+!server/uploads/products/.gitkeep
