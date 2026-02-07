@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
-import apiRoutes from './apiRoutes';
+import apiRoutes from './apiRoutes';  // ← Volver al original
 import devRoutes from './devRoutes';
 import financialTestRoute from './financialTestRoute';
 import walletRoutes from './walletRoutes';
@@ -152,5 +152,10 @@ app.listen(PORT, () => {
   // Start business hours cron
   import('./businessHoursCron').then(({ startBusinessHoursCron }) => {
     startBusinessHoursCron();
+  }).catch(console.error);
+  
+  // Start weekly settlement cron
+  import('./weeklySettlementCron').then(({ WeeklySettlementCron }) => {
+    WeeklySettlementCron.start();
   }).catch(console.error);
 });

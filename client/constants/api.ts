@@ -1,6 +1,9 @@
 // API Configuration for NEMY Frontend
 import { Platform } from "react-native";
 
+// DEVELOPMENT: Set to true to disable GPS tracking and use fixed location from DB
+const DISABLE_GPS_IN_DEV = true;
+
 // Get API base URL dynamically at runtime
 export const getApiBaseUrl = (): string => {
   // Check for environment variable first (production)
@@ -54,6 +57,10 @@ export const API_CONFIG = {
     },
   },
   TIMEOUT: 10000, // 10 seconds
+};
+
+export const GPS_CONFIG = {
+  DISABLE_IN_DEV: DISABLE_GPS_IN_DEV,
 };
 
 // Helper function to build full URL

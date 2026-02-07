@@ -100,7 +100,7 @@ export default function BusinessOrdersScreen() {
       title: "Aceptar Pedido",
       message: "¿Confirmar este pedido?",
       onConfirm: () => {
-        updateOrderStatus(orderId, "confirmed");
+        updateOrderStatus(orderId, "accepted");
         setConfirmModal({ ...confirmModal, visible: false });
       },
     });
@@ -127,17 +127,6 @@ export default function BusinessOrdersScreen() {
   const handleMarkReady = async (orderId: string) => {
     try {
       await updateOrderStatus(orderId, "ready");
-      
-      try {
-        const assignResponse = await apiRequest("POST", `/api/orders/${orderId}/assign-driver`);
-        const assignData = await assignResponse.json();
-        
-        if (assignData.success) {
-          Alert.alert("Pedido Listo", `Repartidor asignado: ${assignData.driver?.name || "Automático"}`);
-        }
-      } catch (assignError) {
-        console.log("Auto-assign pending");
-      }
     } catch (error) {
       console.error("Error marking ready:", error);
       Alert.alert("Error", "No se pudo marcar el pedido como listo");
@@ -147,14 +136,14 @@ export default function BusinessOrdersScreen() {
   const filteredOrders = orders.filter((order: any) => {
     if (filter === "pending") return order.status === "pending";
     if (filter === "active")
-      return ["confirmed", "preparing", "ready"].includes(order.status);
+      return ["accepted", "preparing", "ready"].includes(order.status);
     return true;
   });
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       pending: "Pendiente",
-      confirmed: "Confirmado",
+      accepted: "Aceptado",
       preparing: "Preparando",
       ready: "Listo",
       picked_up: "Recogido",
@@ -233,12 +222,24 @@ export default function BusinessOrdersScreen() {
         </View>
 
         <View style={styles.orderFooter}>
-          <ThemedText type="h4" style={{ color: NemyColors.primary }}>
-            ${(item.total / 100).toFixed(2)}
-          </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-            {item.paymentMethod === "cash" ? "Efectivo" : "Tarjeta"}
-          </ThemedText>
+          <View>
+            <ThemedText type="h4" style={{ color: NemyColors.primary }}>
+              ${(item.total / 100).toFixed(2)}
+            </ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              {item.paymentMethod === "cash" ? "💵 Efectivo" : "💳 Tarjeta"}
+            </ThemedText>
+          </View>
+          {item.paymentMethod === "cash" && item.status === "delivered" && (
+            <View style={{ alignItems: "flex-end" }}>
+              <ThemedText type="small" style={{ color: NemyColors.success, fontWeight: "600" }}>
+                Recibirás: ${((item.businessEarnings || Math.round(item.subtotal * 0.70)) / 100).toFixed(2)}
+              </ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {item.cashSettled ? "✅ Liquidado" : "⏳ Pendiente de liquidación"}
+              </ThemedText>
+            </View>
+          )}
         </View>
 
         <View style={styles.actions}>
@@ -289,7 +290,7 @@ export default function BusinessOrdersScreen() {
             </>
           )}
 
-          {item.status === "confirmed" && (
+          {item.status === "accepted" && (
             <Pressable
               onPress={() => handleStartPreparing(item.id)}
               style={[

@@ -163,7 +163,7 @@ export async function processSuccessfulPayment(paymentIntentId: string) {
         driverAmount,
         "delivery_fee",
         payment.orderId,
-        `Delivery fee for order ${payment.orderId}`
+        `Tarifa de entrega - Pedido ${payment.orderId}`
       );
     }
 

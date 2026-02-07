@@ -78,11 +78,14 @@ export async function requestWithdrawal(params: {
       };
     }
 
-    // Check available balance
-    if (wallet.balance < params.amount) {
+    // Check available balance (balance - cashOwed)
+    const availableBalance = wallet.balance - (wallet.cashOwed || 0);
+    if (availableBalance < params.amount) {
       return {
         success: false,
-        error: "Saldo insuficiente",
+        error: wallet.cashOwed > 0 
+          ? `Debes liquidar $${(wallet.cashOwed / 100).toFixed(2)} en efectivo antes de retirar`
+          : "Saldo insuficiente",
       };
     }
 
@@ -367,7 +370,8 @@ export async function getWalletBalance(userId: string) {
       success: true,
       wallet: {
         ...wallet,
-        availableBalance: wallet.balance - wallet.pendingBalance,
+        cashOwed: wallet.cashOwed || 0,
+        availableBalance: wallet.balance - wallet.pendingBalance - (wallet.cashOwed || 0),
       },
     };
     

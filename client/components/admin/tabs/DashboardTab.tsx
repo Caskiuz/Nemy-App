@@ -96,6 +96,20 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         </View>
       </View>
 
+      {/* Liquidaciones y Cuenta Bancaria */}
+      <View style={styles.adminActionsGrid}>
+        <View style={[styles.actionCard, { backgroundColor: NemyColors.warning + "15" }]}>
+          <Feather name="dollar-sign" size={32} color={NemyColors.warning} />
+          <Text style={styles.actionTitle}>Liquidaciones</Text>
+          <Text style={styles.actionSubtitle}>Aprobar pagos semanales</Text>
+        </View>
+        <View style={[styles.actionCard, { backgroundColor: NemyColors.primary + "15" }]}>
+          <Feather name="credit-card" size={32} color={NemyColors.primary} />
+          <Text style={styles.actionTitle}>Cuenta Bancaria</Text>
+          <Text style={styles.actionSubtitle}>Configurar datos</Text>
+        </View>
+      </View>
+
       <View style={styles.mapSection}>
         <Text style={styles.sectionTitle}>Mapa en tiempo real</Text>
         <View style={styles.mapPlaceholder}>
@@ -471,5 +485,33 @@ const styles = StyleSheet.create({
   availabilityText: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  adminActionsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  actionCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  actionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#333",
+    marginTop: 8,
+  },
+  actionSubtitle: {
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
+    textAlign: "center",
   },
 });

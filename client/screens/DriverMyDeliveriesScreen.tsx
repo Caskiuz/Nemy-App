@@ -311,7 +311,7 @@ export default function DriverMyDeliveriesScreen() {
 
         <View style={styles.orderFooter}>
           <ThemedText type="h4" style={{ color: NemyColors.success }}>
-            +${((item.total * 0.15) / 100).toFixed(2)}
+            +${((item.deliveryEarnings || item.deliveryFee || 0) / 100).toFixed(2)}
           </ThemedText>
           <View style={styles.mapButtons}>
             <Pressable
@@ -425,7 +425,7 @@ export default function DriverMyDeliveriesScreen() {
 
         <View style={styles.orderFooter}>
           <ThemedText type="h4" style={{ color: NemyColors.success }}>
-            +${((item.total * 0.15) / 100).toFixed(2)}
+            +${((item.deliveryEarnings || item.deliveryFee || 0) / 100).toFixed(2)}
           </ThemedText>
           <ThemedText type="caption" style={{ color: theme.textSecondary }}>
             Completado

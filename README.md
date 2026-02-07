@@ -137,6 +137,31 @@ NEMY-APP/
 - Validación de roles
 - Auditoría de acciones
 - Cumplimiento PCI (Stripe)
+- **Sistema de Auditoría Financiera** (Nivel bancario)
+
+## 🔒 Sistema de Auditoría Financiera
+
+NEMY incluye un sistema de auditoría financiera de nivel bancario que valida 6 reglas críticas:
+
+1. ✅ **Comisiones suman 100%** - Las tasas siempre cuadran
+2. ✅ **Totales de pedidos correctos** - Subtotal + Fee + Tax = Total
+3. ✅ **Distribución exacta** - Comisiones distribuidas = Total pedido
+4. ✅ **Balances consistentes** - Balance wallet = Suma transacciones
+5. ✅ **Cadena de transacciones** - Cada tx mantiene integridad contable
+6. ✅ **Sincronización Stripe** - Pagos = Totales de pedidos
+
+### Ejecutar Auditoría
+```bash
+# Auditoría completa (requiere admin)
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:5000/api/audit/full
+
+# Prueba local
+cd server
+npx ts-node testFinancialAudit.ts
+```
+
+Ver documentación completa en [FINANCIAL-AUDIT-SYSTEM.md](./FINANCIAL-AUDIT-SYSTEM.md)
 
 ## 💳 Sistema de Pagos
 
@@ -224,6 +249,8 @@ npm run production:start
 - [Guía de Testing](./TESTING_GUIDE.md)
 - [Checklist de Producción](./PRODUCTION_CHECKLIST.md)
 - [Sistema de Pagos](./COMO_FUNCIONA_PAGOS.md)
+- [Sistema de Auditoría Financiera](./FINANCIAL-AUDIT-SYSTEM.md) 🆕
+- [Resumen de Implementación](./AUDIT-IMPLEMENTATION-SUMMARY.md) 🆕
 
 ## 🤝 Contribuir
 

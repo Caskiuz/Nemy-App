@@ -130,9 +130,14 @@ function DeliveryOrderCard({
             {statusLabels[order.status] || order.status}
           </ThemedText>
         </View>
-        <ThemedText type="h4" style={{ color: NemyColors.primary }}>
-          ${(order.total / 100).toFixed(2)}
-        </ThemedText>
+        <View style={{ alignItems: 'flex-end' }}>
+          <ThemedText type="small" style={{ color: theme.textSecondary }}>
+            Total: ${(order.total / 100).toFixed(2)}
+          </ThemedText>
+          <ThemedText type="h4" style={{ color: NemyColors.primary }}>
+            Ganas: ${((order.deliveryFee || 0) / 100).toFixed(2)}
+          </ThemedText>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -484,7 +489,7 @@ export default function DeliveryDashboardScreen() {
     return orderDate.toDateString() === today.toDateString();
   });
 
-  const todayEarnings = todayDeliveries.length * 2500; // $25 per delivery
+  const todayEarnings = todayDeliveries.reduce((sum, order) => sum + (order.deliveryFee || 0), 0);
 
   const handlePickUp = (orderId: string) => {
     updateStatusMutation.mutate({ orderId, status: "picked_up" });

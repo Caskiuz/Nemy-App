@@ -13,6 +13,7 @@ import { Badge } from "@/components/Badge";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { mockBusinesses } from "@/data/mockData";
@@ -28,13 +29,73 @@ export default function CartScreen() {
   const { theme } = useTheme();
   const { cart, subtotal, updateQuantity, removeFromCart, clearCart } =
     useCart();
+  const { user } = useAuth();
+  const [addresses, setAddresses] = React.useState<any[]>([]);
+  const [selectedAddress, setSelectedAddress] = React.useState<any>(null);
+  const [calculatedDeliveryFee, setCalculatedDeliveryFee] = React.useState<number | null>(null);
 
   const business = cart
     ? mockBusinesses.find((b) => b.id === cart.businessId)
     : null;
-  const deliveryFee = business?.deliveryFee || 0;
+  
+  // Cargar direcciones del usuario
+  React.useEffect(() => {
+    const loadAddresses = async () => {
+      if (!user?.id) return;
+      try {
+        const { apiRequest } = await import('@/lib/query-client');
+        const response = await apiRequest('GET', `/api/users/${user.id}/addresses`);
+        const data = await response.json();
+        if (data.success) {
+          setAddresses(data.addresses);
+          const defaultAddr = data.addresses.find((a: any) => a.isDefault) || data.addresses[0];
+          setSelectedAddress(defaultAddr);
+        }
+      } catch (error) {
+        console.error('Error loading addresses:', error);
+      }
+    };
+    loadAddresses();
+  }, [user?.id]);
+
+  // Calcular delivery fee REAL basado en distancia
+  React.useEffect(() => {
+    const calculateFee = async () => {
+      if (!selectedAddress || !business || !selectedAddress.latitude || !selectedAddress.longitude || !business.latitude || !business.longitude) {
+        setCalculatedDeliveryFee(25); // Fallback si no hay coordenadas
+        return;
+      }
+      
+      try {
+        const { apiRequest } = await import('@/lib/query-client');
+        const response = await apiRequest('POST', '/api/orders/calculate-delivery', {
+          businessLat: business.latitude,
+          businessLng: business.longitude,
+          deliveryLat: selectedAddress.latitude,
+          deliveryLng: selectedAddress.longitude,
+        });
+        const data = await response.json();
+        if (data.success) {
+          setCalculatedDeliveryFee(data.deliveryFee / 100); // Convertir centavos a pesos
+        } else {
+          setCalculatedDeliveryFee(25);
+        }
+      } catch (error) {
+        console.error('Error calculating delivery fee:', error);
+        setCalculatedDeliveryFee(25); // Fallback
+      }
+    };
+    calculateFee();
+  }, [selectedAddress, business]);
+
+  const deliveryFee = calculatedDeliveryFee ?? 25; // Precio REAL, no estimado
   const minimumOrder = business?.minimumOrder || 0;
-  const total = subtotal + deliveryFee;
+  
+  // MARKUP VISIBLE: Agregar 15% NEMY a productos (TRANSPARENTE)
+  const productosBase = subtotal;
+  const nemyCommission = Math.round(subtotal * 0.15 * 100) / 100;
+  const subtotalConMarkup = productosBase + nemyCommission;
+  const total = subtotalConMarkup + deliveryFee;
   const canProceed = subtotal >= minimumOrder;
 
   const handleCheckout = () => {
@@ -43,7 +104,11 @@ export default function CartScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate("Checkout");
+    // Pasar el subtotal CON markup Y el delivery fee calculado al checkout
+    navigation.navigate("Checkout", { 
+      subtotalWithMarkup: subtotalConMarkup,
+      calculatedDeliveryFee: deliveryFee 
+    } as any);
   };
 
   if (!cart || cart.items.length === 0) {
@@ -223,9 +288,21 @@ export default function CartScreen() {
       >
         <View style={styles.summaryRow}>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            Productos
+          </ThemedText>
+          <ThemedText type="body">${productosBase.toFixed(2)}</ThemedText>
+        </View>
+        <View style={styles.summaryRow}>
+          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+            Comisión de servicio (15%)
+          </ThemedText>
+          <ThemedText type="caption">${nemyCommission.toFixed(2)}</ThemedText>
+        </View>
+        <View style={[styles.summaryRow, { borderTopWidth: 1, borderTopColor: "rgba(0,0,0,0.1)", paddingTop: Spacing.sm, marginTop: Spacing.sm }]}>
+          <ThemedText type="body" style={{ fontWeight: "600" }}>
             Subtotal
           </ThemedText>
-          <ThemedText type="body">${subtotal.toFixed(2)}</ThemedText>
+          <ThemedText type="body" style={{ fontWeight: "600" }}>${subtotalConMarkup.toFixed(2)}</ThemedText>
         </View>
         <View style={styles.summaryRow}>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>
@@ -348,6 +425,12 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     marginTop: Spacing.sm,
     marginBottom: Spacing.lg,
+  },
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
   },
   checkoutButton: {
     width: "100%",

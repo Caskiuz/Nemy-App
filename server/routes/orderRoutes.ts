@@ -193,6 +193,52 @@ router.post("/:id/assign-driver", authenticateToken, async (req, res) => {
   }
 });
 
+// Cancel order during regret period
+router.post("/:id/cancel-regret", authenticateToken, validateCustomerOrderOwnership, async (req, res) => {
+  try {
+    const { orders } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const { eq } = await import("drizzle-orm");
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, req.params.id)).limit(1);
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    if (order.status !== "pending") {
+      return res.status(400).json({ error: "Solo se pueden cancelar pedidos pendientes" });
+    }
+
+    await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, req.params.id));
+
+    res.json({ success: true, message: "Pedido cancelado" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Confirm order after regret period
+router.post("/:id/confirm", authenticateToken, validateCustomerOrderOwnership, async (req, res) => {
+  try {
+    const { orders } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const { eq } = await import("drizzle-orm");
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, req.params.id)).limit(1);
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    await db.update(orders).set({ status: "confirmed" }).where(eq(orders.id, req.params.id));
+
+    res.json({ success: true, message: "Pedido confirmado" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Complete delivery and release funds
 router.post(
   "/:id/complete-delivery",

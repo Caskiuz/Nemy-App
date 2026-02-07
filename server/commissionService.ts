@@ -28,7 +28,31 @@ export async function calculateAndDistributeCommissions(
   }
 
   // Use unified financial service for consistent calculations
-  const commissions = await financialService.calculateCommissions(order.total);
+  const commissions = await financialService.calculateCommissions(order.total, order.deliveryFee || 0);
+
+  // VALIDACIÓN: Verificar que deliveryEarnings sea el 100% del deliveryFee
+  const expectedDriverEarnings = order.deliveryFee || 0;
+  if (commissions.driver !== expectedDriverEarnings) {
+    logger.error("Driver earnings validation failed", {
+      orderId,
+      calculated: commissions.driver,
+      expected: expectedDriverEarnings,
+      deliveryFee: order.deliveryFee,
+    });
+    throw new AppError(500, `Driver earnings calculation error: expected ${expectedDriverEarnings} (100% of delivery fee), got ${commissions.driver}`);
+  }
+
+  // VALIDACIÓN: Verificar que la suma de comisiones = total del pedido
+  const totalCommissions = commissions.platform + commissions.business + commissions.driver;
+  if (totalCommissions !== order.total) {
+    logger.error("Commission distribution validation failed", {
+      orderId,
+      total: order.total,
+      distributed: totalCommissions,
+      breakdown: commissions,
+    });
+    throw new AppError(500, `Commission sum mismatch: total ${order.total}, distributed ${totalCommissions}`);
+  }
 
   await db
     .update(orders)
@@ -56,24 +80,49 @@ async function distributeToWallets(
   deliveryEarnings: number,
 ): Promise<void> {
   try {
-    // Update business wallet (pending balance)
+    const isCash = order.paymentMethod === "cash";
+
+    // Update business wallet
     await financialService.updateWalletBalance(
       order.businessId,
       businessEarnings,
-      "income",
+      isCash ? "cash_income" : "income",
       order.id,
-      `Earnings from order #${order.id.slice(-6)} (pending)`
+      `Earnings from order #${order.id.slice(-6)}${isCash ? " (efectivo)" : ""}`
     );
 
-    // Update driver wallet (immediate balance) if assigned
+    // Update driver wallet if assigned
     if (order.deliveryPersonId) {
-      await financialService.updateWalletBalance(
-        order.deliveryPersonId,
-        deliveryEarnings,
-        "income",
-        order.id,
-        `Delivery fee for order #${order.id.slice(-6)}`
-      );
+      if (isCash) {
+        // EFECTIVO: Registrar transacción + actualizar cashOwed
+        await financialService.updateWalletBalance(
+          order.deliveryPersonId,
+          deliveryEarnings,
+          "cash_income",
+          order.id,
+          `Comisión de entrega - Pedido #${order.id.slice(-6)} (efectivo cobrado)`
+        );
+
+        // Registrar deuda: el repartidor debe depositar platform + business
+        const platformFee = order.platformFee || Math.round(order.total * 0.15);
+        const debtAmount = order.total - deliveryEarnings; // Total menos su comisión
+        
+        await financialService.updateCashOwed(
+          order.deliveryPersonId,
+          debtAmount,
+          order.id,
+          `Deuda por pedido #${order.id.slice(-6)} en efectivo`
+        );
+      } else {
+        // TARJETA: Solo acreditar comisión
+        await financialService.updateWalletBalance(
+          order.deliveryPersonId,
+          deliveryEarnings,
+          "income",
+          order.id,
+          `Comisión de entrega - Pedido #${order.id.slice(-6)}`
+        );
+      }
     }
   } catch (error) {
     logger.error("Error distributing to wallets", { orderId: order.id, error });

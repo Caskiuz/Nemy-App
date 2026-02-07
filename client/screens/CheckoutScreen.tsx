@@ -35,13 +35,16 @@ type CheckoutScreenNavigationProp = NativeStackNavigationProp<
   "Checkout"
 >;
 
-export default function CheckoutScreen() {
+export default function CheckoutScreen({ route }: any) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<CheckoutScreenNavigationProp>();
   const { theme } = useTheme();
-  const { cart, subtotal, clearCart } = useCart();
+  const { cart, subtotal: cartSubtotal, clearCart } = useCart();
   const { user } = useAuth();
   const { showToast } = useToast();
+  
+  // Usar subtotal CON markup que viene del carrito
+  const subtotal = route?.params?.subtotalWithMarkup || cartSubtotal;
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
@@ -110,7 +113,10 @@ export default function CheckoutScreen() {
   }, [addresses]);
 
 
-  const deliveryFee = dynamicDeliveryFee ?? (business?.deliveryFee ? business.deliveryFee / 100 : 0);
+  const deliveryFee = route?.params?.calculatedDeliveryFee ?? (dynamicDeliveryFee ?? (business?.deliveryFee ? business.deliveryFee / 100 : 0));
+  
+  // El subtotal YA viene con el markup del 15% desde el carrito
+  // NO volver a aplicar markup aquí
   const total = subtotal + deliveryFee - couponDiscount;
 
   // Calcular delivery fee dinámico cuando cambia la dirección
@@ -239,13 +245,19 @@ export default function CheckoutScreen() {
       // Calcular el período de arrepentimiento (60 segundos desde ahora)
       const regretPeriodEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
 
+      // Calcular valores para backend (subtotal ya tiene markup del carrito)
+      const productosBase = Math.round(subtotal / 1.15 * 100); // Quitar el 15% para obtener base
+      const nemyCommission = Math.round(subtotal * 100) - productosBase; // Diferencia es la comisión
+      
       const orderResponse = await apiRequest("POST", "/api/orders", {
         businessId: cart.businessId,
         businessName: cart.businessName,
         businessImage: business?.profileImage || "",
         items: JSON.stringify(cart.items),
         status: "pending",
-        subtotal: Math.round(subtotal * 100),
+        productosBase: productosBase,  // Para contabilidad
+        nemyCommission: nemyCommission, // Para contabilidad
+        subtotal: Math.round(subtotal * 100),   // Cliente ve esto (ya con markup)
         deliveryFee: Math.round(deliveryFee * 100),
         total: Math.round(total * 100),
         paymentMethod,

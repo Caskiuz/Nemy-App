@@ -30,8 +30,6 @@ function toRad(degrees: number): number {
 }
 
 export async function getAvailableOrdersForDriver(driverId: string) {
-  console.log('🔍 getAvailableOrdersForDriver called for:', driverId);
-  
   const [driver] = await db
     .select({
       latitude: deliveryDrivers.currentLatitude,
@@ -41,10 +39,7 @@ export async function getAvailableOrdersForDriver(driverId: string) {
     .where(eq(deliveryDrivers.userId, driverId))
     .limit(1);
 
-  console.log('📍 Driver location:', driver);
-
   if (!driver) {
-    console.log('❌ Driver not found');
     return {
       success: false,
       error: "Driver not found",
@@ -92,8 +87,6 @@ export async function getAvailableOrdersForDriver(driverId: string) {
   const driverLat = parseFloat(driver.latitude);
   const driverLng = parseFloat(driver.longitude);
 
-  console.log('📍 Parsed driver location:', driverLat, driverLng);
-
   const availableOrders = await db
     .select()
     .from(orders)
@@ -107,13 +100,8 @@ export async function getAvailableOrdersForDriver(driverId: string) {
 
   const ordersInZone = [];
 
-  console.log(`📦 Checking ${availableOrders.length} available orders`);
-
   for (const order of availableOrders) {
-    if (order.deliveryPersonId) {
-      console.log(`  ⏭️ Order ${order.id.slice(-6)} already has driver`);
-      continue;
-    }
+    if (order.deliveryPersonId) continue;
 
     const [business] = await db
       .select({
@@ -125,10 +113,7 @@ export async function getAvailableOrdersForDriver(driverId: string) {
       .where(eq(businesses.id, order.businessId))
       .limit(1);
 
-    if (!business?.latitude || !business?.longitude) {
-      console.log(`  ❌ Order ${order.id.slice(-6)}: Business has no location`);
-      continue;
-    }
+    if (!business?.latitude || !business?.longitude) continue;
 
     const businessLat = parseFloat(business.latitude);
     const businessLng = parseFloat(business.longitude);
@@ -139,8 +124,6 @@ export async function getAvailableOrdersForDriver(driverId: string) {
       businessLat,
       businessLng
     );
-
-    console.log(`  📍 Order ${order.id.slice(-6)}: ${business.name} at (${businessLat}, ${businessLng}) - Distance: ${distance.toFixed(2)}km`);
 
     if (distance <= MAX_DELIVERY_DISTANCE_KM) {
       ordersInZone.push({
@@ -153,8 +136,6 @@ export async function getAvailableOrdersForDriver(driverId: string) {
   }
 
   ordersInZone.sort((a, b) => a.distance - b.distance);
-
-  console.log(`✅ Returning ${ordersInZone.length} orders in zone`);
 
   return {
     success: true,

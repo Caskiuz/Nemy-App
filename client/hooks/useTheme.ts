@@ -7,7 +7,11 @@ const lightTheme = {
   ...theme,
   gradientStart: '#FFFFFF',
   gradientEnd: '#F5F5F5',
+  backgroundRoot: '#F5F5F5',
+  background: '#FFFFFF',
+  backgroundSecondary: '#F5F5F5',
   card: '#FFFFFF',
+  border: '#E0E0E0',
   text: theme.colors.text.primary,
   textSecondary: theme.colors.text.secondary,
 };
@@ -28,7 +32,11 @@ const darkTheme = {
   },
   gradientStart: '#121212',
   gradientEnd: '#1E1E1E',
+  backgroundRoot: '#000000',
+  background: '#121212',
+  backgroundSecondary: '#1E1E1E',
   card: '#1E1E1E',
+  border: '#333333',
   text: '#FFFFFF',
   textSecondary: '#B0B0B0',
 };

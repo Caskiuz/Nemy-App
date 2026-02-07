@@ -545,3 +545,16 @@ router.get("/settings", authenticateToken, requireRole("admin", "super_admin"), 
 });
 
 export default router;
+
+// Bank account (placeholder)
+router.get("/bank-account", authenticateToken, requireRole("admin", "super_admin"), async (req, res) => {
+  try {
+    res.json({ 
+      success: true, 
+      bankAccount: null,
+      message: "No bank account configured" 
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});

@@ -226,7 +226,7 @@ export default function DriverAvailableOrdersScreen() {
               Ganancia estimada
             </ThemedText>
             <ThemedText type="h3" style={{ color: NemyColors.success }}>
-              ${((item.total / 100) * 0.15).toFixed(2)}
+              ${((item.deliveryFee || 0) / 100).toFixed(2)}
             </ThemedText>
           </View>
           <Pressable

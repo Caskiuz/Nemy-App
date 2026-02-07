@@ -64,6 +64,8 @@ export const orders = mysqlTable("orders", {
   items: text("items").notNull(),
   status: text("status").notNull().default("pending"),
   subtotal: int("subtotal").notNull(),
+  productosBase: int("productos_base").default(0), // Precio base sin markup NEMY
+  nemyCommission: int("nemy_commission").default(0), // 15% markup NEMY
   deliveryFee: int("delivery_fee").notNull(),
   total: int("total").notNull(),
   paymentMethod: text("payment_method").notNull(),
@@ -83,7 +85,7 @@ export const orders = mysqlTable("orders", {
   businessResponseAt: timestamp("business_response_at"), // cuando el negocio respondió
   platformFee: int("platform_fee"), // comisión NEMY
   businessEarnings: int("business_earnings"), // ganancia negocio
-  deliveryEarnings: int("delivery_earnings_amount"), // ganancia repartidor
+  deliveryEarnings: int("delivery_earnings"), // ganancia repartidor
   distanceKm: int("distance_km"), // distancia en metros x100
   deliveredAt: timestamp("delivered_at"), // cuando se entregó
   deliveryLatitude: text("delivery_latitude"),
@@ -108,6 +110,10 @@ export const orders = mysqlTable("orders", {
   driverPaymentStatus: text("driver_payment_status").default("pending"), // pending, completed, failed
   // Asignación de repartidor
   assignedAt: timestamp("assigned_at"), // Cuando se asignó el repartidor
+  // Liquidación de efectivo (para pedidos cash)
+  cashCollected: boolean("cash_collected").default(false), // Si el repartidor ya cobró el efectivo
+  cashSettled: boolean("cash_settled").default(false), // Si ya liquidó con negocio/plataforma
+  cashSettledAt: timestamp("cash_settled_at"), // Cuando liquidó
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
 
@@ -169,8 +175,9 @@ export const wallets = mysqlTable("wallets", {
     .primaryKey()
     .default(sql`(UUID())`),
   userId: varchar("user_id", { length: 255 }).notNull(),
-  balance: int("balance").notNull().default(0), // en centavos
+  balance: int("balance").notNull().default(0), // en centavos - saldo disponible
   pendingBalance: int("pending_balance").notNull().default(0), // dinero en tránsito
+  cashOwed: int("cash_owed").notNull().default(0), // efectivo que debe liquidar (para repartidores)
   totalEarned: int("total_earned").notNull().default(0),
   totalWithdrawn: int("total_withdrawn").notNull().default(0),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),

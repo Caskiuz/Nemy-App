@@ -68,23 +68,37 @@ export class UnifiedFinancialService {
     }
   }
 
-  // Calculate commissions with precision handling
-  async calculateCommissions(totalAmount: number): Promise<{
+  // Calculate commissions with CORRECT LOGIC
+  // Driver gets 100% of deliveryFee, Platform gets 15% of TOTAL, Business gets rest
+  async calculateCommissions(
+    totalAmount: number,
+    deliveryFee: number = 0
+  ): Promise<{
     platform: number;
     business: number;
     driver: number;
     total: number;
   }> {
-    const rates = await this.getCommissionRates();
+    // Driver gets 100% of delivery fee
+    const driverAmount = deliveryFee;
     
-    // Calculate with precision to avoid rounding errors
-    const platformAmount = Math.floor(totalAmount * rates.platform);
-    const driverAmount = Math.floor(totalAmount * rates.driver);
+    // Platform gets 15% of TOTAL ORDER (including delivery)
+    const platformAmount = Math.round(totalAmount * 0.15);
+    
+    // Business gets what's left after platform and driver
     const businessAmount = totalAmount - platformAmount - driverAmount;
 
     // Validate total matches
     const calculatedTotal = platformAmount + businessAmount + driverAmount;
     if (calculatedTotal !== totalAmount) {
+      console.error('Commission calculation mismatch:', {
+        totalAmount,
+        deliveryFee,
+        platformAmount,
+        businessAmount,
+        driverAmount,
+        calculatedTotal
+      });
       throw new Error(`Commission calculation error: ${calculatedTotal} !== ${totalAmount}`);
     }
 
@@ -94,6 +108,50 @@ export class UnifiedFinancialService {
       driver: driverAmount,
       total: calculatedTotal,
     };
+  }
+
+  // Update cash owed (for cash deliveries)
+  async updateCashOwed(
+    userId: string,
+    amount: number,
+    orderId?: string,
+    description?: string
+  ): Promise<void> {
+    return await db.transaction(async (tx) => {
+      let [wallet] = await tx
+        .select()
+        .from(wallets)
+        .where(eq(wallets.userId, userId))
+        .limit(1);
+
+      if (!wallet) {
+        throw new Error(`Wallet not found for user ${userId}`);
+      }
+
+      const newCashOwed = wallet.cashOwed + amount;
+
+      await tx
+        .update(wallets)
+        .set({
+          cashOwed: newCashOwed,
+          updatedAt: new Date(),
+        })
+        .where(eq(wallets.userId, userId));
+
+      // Record transaction for tracking
+      await tx.insert(transactions).values({
+        walletId: wallet.id,
+        userId,
+        orderId,
+        type: "cash_debt",
+        amount,
+        balanceBefore: wallet.cashOwed,
+        balanceAfter: newCashOwed,
+        description: description || `Cash debt from order`,
+        status: "completed",
+        createdAt: new Date(),
+      });
+    });
   }
 
   // Atomic wallet update with validation

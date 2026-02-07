@@ -35,7 +35,11 @@ router.get("/dashboard", authenticateToken, requireRole("business_owner"), async
 
     const todayRevenue = todayOrders
       .filter(o => o.status === "delivered")
-      .reduce((sum, o) => sum + o.total, 0);
+      .reduce((sum, o) => {
+        const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0);
+        const productBase = Math.round(subtotalWithMarkup / 1.15);
+        return sum + productBase;
+      }, 0);
 
     res.json({
       success: true,
@@ -89,12 +93,35 @@ router.get("/stats", authenticateToken, requireRole("business_owner"), async (re
     const weekOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfWeek);
     const monthOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfMonth);
 
-    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const weekRevenue = weekOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const monthRevenue = monthOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const totalRevenue = deliveredOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    // Negocio gana solo el valor base de productos (sin markup ni delivery)
+    // Fórmula: (total - deliveryFee) / 1.15
+    const todayRevenue = todayOrders.reduce((sum, o) => {
+      const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0);
+      const productBase = Math.round(subtotalWithMarkup / 1.15);
+      return sum + productBase;
+    }, 0);
+    const weekRevenue = weekOrders.reduce((sum, o) => {
+      const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0);
+      const productBase = Math.round(subtotalWithMarkup / 1.15);
+      return sum + productBase;
+    }, 0);
+    const monthRevenue = monthOrders.reduce((sum, o) => {
+      const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0);
+      const productBase = Math.round(subtotalWithMarkup / 1.15);
+      return sum + productBase;
+    }, 0);
+    const totalRevenue = deliveredOrders.reduce((sum, o) => {
+      const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0);
+      const productBase = Math.round(subtotalWithMarkup / 1.15);
+      return sum + productBase;
+    }, 0);
 
     const avgValue = deliveredOrders.length > 0 ? Math.round(totalRevenue / deliveredOrders.length) : 0;
+
+    console.log('📊 BUSINESS STATS DEBUG:');
+    console.log('  Total Revenue:', totalRevenue, '=', (totalRevenue/100).toFixed(2));
+    console.log('  Delivered Orders:', deliveredOrders.length);
+    console.log('  Avg Value:', avgValue, '=', (avgValue/100).toFixed(2));
 
     res.json({
       success: true,
@@ -211,7 +238,11 @@ router.get("/my-businesses", authenticateToken, requireRole("business_owner"), a
       });
       const todayRevenue = todayOrders
         .filter(o => o.status === "delivered")
-        .reduce((sum, o) => sum + o.total, 0);
+        .reduce((sum, o) => {
+          const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0);
+          const productBase = Math.round(subtotalWithMarkup / 1.15);
+          return sum + productBase;
+        }, 0);
       const pendingOrders = businessOrders.filter(o => 
         ["pending", "confirmed", "preparing"].includes(o.status)
       );

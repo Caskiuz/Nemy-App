@@ -1668,18 +1668,17 @@ router.get(
   requirePhoneVerified,
   async (req, res) => {
     try {
-      const { transactions } = await import("@shared/schema-mysql");
+      const { walletTransactions } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
       const { eq, desc } = await import("drizzle-orm");
 
-      const txs = await db
+      const transactions = await db
         .select()
-        .from(transactions)
-        .where(eq(transactions.userId, req.user!.id))
-        .orderBy(desc(transactions.createdAt))
-        .limit(50);
+        .from(walletTransactions)
+        .where(eq(walletTransactions.userId, req.user!.id))
+        .orderBy(desc(walletTransactions.createdAt));
 
-      res.json({ success: true, transactions: txs });
+      res.json({ success: true, transactions });
     } catch (error: any) {
       console.error("Error fetching wallet transactions:", error);
       res.status(500).json({ error: error.message });
@@ -2449,14 +2448,8 @@ router.get(
           // Get business name
           const business = ownerBusinesses.find(b => b.id === order.businessId);
 
-          // Calcular solo el valor de productos del negocio (sin comisión NEMY ni delivery)
-          const subtotalWithMarkup = (order.total || 0) - (order.deliveryFee || 0);
-          const productBasePrice = Math.round(subtotalWithMarkup / 1.15);
-
           return {
             ...order,
-            total: productBasePrice, // Solo mostrar precio de productos
-            subtotal: productBasePrice,
             customer,
             address,
             businessName: business?.name || 'Negocio',
@@ -2486,8 +2479,6 @@ router.put(
       const { validateStateTransition, validateRoleCanChangeToState } = await import("./orderStateValidation");
       const { status } = req.body;
 
-      console.log(`🟢 Business changing order ${req.params.id} to status: ${status}`);
-
       const order = await db
         .select()
         .from(orders)
@@ -2497,8 +2488,6 @@ router.put(
       if (!order[0]) {
         return res.status(404).json({ error: "Order not found" });
       }
-
-      console.log(`🟢 Current status: ${order[0].status}, New status: ${status}`);
 
       // Validate role permissions
       const roleValidation = validateRoleCanChangeToState("business_owner", status);
@@ -2516,8 +2505,6 @@ router.put(
         .update(orders)
         .set({ status, updatedAt: new Date() })
         .where(eq(orders.id, req.params.id));
-
-      console.log(`✅ Order ${req.params.id} updated to ${status}`);
 
       res.json({ success: true, message: "Order status updated" });
     } catch (error: any) {
@@ -2572,11 +2559,11 @@ router.get(
       const weekOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfWeek);
       const monthOrders = deliveredOrders.filter(o => new Date(o.createdAt) >= startOfMonth);
 
-      // Calculate revenue (convert from centavos to pesos)
-      const todayRevenue = todayOrders.reduce((sum, o) => { const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0); const productBase = Math.round(subtotalWithMarkup / 1.15); return sum + productBase; }, 0);
-      const weekRevenue = weekOrders.reduce((sum, o) => { const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0); const productBase = Math.round(subtotalWithMarkup / 1.15); return sum + productBase; }, 0);
-      const monthRevenue = monthOrders.reduce((sum, o) => { const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0); const productBase = Math.round(subtotalWithMarkup / 1.15); return sum + productBase; }, 0);
-      const totalRevenue = deliveredOrders.reduce((sum, o) => { const subtotalWithMarkup = (o.total || 0) - (o.deliveryFee || 0); const productBase = Math.round(subtotalWithMarkup / 1.15); return sum + productBase; }, 0);
+      // Calculate revenue
+      const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+      const weekRevenue = weekOrders.reduce((sum, o) => sum + o.total, 0);
+      const monthRevenue = monthOrders.reduce((sum, o) => sum + o.total, 0);
+      const totalRevenue = deliveredOrders.reduce((sum, o) => sum + o.total, 0);
 
       // Calculate top products from order items
       const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
@@ -2589,7 +2576,7 @@ router.get(
               const productName = item.name || item.product?.name || 'Producto';
               const productId = item.productId || item.id || productName;
               const quantity = item.quantity || 1;
-              const price = (item.price || item.product?.price || 0) / 100; // Convert to pesos
+              const price = item.price || item.product?.price || 0;
               
               if (!productSales[productId]) {
                 productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
@@ -2607,7 +2594,9 @@ router.get(
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5);
 
-      const avgValue = deliveredOrders.length > 0 ? Math.round(totalRevenue / deliveredOrders.length) : 0;
+      const avgValue = deliveredOrders.length > 0 
+        ? Math.round(totalRevenue / deliveredOrders.length) 
+        : 0;
 
       res.json({
         success: true,
@@ -3055,7 +3044,7 @@ router.post(
         businessName: req.body.businessName,
         businessImage: req.body.businessImage,
         items: req.body.items,
-        status: "pending",
+        status: req.body.status || "pending",
         subtotal: req.body.subtotal,
         deliveryFee: req.body.deliveryFee,
         total: req.body.total,
@@ -3141,45 +3130,22 @@ router.get(
   },
 );
 
-// Cancel order during regret period
+// Confirm order (after regret period)
 router.post(
-  "/orders/:id/cancel-regret",
+  "/orders/:id/confirm",
   authenticateToken,
-  validateCustomerOrderOwnership,
   async (req, res) => {
     try {
       const { orders } = await import("@shared/schema-mysql");
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
 
-      const [order] = await db.select().from(orders).where(eq(orders.id, req.params.id)).limit(1);
+      await db
+        .update(orders)
+        .set({ status: "accepted" })
+        .where(eq(orders.id, req.params.id));
 
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-
-      if (order.status !== "pending") {
-        return res.status(400).json({ error: "Solo se pueden cancelar pedidos pendientes" });
-      }
-
-      await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, req.params.id));
-
-      res.json({ success: true, message: "Pedido cancelado" });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-);
-
-// Confirm order (after regret period) - NO cambia status
-router.post(
-  "/orders/:id/confirm",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      // No hacer nada, solo confirmar que el período de arrepentimiento terminó
-      // El status permanece en "pending" hasta que el negocio lo acepte
-      res.json({ success: true, message: "Order confirmed to business" });
+      res.json({ success: true, message: "Order confirmed" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -3562,9 +3528,11 @@ router.get(
         new Date(order.createdAt!) >= monthStart
       );
 
+      // Calculate earnings (15% of delivery fee or driverEarnings if set)
       const calculateEarnings = (orderList: typeof completedOrders) => {
         return orderList.reduce((sum, order) => {
-          return sum + (order.deliveryEarnings || 0);
+          const earning = order.driverEarnings || (order.deliveryFee ? order.deliveryFee * 0.8 : 0);
+          return sum + earning;
         }, 0);
       };
 
@@ -5365,14 +5333,8 @@ Asistente:`;
 // Delivery config routes
 import deliveryConfigRoutes from "./routes/deliveryConfigRoutes";
 import deliveryRoutes from "./deliveryRoutes";
-import cashSettlementRoutes from "./cashSettlementRoutes";
 router.use("/delivery", deliveryRoutes);
 router.use("/delivery", deliveryConfigRoutes);
-router.use("/cash-settlement", cashSettlementRoutes);
-
-// Weekly settlement routes
-import weeklySettlementRoutes from "./weeklySettlementRoutes";
-router.use("/weekly-settlement", weeklySettlementRoutes);
 
 // Stripe payment routes
 import stripePaymentRoutes from "./routes/stripePaymentRoutes";
@@ -5382,95 +5344,4 @@ router.use("/stripe", stripePaymentRoutes);
 import businessVerificationRoutes from "./routes/businessVerificationRoutes";
 router.use("/business-verification", businessVerificationRoutes);
 
-// Financial audit routes (admin only)
-import financialAuditRoutes from "./financialAuditRoutes";
-router.use("/audit", financialAuditRoutes);
-
-// Reset financial data (super admin only)
-router.post("/admin/reset-financial-data",
-  authenticateToken,
-  requireRole("super_admin"),
-  auditAction("reset_financial_data", "system"),
-  async (req, res) => {
-    try {
-      const { resetFinancialData } = await import("./resetFinancialData");
-      await resetFinancialData();
-      res.json({ 
-        success: true, 
-        message: "Datos financieros reiniciados exitosamente" 
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Auditoría rápida para testing
-router.get('/audit/quick', async (req, res) => {
-  try {
-    const { db } = await import("./db");
-    const { sql } = await import("drizzle-orm");
-    
-    const checks = [];
-    let allPassed = true;
-    
-    // 1. Verificar que hay pedidos
-    const [orderCount] = await db.execute(sql`SELECT COUNT(*) as count FROM orders`);
-    const hasOrders = orderCount.count > 0;
-    checks.push({
-      rule: 'Hay pedidos en el sistema',
-      passed: hasOrders,
-      details: `${orderCount.count} pedidos encontrados`
-    });
-    if (!hasOrders) allPassed = false;
-    
-    // 2. Verificar pagos vs pedidos
-    const [paymentCount] = await db.execute(sql`SELECT COUNT(*) as count FROM payments`);
-    const paymentsMatch = paymentCount.count === orderCount.count;
-    checks.push({
-      rule: 'Pagos coinciden con pedidos',
-      passed: paymentsMatch,
-      details: `${paymentCount.count} pagos vs ${orderCount.count} pedidos`
-    });
-    if (!paymentsMatch) allPassed = false;
-    
-    // 3. Verificar transacciones
-    const [txCount] = await db.execute(sql`SELECT COUNT(*) as count FROM transactions`);
-    const hasTransactions = txCount.count > 0;
-    checks.push({
-      rule: 'Se generaron transacciones',
-      passed: hasTransactions,
-      details: `${txCount.count} transacciones generadas`
-    });
-    if (!hasTransactions) allPassed = false;
-    
-    // 4. Verificar wallets con balance
-    const [walletCount] = await db.execute(sql`
-      SELECT COUNT(*) as count 
-      FROM wallets 
-      WHERE balance > 0 OR pending_balance > 0 OR total_earned > 0
-    `);
-    const walletsActive = walletCount.count > 0;
-    checks.push({
-      rule: 'Wallets tienen movimientos',
-      passed: walletsActive,
-      details: `${walletCount.count} wallets con actividad`
-    });
-    if (!walletsActive) allPassed = false;
-    
-    res.json({
-      overall_status: allPassed ? 'PASSED' : 'FAILED',
-      checks,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error: any) {
-    console.error('Error en auditoría rápida:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 export default router;
-
-
-

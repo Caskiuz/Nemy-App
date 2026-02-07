@@ -2,8 +2,8 @@
 // Valida transiciones de estado y permisos por rol
 
 export const ORDER_STATE_TRANSITIONS = {
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["preparing", "cancelled"],
+  pending: ["accepted", "cancelled"],
+  accepted: ["preparing", "cancelled"],
   preparing: ["ready", "cancelled"],
   ready: ["picked_up", "cancelled"],
   picked_up: ["on_the_way", "cancelled"],
@@ -13,10 +13,10 @@ export const ORDER_STATE_TRANSITIONS = {
 } as const;
 
 export const ROLE_ALLOWED_STATES = {
-  business_owner: ["confirmed", "preparing", "ready", "cancelled"],
+  business_owner: ["accepted", "preparing", "ready", "cancelled"],
   delivery_driver: ["picked_up", "on_the_way", "delivered"],
-  admin: ["pending", "confirmed", "preparing", "ready", "picked_up", "on_the_way", "delivered", "cancelled"],
-  super_admin: ["pending", "confirmed", "preparing", "ready", "picked_up", "on_the_way", "delivered", "cancelled"],
+  admin: ["pending", "accepted", "preparing", "ready", "picked_up", "on_the_way", "delivered", "cancelled"],
+  super_admin: ["pending", "accepted", "preparing", "ready", "picked_up", "on_the_way", "delivered", "cancelled"],
   customer: ["cancelled"] // Solo puede cancelar en periodo de arrepentimiento
 } as const;
 

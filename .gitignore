@@ -45,3 +45,16 @@ coverage/
 # Misc
 *.pem
 .cache/
+
+# Backups y archivos sensibles
+backups/
+backup-to-aiven.bat
+backup-to-aiven-interactive.bat
+verify-aiven.bat
+*.sql.backup
+*.dump
+
+# Uploads
+server/uploads/profiles/
+server/uploads/businesses/
+server/uploads/products/

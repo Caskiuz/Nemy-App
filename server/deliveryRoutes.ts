@@ -163,16 +163,36 @@ router.get(
       );
 
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date(now);
+    monthStart.setDate(now.getDate() - 30);
+    monthStart.setHours(0, 0, 0, 0);
 
-    const todayOrders = completedOrders.filter(o => new Date(o.deliveredAt!) >= todayStart);
-    const weekOrders = completedOrders.filter(o => new Date(o.deliveredAt!) >= weekStart);
+    const todayOrders = completedOrders.filter(o => {
+      if (!o.deliveredAt) return false;
+      const deliveredDate = new Date(o.deliveredAt);
+      return deliveredDate >= todayStart;
+    });
+    const weekOrders = completedOrders.filter(o => {
+      if (!o.deliveredAt) return false;
+      const deliveredDate = new Date(o.deliveredAt);
+      return deliveredDate >= weekStart;
+    });
+    const monthOrders = completedOrders.filter(o => {
+      if (!o.deliveredAt) return false;
+      const deliveredDate = new Date(o.deliveredAt);
+      return deliveredDate >= monthStart;
+    });
 
-    const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryEarningsAmount || Math.round(o.total * 0.15)), 0);
-    const weekEarnings = weekOrders.reduce((sum, o) => sum + (o.deliveryEarningsAmount || Math.round(o.total * 0.15)), 0);
-    const totalEarnings = completedOrders.reduce((sum, o) => sum + (o.deliveryEarningsAmount || Math.round(o.total * 0.15)), 0);
+    // Driver gana 100% del deliveryFee
+    const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    const weekEarnings = weekOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    const monthEarnings = monthOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    const totalEarnings = completedOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
 
     const avgTimeMinutes = completedOrders.length > 0
       ? completedOrders.reduce((sum, order) => {
@@ -184,6 +204,12 @@ router.get(
         }, 0) / completedOrders.length
       : 0;
 
+    // Obtener resumen de efectivo
+    const { CashSettlementService } = await import("./cashSettlementService");
+    const cashSummary = await CashSettlementService.getDriverCashSummary(userId);
+
+    const canWithdraw = Math.max(0, (wallet?.balance || 0) - (wallet?.cashOwed || 0));
+
     res.json({
       success: true,
       stats: {
@@ -193,9 +219,14 @@ router.get(
         completionRate: 100,
         todayEarnings,
         weekEarnings,
+        monthEarnings,
         totalEarnings,
         balance: wallet?.balance || 0,
         avgDeliveryTime: Math.round(avgTimeMinutes),
+        // Info de efectivo
+        cashOwed: wallet?.cashOwed || 0,
+        availableToWithdraw: canWithdraw,
+        pendingCashOrders: cashSummary.pendingOrders,
       },
     });
   }),
@@ -483,9 +514,22 @@ router.post(
       })
       .where(eq(orders.id, orderId));
 
-    // Calculate and distribute commissions
-    const { calculateAndDistributeCommissions } = await import("./commissionService");
-    await calculateAndDistributeCommissions(orderId);
+    // Si es pago en efectivo, registrar liquidación
+    if (order.paymentMethod === "cash") {
+      const { CashSettlementService } = await import("./cashSettlementService");
+      const settlement = await CashSettlementService.recordCashCollection(orderId, userId);
+      
+      logger.delivery("Cash collected", { 
+        orderId, 
+        driverId: userId,
+        totalCollected: settlement.totalCollected,
+        totalOwed: settlement.totalOwed,
+      });
+    } else {
+      // Si es tarjeta, distribuir comisiones normalmente
+      const { calculateAndDistributeCommissions } = await import("./commissionService");
+      await calculateAndDistributeCommissions(orderId);
+    }
 
     // Increment driver's delivery count
     await db
