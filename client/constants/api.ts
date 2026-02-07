@@ -24,8 +24,7 @@ export const getApiBaseUrl = (): string => {
     return window.location.origin;
   }
 
-  // Final fallback
-  console.warn('No backend URL configured, using fallback');
+  // Production fallback
   return "https://nemy-app.replit.app";
 };
 
