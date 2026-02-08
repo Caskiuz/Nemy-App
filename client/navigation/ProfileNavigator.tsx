@@ -3,6 +3,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import ProfileScreen from '../screens/ProfileScreen';
 import PaymentMethodsScreen from '../screens/PaymentMethodsScreen';
 import WithdrawalScreen from '../screens/WithdrawalScreen';
+import AddBankAccountScreen from '../screens/AddBankAccountScreen';
 
 const Stack = createStackNavigator();
 
@@ -33,6 +34,11 @@ export default function ProfileNavigator() {
         name="Withdrawals" 
         component={WithdrawalScreen} 
         options={{ title: 'Retiros' }}
+      />
+      <Stack.Screen 
+        name="AddBankAccount" 
+        component={AddBankAccountScreen} 
+        options={{ title: 'Agregar Cuenta Bancaria' }}
       />
     </Stack.Navigator>
   );
