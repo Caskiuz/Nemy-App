@@ -27,7 +27,10 @@ export async function validateOrderFinancials(
 
     // Validar total
     const baseSubtotal = productosBase ?? subtotal;
-    const platformCommission = nemyCommission ?? Math.round(baseSubtotal * 0.15);
+    const platformCommission =
+      typeof nemyCommission === "number" && nemyCommission > 0
+        ? nemyCommission
+        : Math.round(baseSubtotal * 0.15);
     const discount = couponDiscount || 0;
     const calculatedTotal = baseSubtotal + deliveryFee + platformCommission - discount;
     if (calculatedTotal !== total) {

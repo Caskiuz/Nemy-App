@@ -15,6 +15,10 @@ describe("Orders (customer flow)", () => {
 
   it("creates order with valid payload", async () => {
     const token = await loginAs(app, "test-customer");
+    const subtotal = 10000;
+    const deliveryFee = 2000;
+    const nemyCommission = Math.round(subtotal * 0.15);
+    const total = subtotal + deliveryFee + nemyCommission;
     const res = await request(app)
       .post("/api/orders")
       .set(authHeader(token))
@@ -23,9 +27,11 @@ describe("Orders (customer flow)", () => {
         businessName: "Tacos Test",
         businessImage: null,
         items: "[]",
-        subtotal: 10000,
-        deliveryFee: 2000,
-        total: 12000,
+        subtotal,
+        productosBase: subtotal,
+        nemyCommission,
+        deliveryFee,
+        total,
         paymentMethod: "card",
         deliveryAddress: "Av. Pruebas 101",
         deliveryLatitude: "20.6736",
@@ -40,6 +46,9 @@ describe("Orders (customer flow)", () => {
 
   it("rejects order with invalid total", async () => {
     const token = await loginAs(app, "test-customer");
+    const subtotal = 10000;
+    const deliveryFee = 2000;
+    const nemyCommission = Math.round(subtotal * 0.15);
     const res = await request(app)
       .post("/api/orders")
       .set(authHeader(token))
@@ -48,8 +57,10 @@ describe("Orders (customer flow)", () => {
         businessName: "Tacos Test",
         businessImage: null,
         items: "[]",
-        subtotal: 10000,
-        deliveryFee: 2000,
+        subtotal,
+        productosBase: subtotal,
+        nemyCommission,
+        deliveryFee,
         total: 9999,
         paymentMethod: "card",
         deliveryAddress: "Av. Error 202",
@@ -77,6 +88,10 @@ describe("Orders (customer flow)", () => {
 
   it("allows regret cancel only in pending state", async () => {
     const token = await loginAs(app, "test-customer");
+    const subtotal = 9000;
+    const deliveryFee = 2000;
+    const nemyCommission = Math.round(subtotal * 0.15);
+    const total = subtotal + deliveryFee + nemyCommission;
 
     const createRes = await request(app)
       .post("/api/orders")
@@ -86,9 +101,11 @@ describe("Orders (customer flow)", () => {
         businessName: "Tacos Test",
         businessImage: null,
         items: "[]",
-        subtotal: 9000,
-        deliveryFee: 2000,
-        total: 11000,
+        subtotal,
+        productosBase: subtotal,
+        nemyCommission,
+        deliveryFee,
+        total,
         paymentMethod: "card",
         deliveryAddress: "Av. Regret 303",
       });

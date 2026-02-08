@@ -219,6 +219,13 @@ export default function PaymentMethodsScreen({ navigation }: any) {
       }
     >
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          accessibilityLabel="Volver"
+        >
+          <Ionicons name="arrow-back" size={24} color="#FF6B35" />
+        </TouchableOpacity>
         <Ionicons name="card-outline" size={32} color="#FF6B35" />
         <Text style={styles.title}>Métodos de Pago</Text>
         <Text style={styles.subtitle}>{getAccountTypeText()}</Text>
@@ -410,6 +417,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    top: 20,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
   },
   title: {
     fontSize: 24,

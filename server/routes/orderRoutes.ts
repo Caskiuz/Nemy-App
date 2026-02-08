@@ -65,7 +65,10 @@ router.post("/", authenticateToken, validateOrderFinancials, async (req, res) =>
     }
 
     const productosBase = req.body.productosBase ?? req.body.subtotal;
-    const nemyCommission = req.body.nemyCommission ?? Math.round(productosBase * 0.15);
+    const nemyCommission =
+      typeof req.body.nemyCommission === "number" && req.body.nemyCommission > 0
+        ? req.body.nemyCommission
+        : Math.round(productosBase * 0.15);
     const couponDiscount = req.body.couponDiscount || 0;
     const calculatedTotal = productosBase + nemyCommission + deliveryFee - couponDiscount;
 
