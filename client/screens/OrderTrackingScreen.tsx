@@ -174,6 +174,8 @@ export default function OrderTrackingScreen() {
                 : apiOrder.items,
             status: apiOrder.status,
             subtotal: apiOrder.subtotal / 100,
+            productosBase: apiOrder.productosBase ? apiOrder.productosBase / 100 : undefined,
+            nemyCommission: apiOrder.nemyCommission ? apiOrder.nemyCommission / 100 : undefined,
             deliveryFee: apiOrder.deliveryFee / 100,
             total: apiOrder.total / 100,
             paymentMethod: apiOrder.paymentMethod,
@@ -317,6 +319,10 @@ export default function OrderTrackingScreen() {
         minute: "2-digit",
       })
     : null;
+
+  const nemyCommission = order.nemyCommission
+    ? order.nemyCommission / 100
+    : order.subtotal * 0.15;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -542,6 +548,12 @@ export default function OrderTrackingScreen() {
                 Subtotal
               </ThemedText>
               <ThemedText type="small">${order.subtotal.toFixed(2)}</ThemedText>
+            </View>
+            <View style={styles.itemRow}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Comision NEMY (15%)
+              </ThemedText>
+              <ThemedText type="small">${nemyCommission.toFixed(2)}</ThemedText>
             </View>
             <View style={styles.itemRow}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>

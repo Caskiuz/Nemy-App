@@ -73,18 +73,30 @@ export class UnifiedFinancialService {
   // NEMY: 15% of subtotal, Business: 100% of subtotal, Driver: 100% of delivery_fee
   async calculateCommissions(
     totalAmount: number,
-    deliveryFee: number = 0
+    deliveryFee: number = 0,
+    productosBase?: number,
+    nemyCommission?: number
   ): Promise<{
     platform: number;
     business: number;
     driver: number;
     total: number;
   }> {
-    const subtotal = totalAmount - deliveryFee;
-    
-    const platformAmount = Math.round(subtotal * 0.15);
-    const businessAmount = subtotal;
-    const driverAmount = deliveryFee;
+    const safeDeliveryFee = Math.max(0, deliveryFee || 0);
+    let baseSubtotal = productosBase;
+
+    if (!baseSubtotal || baseSubtotal <= 0) {
+      if (nemyCommission && nemyCommission > 0) {
+        baseSubtotal = Math.max(0, totalAmount - safeDeliveryFee - nemyCommission);
+      } else {
+        const grossSubtotal = Math.max(0, totalAmount - safeDeliveryFee);
+        baseSubtotal = Math.round(grossSubtotal / 1.15);
+      }
+    }
+
+    const platformAmount = nemyCommission ?? Math.round(baseSubtotal * 0.15);
+    const businessAmount = baseSubtotal;
+    const driverAmount = safeDeliveryFee;
 
     return {
       platform: platformAmount,

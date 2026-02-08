@@ -92,6 +92,8 @@ export interface Order {
   items: CartItem[];
   status: OrderStatus;
   subtotal: number;
+  productosBase?: number;
+  nemyCommission?: number;
   deliveryFee: number;
   total: number;
   paymentMethod: "card" | "cash";

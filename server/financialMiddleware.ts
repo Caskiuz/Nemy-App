@@ -9,7 +9,7 @@ export async function validateOrderFinancials(
   next: NextFunction
 ) {
   try {
-    const { subtotal, deliveryFee, total } = req.body;
+    const { subtotal, deliveryFee, total, productosBase, nemyCommission, couponDiscount } = req.body;
 
     // Validar que los campos existan
     if (subtotal === undefined || deliveryFee === undefined || total === undefined) {
@@ -26,13 +26,16 @@ export async function validateOrderFinancials(
     }
 
     // Validar total
-    const calculatedTotal = subtotal + deliveryFee;
+    const baseSubtotal = productosBase ?? subtotal;
+    const platformCommission = nemyCommission ?? Math.round(baseSubtotal * 0.15);
+    const discount = couponDiscount || 0;
+    const calculatedTotal = baseSubtotal + deliveryFee + platformCommission - discount;
     if (calculatedTotal !== total) {
       return res.status(400).json({
         error: "Total inválido",
         expected: calculatedTotal,
         received: total,
-        breakdown: { subtotal, deliveryFee },
+        breakdown: { subtotal: baseSubtotal, deliveryFee, platformCommission, discount },
       });
     }
 

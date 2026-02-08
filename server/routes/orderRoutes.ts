@@ -64,6 +64,11 @@ router.post("/", authenticateToken, validateOrderFinancials, async (req, res) =>
       }
     }
 
+    const productosBase = req.body.productosBase ?? req.body.subtotal;
+    const nemyCommission = req.body.nemyCommission ?? Math.round(productosBase * 0.15);
+    const couponDiscount = req.body.couponDiscount || 0;
+    const calculatedTotal = productosBase + nemyCommission + deliveryFee - couponDiscount;
+
     const orderData = {
       userId: req.user!.id,
       businessId: req.body.businessId,
@@ -71,9 +76,11 @@ router.post("/", authenticateToken, validateOrderFinancials, async (req, res) =>
       businessImage: req.body.businessImage,
       items: req.body.items,
       status: req.body.status || "pending",
-      subtotal: req.body.subtotal,
+      subtotal: productosBase,
+      productosBase,
+      nemyCommission,
       deliveryFee,
-      total: req.body.subtotal + deliveryFee,
+      total: calculatedTotal,
       paymentMethod: req.body.paymentMethod,
       deliveryAddress: req.body.deliveryAddress,
       notes: req.body.notes,
@@ -270,7 +277,12 @@ router.post(
 
       // Calculate commissions using centralized service
       const { financialService } = await import("../unifiedFinancialService");
-      const commissions = await financialService.calculateCommissions(order.total);
+      const commissions = await financialService.calculateCommissions(
+        order.total,
+        order.deliveryFee,
+        order.productosBase || order.subtotal,
+        order.nemyCommission || undefined
+      );
 
       // Update order with commission breakdown
       await db

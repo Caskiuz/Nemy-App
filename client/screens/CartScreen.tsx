@@ -91,10 +91,10 @@ export default function CartScreen() {
   const deliveryFee = calculatedDeliveryFee ?? 25; // Precio REAL, no estimado
   const minimumOrder = business?.minimumOrder || 0;
   
-  // SIN MARKUP: Usar precio base de productos
+  // Precio base de productos (sin comision)
   const productosBase = subtotal;
-  const subtotalConMarkup = productosBase; // Sin markup visible
-  const total = subtotalConMarkup + deliveryFee;
+  const nemyCommission = productosBase * 0.15;
+  const total = productosBase + nemyCommission + deliveryFee;
   const canProceed = subtotal >= minimumOrder;
 
   const handleCheckout = () => {
@@ -290,6 +290,12 @@ export default function CartScreen() {
             Productos
           </ThemedText>
           <ThemedText type="body">${productosBase.toFixed(2)}</ThemedText>
+        </View>
+        <View style={styles.summaryRow}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            Comision NEMY (15%)
+          </ThemedText>
+          <ThemedText type="body">${nemyCommission.toFixed(2)}</ThemedText>
         </View>
         <View style={styles.summaryRow}>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>

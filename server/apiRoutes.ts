@@ -2916,6 +2916,11 @@ router.post(
       const { db } = await import("./db");
       const { eq, desc } = await import("drizzle-orm");
 
+      const productosBase = req.body.productosBase ?? req.body.subtotal;
+      const nemyCommission = req.body.nemyCommission ?? Math.round(productosBase * 0.15);
+      const couponDiscount = req.body.couponDiscount || 0;
+      const calculatedTotal = productosBase + nemyCommission + req.body.deliveryFee - couponDiscount;
+
       const orderData = {
         userId: req.user!.id,
         businessId: req.body.businessId,
@@ -2923,9 +2928,11 @@ router.post(
         businessImage: req.body.businessImage,
         items: req.body.items,
         status: "pending",
-        subtotal: req.body.subtotal,
+        subtotal: productosBase,
+        productosBase,
+        nemyCommission,
         deliveryFee: req.body.deliveryFee,
-        total: req.body.total,
+        total: calculatedTotal,
         paymentMethod: req.body.paymentMethod,
         deliveryAddress: req.body.deliveryAddress,
         deliveryLatitude: req.body.deliveryLatitude,
@@ -4945,7 +4952,7 @@ router.post(
       }
 
       // Validate total
-      if (!FinancialCalculator.validateOrderTotal(order.subtotal, order.deliveryFee, 0, order.total)) {
+      if (!FinancialCalculator.validateOrderTotal(order.subtotal, order.deliveryFee, order.nemyCommission || 0, order.total)) {
         return res.status(400).json({ error: "Invalid order total calculation" });
       }
 
@@ -4954,7 +4961,12 @@ router.post(
         .set({ status: "delivered", deliveredAt: new Date() })
         .where(eq(orders.id, req.params.id));
 
-      const commissions = await financialService.calculateCommissions(order.total, order.deliveryFee);
+      const commissions = await financialService.calculateCommissions(
+        order.total,
+        order.deliveryFee,
+        order.productosBase || order.subtotal,
+        order.nemyCommission || undefined
+      );
 
       // Diferenciar entre pago con tarjeta y efectivo
       if (order.paymentMethod === "cash") {

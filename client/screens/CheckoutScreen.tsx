@@ -43,7 +43,7 @@ export default function CheckoutScreen({ route }: any) {
   const { user } = useAuth();
   const { showToast } = useToast();
   
-  // Usar subtotal CON markup que viene del carrito
+  // Usar subtotal base (sin comision) que viene del carrito
   const subtotal = route?.params?.subtotalWithMarkup || cartSubtotal;
 
   const [addresses, setAddresses] = useState<any[]>([]);
@@ -115,9 +115,8 @@ export default function CheckoutScreen({ route }: any) {
 
   const deliveryFee = route?.params?.calculatedDeliveryFee ?? (dynamicDeliveryFee ?? (business?.deliveryFee ? business.deliveryFee / 100 : 0));
   
-  // El subtotal YA viene con el markup del 15% desde el carrito
-  // NO volver a aplicar markup aquí
-  const total = subtotal + deliveryFee - couponDiscount;
+  const nemyCommission = subtotal * 0.15;
+  const total = subtotal + nemyCommission + deliveryFee - couponDiscount;
 
   // Calcular delivery fee dinámico cuando cambia la dirección
   useEffect(() => {
@@ -245,9 +244,9 @@ export default function CheckoutScreen({ route }: any) {
       // Calcular el período de arrepentimiento (60 segundos desde ahora)
       const regretPeriodEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
 
-      // Calcular valores para backend (subtotal ya tiene markup del carrito)
-      const productosBase = Math.round(subtotal / 1.15 * 100); // Quitar el 15% para obtener base
-      const nemyCommission = Math.round(subtotal * 100) - productosBase; // Diferencia es la comisión
+      // Calcular valores para backend (subtotal es precio base)
+      const productosBase = Math.round(subtotal * 100);
+      const nemyCommission = Math.round(subtotal * 0.15 * 100);
       
       const orderResponse = await apiRequest("POST", "/api/orders", {
         businessId: cart.businessId,
@@ -896,6 +895,12 @@ export default function CheckoutScreen({ route }: any) {
             Subtotal
           </ThemedText>
           <ThemedText type="body">${subtotal.toFixed(2)}</ThemedText>
+        </View>
+        <View style={styles.totalRow}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            Comision NEMY (15%)
+          </ThemedText>
+          <ThemedText type="body">${nemyCommission.toFixed(2)}</ThemedText>
         </View>
         <View style={styles.totalRow}>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>
