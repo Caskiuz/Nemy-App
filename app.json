@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nemy.app"
+      "bundleIdentifier": "com.nemy.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicacion para asignarte pedidos y mostrar tu posicion en tiempo real."
+      }
     },
     "android": {
       "adaptiveIcon": {
