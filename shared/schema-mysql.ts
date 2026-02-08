@@ -30,6 +30,7 @@ export const users = mysqlTable("users", {
   cardLast4: text("card_last4"),
   cardBrand: text("card_brand"),
   stripeAccountId: text("stripe_account_id"), // Para repartidores con Stripe Connect
+  bankAccount: text("bank_account"), // JSON con datos bancarios (SPEI/CLABE)
   isActive: boolean("is_active").notNull().default(true), // Para desactivar cuentas
   isOnline: boolean("is_online").notNull().default(false), // Para repartidores online/offline
   lastActiveAt: timestamp("last_active_at"), // Última actividad

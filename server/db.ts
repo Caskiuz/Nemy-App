@@ -145,6 +145,19 @@ if (isTest && useDbStubs) {
             console.log('ℹ️ Migration note:', err.message);
           }
         }
+
+        try {
+          await conn.query(`
+            ALTER TABLE users ADD COLUMN bank_account TEXT DEFAULT NULL
+          `);
+          console.log('✅ Added bank_account column to users table');
+        } catch (err: any) {
+          if (err.code === 'ER_DUP_FIELDNAME') {
+            console.log('ℹ️ bank_account column already exists');
+          } else {
+            console.log('ℹ️ Migration note:', err.message);
+          }
+        }
         
         conn.release();
       })
@@ -195,6 +208,12 @@ export async function ensureTestSchema() {
       'users',
       'stripe_account_id',
       'ALTER TABLE users ADD COLUMN stripe_account_id TEXT DEFAULT NULL',
+    );
+    await ensureColumn(
+      conn,
+      'users',
+      'bank_account',
+      'ALTER TABLE users ADD COLUMN bank_account TEXT DEFAULT NULL',
     );
   } finally {
     conn.release();

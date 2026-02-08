@@ -31,6 +31,7 @@ import EditProfileScreen from "@/screens/EditProfileScreen";
 import AddressesScreen from "@/screens/AddressesScreen";
 import SavedAddressesScreen from "@/screens/SavedAddressesScreen";
 import AddAddressScreen from "@/screens/AddAddressScreen";
+import AddBankAccountScreen from "@/screens/AddBankAccountScreen";
 import SupportChatScreen from "@/screens/SupportChatScreen";
 import WalletScreen from "@/screens/WalletScreen";
 import ReportIssueScreen from "@/screens/ReportIssueScreen";
@@ -86,6 +87,7 @@ export type RootStackParamList = {
   Addresses: undefined;
   SavedAddresses: undefined;
   AddAddress: undefined;
+  AddBankAccount: undefined;
   LocationPicker: { onLocationSelected?: (coords: any, address: string) => void };
   SupportChat: undefined;
   Wallet: undefined;
@@ -197,6 +199,11 @@ export default function RootStackNavigator() {
             name="OrderChat"
             component={OrderChatScreen}
             options={{ headerTitle: "Chat" }}
+          />
+          <Stack.Screen
+            name="AddBankAccount"
+            component={AddBankAccountScreen}
+            options={{ headerTitle: "Agregar Cuenta Bancaria" }}
           />
           <Stack.Screen
             name="DeliveryEarnings"

@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -97,6 +99,8 @@ const MEXICAN_BANKS = [
 export default function AddBankAccountScreen({ navigation }: any) {
   const { user, token } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showBankPicker, setShowBankPicker] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
   const [formData, setFormData] = useState({
     bankCode: '',
     bankName: '',
@@ -105,6 +109,41 @@ export default function AddBankAccountScreen({ navigation }: any) {
     accountHolderName: '',
     accountType: 'checking', // checking, savings
   });
+
+  const filteredBanks = MEXICAN_BANKS.filter((bank) => {
+    const query = bankSearch.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      bank.name.toLowerCase().includes(query) ||
+      bank.code.includes(query)
+    );
+  });
+
+  const selectBank = (bank: { code: string; name: string }) => {
+    setFormData((prev) => ({
+      ...prev,
+      bankCode: bank.code,
+      bankName: bank.name,
+    }));
+    setShowBankPicker(false);
+  };
+
+  const handleClabeChange = (text: string) => {
+    const digits = text.replace(/\D/g, '').slice(0, 18);
+    setFormData((prev) => ({ ...prev, clabe: digits }));
+
+    if (digits.length >= 3) {
+      const bankCode = digits.slice(0, 3);
+      const match = MEXICAN_BANKS.find((bank) => bank.code === bankCode);
+      if (match) {
+        setFormData((prev) => ({
+          ...prev,
+          bankCode: match.code,
+          bankName: match.name,
+        }));
+      }
+    }
+  };
 
   const validateCLABE = (clabe: string): boolean => {
     if (clabe.length !== 18) return false;
@@ -122,8 +161,13 @@ export default function AddBankAccountScreen({ navigation }: any) {
   };
 
   const handleSave = async () => {
-    if (!formData.bankCode || !formData.accountNumber || !formData.accountHolderName) {
-      Alert.alert('Error', 'Todos los campos son obligatorios');
+    if (!formData.bankCode || !formData.bankName || !formData.accountHolderName) {
+      Alert.alert('Error', 'Selecciona un banco y completa los campos obligatorios');
+      return;
+    }
+
+    if (!formData.clabe) {
+      Alert.alert('Error', 'La CLABE es obligatoria para transferencias SPEI');
       return;
     }
 
@@ -172,10 +216,7 @@ export default function AddBankAccountScreen({ navigation }: any) {
         <View style={styles.pickerContainer}>
           <TouchableOpacity 
             style={styles.picker}
-            onPress={() => {
-              // TODO: Show bank picker modal
-              Alert.alert('Seleccionar Banco', 'Funcionalidad en desarrollo');
-            }}
+            onPress={() => setShowBankPicker(true)}
           >
             <Text style={formData.bankName ? styles.pickerText : styles.pickerPlaceholder}>
               {formData.bankName || 'Seleccionar banco'}
@@ -184,22 +225,25 @@ export default function AddBankAccountScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>Número de Cuenta *</Text>
+        <Text style={styles.label}>Número de Cuenta (opcional)</Text>
         <TextInput
           style={styles.input}
           value={formData.accountNumber}
-          onChangeText={(text) => setFormData({...formData, accountNumber: text})}
+          onChangeText={(text) => setFormData({
+            ...formData,
+            accountNumber: text.replace(/\D/g, '').slice(0, 20)
+          })}
           placeholder="Ingresa el número de cuenta"
           keyboardType="numeric"
           maxLength={20}
         />
 
-        <Text style={styles.label}>CLABE Interbancaria</Text>
+        <Text style={styles.label}>CLABE Interbancaria (SPEI) *</Text>
         <TextInput
           style={styles.input}
           value={formData.clabe}
-          onChangeText={(text) => setFormData({...formData, clabe: text})}
-          placeholder="18 dígitos (opcional)"
+          onChangeText={handleClabeChange}
+          placeholder="18 dígitos"
           keyboardType="numeric"
           maxLength={18}
         />
@@ -257,12 +301,50 @@ export default function AddBankAccountScreen({ navigation }: any) {
           <Text style={styles.infoTitle}>Información Importante</Text>
           <Text style={styles.infoText}>
             • Tu cuenta será verificada antes de activarse{'\n'}
-            • Solo puedes recibir transferencias SPEI{'\n'}
+            • Solo puedes recibir transferencias SPEI (CLABE){'\n'}
             • Los datos deben coincidir con tu identificación{'\n'}
             • La verificación puede tomar 1-2 días hábiles
           </Text>
         </View>
       </View>
+        <Modal
+          visible={showBankPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowBankPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Seleccionar banco</Text>
+                <TouchableOpacity onPress={() => setShowBankPicker(false)}>
+                  <Ionicons name="close" size={22} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.searchInput}
+                value={bankSearch}
+                onChangeText={setBankSearch}
+                placeholder="Buscar banco o código"
+                autoCapitalize="none"
+              />
+              <FlatList
+                data={filteredBanks}
+                keyExtractor={(item) => item.code}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.bankRow}
+                    onPress={() => selectBank(item)}
+                  >
+                    <Text style={styles.bankName}>{item.name}</Text>
+                    <Text style={styles.bankCode}>{item.code}</Text>
+                  </TouchableOpacity>
+                )}
+                keyboardShouldPersistTaps="handled"
+              />
+            </View>
+          </View>
+        </Modal>
     </ScrollView>
   );
 }
@@ -375,5 +457,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '70%',
+    paddingBottom: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  searchInput: {
+    margin: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  bankRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bankName: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  bankCode: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });

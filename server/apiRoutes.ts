@@ -5013,8 +5013,26 @@ router.get(
   authenticateToken,
   async (req, res) => {
     try {
-      // TODO: Get user's bank accounts from database
-      res.json({ success: true, accounts: [] });
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const [user] = await db
+        .select({ bankAccount: users.bankAccount })
+        .from(users)
+        .where(eq(users.id, req.user!.id))
+        .limit(1);
+
+      if (!user?.bankAccount) {
+        return res.json({ success: true, accounts: [] });
+      }
+
+      try {
+        const account = JSON.parse(user.bankAccount);
+        return res.json({ success: true, accounts: [account] });
+      } catch {
+        return res.json({ success: true, accounts: [] });
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -5028,17 +5046,46 @@ router.post(
     try {
       const { bankCode, bankName, accountNumber, clabe, accountHolderName, accountType } = req.body;
       
-      if (!bankCode || !accountNumber || !accountHolderName) {
+      if (!bankCode || !bankName || !accountHolderName || !clabe) {
         return res.status(400).json({ error: "Campos requeridos faltantes" });
       }
 
-      // TODO: Save to database
-      // For now, just return success
-      res.json({ 
-        success: true, 
-        message: "Cuenta bancaria agregada correctamente",
-        accountId: `bank_${Date.now()}`
-      });
+      const clabeDigits = String(clabe).replace(/\D/g, "");
+      if (clabeDigits.length !== 18) {
+        return res.status(400).json({ error: "CLABE inválida" });
+      }
+
+      const weights = [3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7];
+      let sum = 0;
+      for (let i = 0; i < 17; i += 1) {
+        sum += parseInt(clabeDigits[i], 10) * weights[i];
+      }
+      const checkDigit = (10 - (sum % 10)) % 10;
+      if (checkDigit !== parseInt(clabeDigits[17], 10)) {
+        return res.status(400).json({ error: "CLABE inválida" });
+      }
+
+      const { users } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const bankAccount = {
+        bankCode,
+        bankName,
+        accountNumber: accountNumber || "",
+        clabe: clabeDigits,
+        accountHolderName,
+        accountType: accountType || "checking",
+        method: "SPEI",
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db
+        .update(users)
+        .set({ bankAccount: JSON.stringify(bankAccount) })
+        .where(eq(users.id, req.user!.id));
+
+      res.json({ success: true, account: bankAccount });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
