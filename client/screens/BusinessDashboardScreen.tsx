@@ -155,9 +155,12 @@ export default function BusinessDashboardScreen() {
 
   const loadData = async () => {
     try {
+      const businessId = selectedBusiness?.id;
+      const statsUrl = businessId ? `/api/business/stats?businessId=${businessId}` : "/api/business/stats";
+      
       const [dashboardRes, statsRes] = await Promise.all([
         apiRequest("GET", "/api/business/dashboard"),
-        apiRequest("GET", "/api/business/stats"),
+        apiRequest("GET", statsUrl),
       ]);
       
       const dashboardData = await dashboardRes.json();
@@ -189,8 +192,10 @@ export default function BusinessDashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [])
+      if (selectedBusiness) {
+        loadData();
+      }
+    }, [selectedBusiness])
   );
 
   useEffect(() => {
@@ -429,7 +434,7 @@ export default function BusinessDashboardScreen() {
                     {order.customerName || "Cliente"}
                   </ThemedText>
                   <ThemedText type="body" style={{ fontWeight: "600", color: NemyColors.primary }}>
-                    ${((order.total || 0) / 100).toFixed(2)}
+                    ${((order.subtotal || 0) / 100).toFixed(2)}
                   </ThemedText>
                 </View>
               </Animated.View>
@@ -454,6 +459,15 @@ export default function BusinessDashboardScreen() {
               <Feather name="package" size={24} color={NemyColors.primary} />
               <ThemedText type="small" style={{ marginTop: Spacing.xs }}>Productos</ThemedText>
             </Pressable>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: theme.card }]}
+              onPress={() => navigation.navigate("CashSettlement" as any)}
+            >
+              <Feather name="dollar-sign" size={24} color={NemyColors.warning} />
+              <ThemedText type="small" style={{ marginTop: Spacing.xs, textAlign: 'center' }}>Efectivo</ThemedText>
+            </Pressable>
+          </View>
+          <View style={[styles.actionsRow, { marginTop: Spacing.sm }]}>
             <Pressable
               style={[styles.actionButton, { backgroundColor: theme.card }]}
               onPress={() => navigation.navigate("BusinessProfile" as any)}

@@ -32,7 +32,16 @@ export default function CashSettlementScreen() {
       const data = await response.json();
       if (data.success) {
         setOrders(data.orders || []);
-        setTotal(data.total || 0);
+        
+        // Calcular total correcto: business + platform por cada orden
+        let totalAmount = 0;
+        for (const order of data.orders || []) {
+          const subtotal = order.subtotal;
+          const platformFee = Math.round(subtotal * 0.15);
+          const businessShare = subtotal;
+          totalAmount += businessShare + platformFee;
+        }
+        setTotal(totalAmount);
       }
     } catch (error) {
       console.error("Error loading pending settlements:", error);
@@ -72,7 +81,12 @@ export default function CashSettlementScreen() {
 
   const renderOrder = ({ item }: { item: any }) => {
     const items = typeof item.items === "string" ? JSON.parse(item.items) : item.items;
-    const yourShare = item.businessEarnings || 0;
+    
+    // Calcular comisiones correctamente
+    const subtotal = item.subtotal;
+    const platformFee = Math.round(subtotal * 0.15); // 15% del subtotal
+    const businessShare = subtotal; // 100% del subtotal
+    const totalToReceive = businessShare + platformFee; // Lo que el negocio debe recibir del repartidor
 
     return (
       <View style={[styles.orderCard, { backgroundColor: theme.card }, Shadows.sm]}>
@@ -106,22 +120,28 @@ export default function CashSettlementScreen() {
         <View style={styles.amounts}>
           <View>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Total del pedido
+              Subtotal productos
             </ThemedText>
-            <ThemedText type="body">${(item.total / 100).toFixed(2)}</ThemedText>
+            <ThemedText type="body">${(item.subtotal / 100).toFixed(2)}</ThemedText>
+          </View>
+          <View>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              Comisión plataforma (15%)
+            </ThemedText>
+            <ThemedText type="body">${(platformFee / 100).toFixed(2)}</ThemedText>
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Recibirás
+              Total a recibir
             </ThemedText>
             <ThemedText type="h4" style={{ color: NemyColors.success }}>
-              ${(yourShare / 100).toFixed(2)}
+              ${(totalToReceive / 100).toFixed(2)}
             </ThemedText>
           </View>
         </View>
 
         <Pressable
-          onPress={() => handleSettle(item.id, yourShare)}
+          onPress={() => handleSettle(item.id, totalToReceive)}
           style={[styles.settleButton, { backgroundColor: NemyColors.success }]}
         >
           <Feather name="check-circle" size={18} color="#FFF" />
@@ -243,6 +263,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: "rgba(0,0,0,0.1)",
+    gap: Spacing.sm,
   },
   settleButton: {
     flexDirection: "row",

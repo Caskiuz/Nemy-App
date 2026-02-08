@@ -8,20 +8,17 @@ echo.
 REM Configurar variable de entorno para el build
 set EXPO_PUBLIC_BACKEND_URL=https://nemy-app.replit.app
 
-echo [1/4] Limpiando cache...
-call npx expo start --clear
-
-echo.
-echo [2/4] Configurando backend URL...
+echo [1/4] Configurando backend URL...
 echo Backend URL: %EXPO_PUBLIC_BACKEND_URL%
 
 echo.
-echo [3/4] Iniciando build de APK...
+echo [2/2] Iniciando build de APK...
 echo Este proceso puede tardar 10-15 minutos...
-call eas build --platform android --profile production
+echo.
+call npx eas build --platform android --profile production
 
 echo.
-echo [4/4] Build completado!
+echo [COMPLETADO] Build finalizado!
 echo.
 echo Descarga el APK desde: https://expo.dev/accounts/rijarwow/projects/nemy-app/builds
 echo.

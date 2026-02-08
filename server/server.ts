@@ -6,7 +6,6 @@ import path from 'path';
 import apiRoutes from './apiRoutes';  // ← Volver al original
 import devRoutes from './devRoutes';
 import financialTestRoute from './financialTestRoute';
-import walletRoutes from './walletRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -77,14 +76,18 @@ app.use(express.static(staticBuildPath, {
 // API routes
 app.use('/api', apiRoutes);
 
-// Wallet routes
-import walletRoutes from './walletRoutes';
-app.use('/api/wallet', walletRoutes);
+// Wallet routes (from routes folder)
+import walletRoutesV2 from './routes/walletRoutes';
+app.use('/api/wallet', walletRoutesV2);
 
 // Favorites routes
 import favoritesRoutes from './favoritesRoutes';
 console.log('🔧 Registering favorites routes at /api/favorites');
 app.use('/api/favorites', favoritesRoutes);
+
+// Secure payment routes
+import securePaymentRoutes from './securePaymentIntegration';
+app.use('/api', securePaymentRoutes);
 
 // Financial system test routes
 app.use('/api/financial', financialTestRoute);
@@ -157,5 +160,10 @@ app.listen(PORT, () => {
   // Start weekly settlement cron
   import('./weeklySettlementCron').then(({ WeeklySettlementCron }) => {
     WeeklySettlementCron.start();
+  }).catch(console.error);
+  
+  // Start cash security cron
+  import('./cashSecurityCron').then(({ initializeCashSecurityCron }) => {
+    initializeCashSecurityCron();
   }).catch(console.error);
 });

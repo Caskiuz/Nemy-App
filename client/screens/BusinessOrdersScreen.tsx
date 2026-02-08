@@ -224,7 +224,7 @@ export default function BusinessOrdersScreen() {
         <View style={styles.orderFooter}>
           <View>
             <ThemedText type="h4" style={{ color: NemyColors.primary }}>
-              ${(item.total / 100).toFixed(2)}
+              ${(item.subtotal / 100).toFixed(2)}
             </ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
               {item.paymentMethod === "cash" ? "💵 Efectivo" : "💳 Tarjeta"}
@@ -233,7 +233,7 @@ export default function BusinessOrdersScreen() {
           {item.paymentMethod === "cash" && item.status === "delivered" && (
             <View style={{ alignItems: "flex-end" }}>
               <ThemedText type="small" style={{ color: NemyColors.success, fontWeight: "600" }}>
-                Recibirás: ${((item.businessEarnings || Math.round(item.subtotal * 0.70)) / 100).toFixed(2)}
+                Recibirás: ${(item.subtotal / 100).toFixed(2)}
               </ThemedText>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
                 {item.cashSettled ? "✅ Liquidado" : "⏳ Pendiente de liquidación"}

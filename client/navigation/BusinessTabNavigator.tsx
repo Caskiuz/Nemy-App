@@ -5,6 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import BusinessOrdersScreen from "@/screens/BusinessOrdersScreen";
 import BusinessProductsScreen from "@/screens/BusinessProductsScreen";
+import WithdrawalScreen from "@/screens/WithdrawalScreen";
 import CashSettlementScreen from "@/screens/CashSettlementScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import { useTheme } from "@/hooks/useTheme";
@@ -69,6 +70,16 @@ export default function BusinessTabNavigator() {
           title: "Efectivo",
           tabBarIcon: ({ color, size }) => (
             <Feather name="dollar-sign" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="BusinessWithdrawal"
+        component={WithdrawalScreen}
+        options={{
+          title: "Retiros",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="credit-card" size={size} color={color} />
           ),
         }}
       />

@@ -19,7 +19,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.nemy.app"
+      "package": "com.nemy.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDLejpcrNJNHzQIduWuot5QAoepitVk2zY"
+        }
+      }
     },
     "web": {
       "output": "single",
@@ -40,7 +45,13 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "AIzaSyDLejpcrNJNHzQIduWuot5QAoepitVk2zY"
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true

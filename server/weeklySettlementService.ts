@@ -1,10 +1,20 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { logger } from "./logger";
 
 export class WeeklySettlementService {
+  private static getRows(result: any): any[] {
+    if (Array.isArray(result)) {
+      return Array.isArray(result[0]) ? result[0] : result;
+    }
+
+    return result?.rows || [];
+  }
+
   /**
-   * Cierra la semana y crea liquidaciones para todos los drivers con deuda
+   * FLUJO RESTRICTIVO VIERNES: Cierra la semana y crea liquidaciones
    * Se ejecuta cada viernes a las 11:59 PM
+   * BLOQUEA inmediatamente a drivers con deuda para forzar liquidación
    */
   static async closeWeek() {
     const today = new Date();
@@ -15,58 +25,112 @@ export class WeeklySettlementService {
     
     // Obtener todos los drivers con cash_owed > 0
     const driversWithDebt = await db.execute(sql`
-      SELECT user_id, cash_owed 
-      FROM wallets 
-      WHERE cash_owed > 0
+      SELECT w.user_id, w.cash_owed, u.name, u.phone
+      FROM wallets w
+      JOIN users u ON w.user_id = u.id
+      WHERE w.cash_owed > 0
     `);
     
-    for (const driver of driversWithDebt.rows as any[]) {
+    let settlementsCreated = 0;
+    
+    const driverRows = this.getRows(driversWithDebt);
+    for (const driver of driverRows as any[]) {
       // Crear liquidación semanal
       await db.execute(sql`
         INSERT INTO weekly_settlements 
-        (id, driver_id, week_start, week_end, amount_owed, status, created_at)
+        (id, driver_id, week_start, week_end, amount_owed, status, created_at, deadline)
         VALUES (UUID(), ${driver.user_id}, ${weekStart.toISOString().split('T')[0]}, 
-                ${weekEnd.toISOString().split('T')[0]}, ${driver.cash_owed}, 'pending', NOW())
+                ${weekEnd.toISOString().split('T')[0]}, ${driver.cash_owed}, 'pending', NOW(), 
+                DATE_ADD(NOW(), INTERVAL 48 HOUR))
       `);
-    }
-    
-    console.log(`✅ Semana cerrada. ${driversWithDebt.rows.length} liquidaciones creadas.`);
-    return { success: true, count: driversWithDebt.rows.length };
-  }
-  
-  /**
-   * Bloquea drivers que no pagaron en 48 horas
-   * Se ejecuta cada lunes a las 12:00 AM
-   */
-  static async blockUnpaidDrivers() {
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    
-    // Obtener liquidaciones pendientes de hace más de 48 horas
-    const unpaidSettlements = await db.execute(sql`
-      SELECT DISTINCT driver_id 
-      FROM weekly_settlements 
-      WHERE status = 'pending' 
-      AND created_at < ${twoDaysAgo.toISOString()}
-    `);
-    
-    for (const settlement of unpaidSettlements.rows as any[]) {
-      // Bloquear driver
+      
+      // FLUJO RESTRICTIVO: Bloquear inmediatamente para forzar liquidación
       await db.execute(sql`
         UPDATE users 
-        SET is_active = 0 
-        WHERE id = ${settlement.driver_id}
+        SET is_active = 0, blocked_reason = CONCAT('Deuda semanal: $', ${(driver.cash_owed / 100).toFixed(2)}, '. Liquida antes del lunes.')
+        WHERE id = ${driver.user_id}
       `);
       
       await db.execute(sql`
         UPDATE delivery_drivers 
         SET is_available = 0 
-        WHERE user_id = ${settlement.driver_id}
+        WHERE user_id = ${driver.user_id}
       `);
+      
+      settlementsCreated++;
+      
+      logger.info(`🚫 Driver ${driver.name} bloqueado por deuda: $${(driver.cash_owed / 100).toFixed(2)}`);
     }
     
-    console.log(`🚫 ${unpaidSettlements.rows.length} drivers bloqueados por falta de pago.`);
-    return { success: true, blocked: unpaidSettlements.rows.length };
+    // Registrar cierre de semana en audit log
+    await db.execute(sql`
+      INSERT INTO audit_logs (action, details, created_at)
+      VALUES ('weekly_close', JSON_OBJECT('settlements_created', ${settlementsCreated}, 'drivers_blocked', ${settlementsCreated}), NOW())
+    `);
+    
+    console.log(`✅ FLUJO RESTRICTIVO: Semana cerrada. ${settlementsCreated} drivers bloqueados hasta liquidar.`);
+    return { success: true, count: settlementsCreated, blocked: settlementsCreated };
+  }
+  
+  /**
+   * BLOQUEO LUNES: Bloquea drivers que no pagaron en 48 horas
+   * Se ejecuta cada lunes a las 12:00 AM
+   * Garantiza que cuentas se bloqueen si no liquidan
+   */
+  static async blockUnpaidDrivers() {
+    const now = new Date();
+    
+    // Obtener liquidaciones vencidas (más de 48 horas)
+    const overdueSettlements = await db.execute(sql`
+      SELECT DISTINCT ws.driver_id, ws.amount_owed, u.name, u.phone
+      FROM weekly_settlements ws
+      JOIN users u ON ws.driver_id = u.id
+      WHERE ws.status = 'pending' 
+      AND ws.deadline < NOW()
+      AND u.is_active = 1
+    `);
+    
+    let driversBlocked = 0;
+    
+      const overdueRows = this.getRows(overdueSettlements);
+      for (const settlement of overdueRows as any[]) {
+      // Bloquear driver definitivamente
+      await db.execute(sql`
+        UPDATE users 
+        SET is_active = 0, 
+            blocked_reason = CONCAT('Deuda vencida: $', ${(settlement.amount_owed / 100).toFixed(2)}, '. Contacta soporte para reactivar.'),
+            blocked_at = NOW()
+        WHERE id = ${settlement.driver_id}
+      `);
+      
+      await db.execute(sql`
+        UPDATE delivery_drivers 
+        SET is_available = 0, 
+            blocked_reason = 'Deuda vencida sin liquidar'
+        WHERE user_id = ${settlement.driver_id}
+      `);
+      
+      // Marcar liquidaciones como vencidas
+      await db.execute(sql`
+        UPDATE weekly_settlements 
+        SET status = 'overdue', 
+            notes = 'Driver bloqueado por falta de pago'
+        WHERE driver_id = ${settlement.driver_id} AND status = 'pending'
+      `);
+      
+      driversBlocked++;
+      
+      logger.error(`🚫 Driver ${settlement.name} BLOQUEADO por deuda vencida: $${(settlement.amount_owed / 100).toFixed(2)}`);
+    }
+    
+    // Registrar bloqueos en audit log
+    await db.execute(sql`
+      INSERT INTO audit_logs (action, details, created_at)
+      VALUES ('monday_block', JSON_OBJECT('drivers_blocked', ${driversBlocked}), NOW())
+    `);
+    
+    console.log(`🚫 BLOQUEO LUNES: ${driversBlocked} drivers bloqueados por falta de pago.`);
+    return { success: true, blocked: driversBlocked };
   }
   
   /**
@@ -81,7 +145,8 @@ export class WeeklySettlementService {
       LIMIT 1
     `);
     
-    return result.rows[0] || null;
+      const rows = this.getRows(result);
+      return rows[0] || null;
   }
   
   /**
@@ -100,17 +165,20 @@ export class WeeklySettlementService {
   }
   
   /**
-   * Admin aprueba liquidación
+   * Admin aprueba liquidación y TRANSFIERE COMISIONES VÍA STRIPE
+   * Integración con Stripe Connect para transferencias automáticas
    */
   static async approveSettlement(settlementId: string, adminId: string) {
     // Obtener la liquidación
     const result = await db.execute(sql`
-      SELECT driver_id, amount_owed 
-      FROM weekly_settlements 
-      WHERE id = ${settlementId}
+      SELECT ws.driver_id, ws.amount_owed, u.name, u.stripe_account_id
+      FROM weekly_settlements ws
+      JOIN users u ON ws.driver_id = u.id
+      WHERE ws.id = ${settlementId}
     `);
     
-    const settlement = result.rows[0] as any;
+      const rows = this.getRows(result);
+      const settlement = rows[0] as any;
     
     if (!settlement) {
       throw new Error("Liquidación no encontrada");
@@ -132,12 +200,51 @@ export class WeeklySettlementService {
       WHERE user_id = ${settlement.driver_id}
     `);
     
-    // Desbloquear driver si estaba bloqueado
+    // TRANSFERENCIA STRIPE: Enviar comisiones semanales al driver
+    if (settlement.stripe_account_id) {
+      try {
+        const { createTransfer } = await import('./stripeConnectService');
+        
+        // Calcular comisión semanal del driver (15% de sus entregas)
+        const weeklyEarnings = await this.calculateDriverWeeklyEarnings(settlement.driver_id);
+        
+        if (weeklyEarnings > 0) {
+          const transfer = await createTransfer(
+            settlement.stripe_account_id,
+            weeklyEarnings,
+            `weekly-settlement-${settlementId}`
+          );
+          
+          // Registrar transferencia
+          await db.execute(sql`
+            INSERT INTO stripe_transfers (settlement_id, driver_id, stripe_transfer_id, amount, status, created_at)
+            VALUES (${settlementId}, ${settlement.driver_id}, ${transfer.id}, ${weeklyEarnings}, 'completed', NOW())
+          `);
+          
+          logger.info(`💰 Transferencia Stripe: $${(weeklyEarnings / 100).toFixed(2)} a ${settlement.name}`);
+        }
+      } catch (error) {
+        logger.error(`❌ Error en transferencia Stripe para ${settlement.name}:`, error);
+      }
+    }
+    
+    // Desbloquear driver
     await db.execute(sql`
       UPDATE users 
-      SET is_active = 1 
+      SET is_active = 1, 
+          blocked_reason = NULL,
+          blocked_at = NULL
       WHERE id = ${settlement.driver_id}
     `);
+    
+    await db.execute(sql`
+      UPDATE delivery_drivers 
+      SET is_available = 1, 
+          blocked_reason = NULL
+      WHERE user_id = ${settlement.driver_id}
+    `);
+    
+    logger.info(`✅ Liquidación aprobada: ${settlement.name} - $${(settlement.amount_owed / 100).toFixed(2)}`);
     
     return { success: true };
   }
@@ -170,6 +277,57 @@ export class WeeklySettlementService {
       ORDER BY ws.created_at DESC
     `);
     
+      return this.getRows(result);
+  }
+
+  /**
+   * Calcular ganancias semanales del driver para transferencia Stripe
+   */
+  static async calculateDriverWeeklyEarnings(driverId: string): Promise<number> {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    const result = await db.execute(sql`
+      SELECT COALESCE(SUM(delivery_earnings), 0) as total_earnings
+      FROM orders 
+      WHERE delivery_person_id = ${driverId}
+      AND status = 'delivered'
+      AND delivered_at >= ${weekAgo.toISOString()}
+      AND payment_method = 'card'
+    `);
+    
+    const earnings = (result.rows[0] as any)?.total_earnings || 0;
+    return Math.max(0, earnings);
+  }
+
+  /**
+   * Obtener historial completo de transacciones para auditoría
+   */
+  static async getTransactionHistory(driverId?: string, limit: number = 100) {
+    let query = sql`
+      SELECT 
+        t.id,
+        t.type,
+        t.amount,
+        t.description,
+        t.status,
+        t.created_at,
+        t.order_id,
+        u.name as user_name,
+        o.total as order_total,
+        o.payment_method
+      FROM transactions t
+      JOIN users u ON t.user_id = u.id
+      LEFT JOIN orders o ON t.order_id = o.id
+    `;
+    
+    if (driverId) {
+      query = sql`${query} WHERE t.user_id = ${driverId}`;
+    }
+    
+    query = sql`${query} ORDER BY t.created_at DESC LIMIT ${limit}`;
+    
+    const result = await db.execute(query);
     return result.rows;
   }
 }

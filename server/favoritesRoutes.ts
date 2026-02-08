@@ -5,55 +5,48 @@ const router = express.Router();
 
 console.log('🔧 Favorites routes loaded');
 
-// Get user favorites - SQL PURO
-router.get("/:userId", async (req, res) => {
+// Get user favorites
+router.get("/:userId", authenticateToken, async (req, res) => {
   try {
     const userId = req.params.userId;
     console.log('🔍 GETTING FAVORITES FOR:', userId);
-    
-    const mysql = require('mysql2/promise');
-    const connection = await mysql.createConnection({
-      host: 'localhost',
-      user: 'root',
-      password: '137920',
-      database: 'nemy_db_local'
-    });
 
-    const [rows] = await connection.execute(
-      `SELECT 
-        f.id,
-        f.user_id,
-        f.business_id,
-        f.product_id,
-        b.name as business_name,
-        b.image as business_image,
-        b.type as business_type,
-        b.rating as business_rating
-      FROM favorites f
-      LEFT JOIN businesses b ON f.business_id = b.id
-      WHERE f.user_id = ?`,
-      [userId]
-    );
+    const { favorites, businesses } = await import("@shared/schema-mysql");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
 
-    await connection.end();
+    const rows = await db
+      .select({
+        id: favorites.id,
+        userId: favorites.userId,
+        businessId: favorites.businessId,
+        productId: favorites.productId,
+        businessName: businesses.name,
+        businessImage: businesses.image,
+        businessType: businesses.type,
+        businessRating: businesses.rating,
+      })
+      .from(favorites)
+      .leftJoin(businesses, eq(favorites.businessId, businesses.id))
+      .where(eq(favorites.userId, userId));
 
-    console.log('✅ FOUND', rows.length, 'FAVORITES');
-
-    const favorites = (rows as any[]).map((row: any) => ({
+    const mapped = rows.map((row: any) => ({
       id: row.id,
-      userId: row.user_id,
-      businessId: row.business_id,
-      productId: row.product_id,
-      business: row.business_id ? {
-        id: row.business_id,
-        name: row.business_name,
-        image: row.business_image,
-        type: row.business_type,
-        rating: ((row.business_rating || 0) / 10).toFixed(1),
-      } : null,
+      userId: row.userId,
+      businessId: row.businessId,
+      productId: row.productId,
+      business: row.businessId
+        ? {
+            id: row.businessId,
+            name: row.businessName,
+            image: row.businessImage,
+            type: row.businessType,
+            rating: ((row.businessRating || 0) / 10).toFixed(1),
+          }
+        : null,
     }));
 
-    res.json(favorites);
+    res.json(mapped);
   } catch (error: any) {
     console.error("❌ ERROR:", error);
     res.status(500).json({ error: error.message });

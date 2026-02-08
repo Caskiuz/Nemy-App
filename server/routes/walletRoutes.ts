@@ -9,6 +9,7 @@ router.get("/balance", authenticateToken, async (req, res) => {
     const { wallets } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq } = await import("drizzle-orm");
+    const { cashSettlementService } = await import("../cashSettlementService");
 
     const [wallet] = await db
       .select()
@@ -23,6 +24,8 @@ router.get("/balance", authenticateToken, async (req, res) => {
           userId: req.user!.id,
           balance: 0,
           pendingBalance: 0,
+          cashOwed: 0,
+          cashPending: 0,
           totalEarned: 0,
           totalWithdrawn: 0,
         })
@@ -34,11 +37,21 @@ router.get("/balance", authenticateToken, async (req, res) => {
           id: newWallet.id,
           balance: 0,
           pendingBalance: 0,
+          cashOwed: 0,
+          cashPending: 0,
           availableBalance: 0,
           totalEarned: 0,
           totalWithdrawn: 0,
+          pendingCashOrders: [],
         },
       });
+    }
+
+    // Obtener deuda detallada si es repartidor
+    let pendingCashOrders = [];
+    if (req.user!.role === "delivery_driver" && wallet.cashOwed > 0) {
+      const debtInfo = await cashSettlementService.getDriverDebt(req.user!.id);
+      pendingCashOrders = debtInfo.pendingOrders;
     }
 
     res.json({
@@ -47,9 +60,12 @@ router.get("/balance", authenticateToken, async (req, res) => {
         id: wallet.id,
         balance: wallet.balance,
         pendingBalance: wallet.pendingBalance,
-        availableBalance: wallet.balance - wallet.pendingBalance,
+        cashOwed: wallet.cashOwed || 0,
+        cashPending: wallet.cashPending || 0,
+        availableBalance: wallet.balance - (wallet.cashOwed || 0),
         totalEarned: wallet.totalEarned,
         totalWithdrawn: wallet.totalWithdrawn,
+        pendingCashOrders,
       },
     });
   } catch (error: any) {
@@ -60,18 +76,18 @@ router.get("/balance", authenticateToken, async (req, res) => {
 // Get wallet transactions
 router.get("/transactions", authenticateToken, async (req, res) => {
   try {
-    const { walletTransactions } = await import("@shared/schema-mysql");
+    const { transactions } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq, desc } = await import("drizzle-orm");
 
-    const transactions = await db
+    const walletTransactions = await db
       .select()
-      .from(walletTransactions)
-      .where(eq(walletTransactions.userId, req.user!.id))
-      .orderBy(desc(walletTransactions.createdAt))
+      .from(transactions)
+      .where(eq(transactions.userId, req.user!.id))
+      .orderBy(desc(transactions.createdAt))
       .limit(50);
 
-    res.json({ success: true, transactions });
+    res.json({ success: true, transactions: walletTransactions });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -81,16 +97,24 @@ router.get("/transactions", authenticateToken, async (req, res) => {
 router.post(
   "/withdraw",
   authenticateToken,
-  requireRole("business_owner", "delivery_driver"),
   auditAction("request_withdrawal", "withdrawal"),
   async (req, res) => {
     try {
+      const { financialService } = await import("../unifiedFinancialService");
+      
+      // Validar permisos usando servicio centralizado
+      const canWithdraw = await financialService.canUserWithdraw(req.user!.id, req.user!.role);
+      if (!canWithdraw.allowed) {
+        return res.status(403).json({ error: canWithdraw.reason });
+      }
+
       const { requestWithdrawal } = await import("../withdrawalService");
       
       const result = await requestWithdrawal({
         userId: req.user!.id,
         amount: req.body.amount,
         method: req.body.method,
+        bankAccount: req.body.bankAccount,
       });
 
       res.json(result);

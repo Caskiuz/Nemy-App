@@ -1,4 +1,10 @@
 // Reset Financial Data - Mantiene usuarios, negocios y productos
+import * as dotenv from 'dotenv';
+import path from 'path';
+
+// Cargar variables de entorno
+dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
+
 import { db } from "./db";
 import { 
   orders, 

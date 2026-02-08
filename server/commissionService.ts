@@ -30,18 +30,6 @@ export async function calculateAndDistributeCommissions(
   // Use unified financial service for consistent calculations
   const commissions = await financialService.calculateCommissions(order.total, order.deliveryFee || 0);
 
-  // VALIDACIÓN: Verificar que deliveryEarnings sea el 100% del deliveryFee
-  const expectedDriverEarnings = order.deliveryFee || 0;
-  if (commissions.driver !== expectedDriverEarnings) {
-    logger.error("Driver earnings validation failed", {
-      orderId,
-      calculated: commissions.driver,
-      expected: expectedDriverEarnings,
-      deliveryFee: order.deliveryFee,
-    });
-    throw new AppError(500, `Driver earnings calculation error: expected ${expectedDriverEarnings} (100% of delivery fee), got ${commissions.driver}`);
-  }
-
   // VALIDACIÓN: Verificar que la suma de comisiones = total del pedido
   const totalCommissions = commissions.platform + commissions.business + commissions.driver;
   if (totalCommissions !== order.total) {

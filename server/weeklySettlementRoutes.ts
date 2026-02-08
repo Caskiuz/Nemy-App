@@ -16,11 +16,15 @@ router.get("/driver/pending", authenticateToken, async (req, res) => {
     const bankResult = await db.execute(sql`
       SELECT * FROM platform_bank_account WHERE is_active = 1 LIMIT 1
     `);
-    
+
+    const bankRows = Array.isArray(bankResult)
+      ? (Array.isArray(bankResult[0]) ? bankResult[0] : bankResult)
+      : bankResult?.rows || [];
+
     res.json({
       success: true,
       settlement,
-      bankAccount: bankResult.rows[0] || null,
+      bankAccount: bankRows[0] || null,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -107,8 +111,12 @@ router.get("/admin/bank-account", authenticateToken, async (req, res) => {
     const result = await db.execute(sql`
       SELECT * FROM platform_bank_account WHERE is_active = 1 LIMIT 1
     `);
-    
-    res.json({ success: true, bankAccount: result.rows[0] || null });
+
+    const rows = Array.isArray(result)
+      ? (Array.isArray(result[0]) ? result[0] : result)
+      : result?.rows || [];
+
+    res.json({ success: true, bankAccount: rows[0] || null });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

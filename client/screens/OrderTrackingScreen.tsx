@@ -412,6 +412,7 @@ export default function OrderTrackingScreen() {
           <OrderStatusBar status={order.status} />
         </View>
 
+        {/* Mapa funcional en APK */}
         <CollapsibleMap
           businessLocation={businessLocation}
           deliveryPersonLocation={deliveryLocation || undefined}

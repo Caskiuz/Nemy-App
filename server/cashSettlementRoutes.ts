@@ -36,7 +36,19 @@ router.get("/pending", authenticateToken, async (req, res) => {
       o.cashSettled === false
     );
     
-    const total = pendingOrders.reduce((sum, o) => sum + (o.businessEarnings || 0), 0);
+    // Calcular comisiones si no están definidas
+    const { financialService } = await import("./unifiedFinancialService");
+    let total = 0;
+    
+    for (const order of pendingOrders) {
+      if (order.businessEarnings) {
+        total += order.businessEarnings;
+      } else {
+        // Negocio recibe: 100% del subtotal
+        const businessShare = order.subtotal;
+        total += businessShare;
+      }
+    }
     
     res.json({
       success: true,
@@ -107,6 +119,16 @@ router.post("/settle/:orderId", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Este pedido ya fue liquidado" });
     }
     
+    // Calcular el monto total a descontar (business + platform)
+    const { financialService } = await import("./unifiedFinancialService");
+    const commissions = await financialService.calculateCommissions(
+      order.total,
+      order.deliveryFee || 0
+    );
+    
+    // El repartidor debe entregar: business + platform (NO su comisión)
+    const totalDebtForOrder = commissions.business + commissions.platform;
+    
     // Marcar como liquidado
     await db
       .update(orders)
@@ -116,10 +138,8 @@ router.post("/settle/:orderId", authenticateToken, async (req, res) => {
       })
       .where(eq(orders.id, orderId));
     
-    // Reducir deuda del driver
+    // Reducir deuda del driver por el monto COMPLETO
     if (order.deliveryPersonId) {
-      const businessShare = order.businessEarnings || 0;
-      
       const [driverWallet] = await db
         .select()
         .from(wallets)
@@ -130,18 +150,34 @@ router.post("/settle/:orderId", authenticateToken, async (req, res) => {
         await db
           .update(wallets)
           .set({
-            cashOwed: Math.max(0, driverWallet.cashOwed - businessShare),
+            cashOwed: Math.max(0, driverWallet.cashOwed - totalDebtForOrder),
           })
           .where(eq(wallets.userId, order.deliveryPersonId));
+        
+        // Registrar transacción de pago de deuda
+        await db.insert(transactions).values({
+          walletId: driverWallet.id,
+          userId: order.deliveryPersonId,
+          orderId: order.id,
+          type: "cash_debt_payment",
+          amount: -totalDebtForOrder,
+          balanceBefore: driverWallet.cashOwed,
+          balanceAfter: Math.max(0, driverWallet.cashOwed - totalDebtForOrder),
+          description: `Deuda liquidada por negocio - Pedido #${order.id.slice(-6)}`,
+          status: "completed",
+        });
       }
-      
-      // NO crear transacciones
     }
     
     res.json({
       success: true,
       message: "Liquidación registrada",
-      settled: (order.businessEarnings || 0) / 100,
+      settled: (totalDebtForOrder / 100).toFixed(2),
+      breakdown: {
+        business: (commissions.business / 100).toFixed(2),
+        platform: (commissions.platform / 100).toFixed(2),
+        total: (totalDebtForOrder / 100).toFixed(2),
+      },
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

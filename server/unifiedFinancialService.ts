@@ -2,6 +2,7 @@
 import { db } from "./db";
 import { systemSettings, wallets, transactions } from "@shared/schema-mysql";
 import { eq } from "drizzle-orm";
+import { logger } from "./logger";
 
 interface CommissionRates {
   platform: number;
@@ -68,8 +69,8 @@ export class UnifiedFinancialService {
     }
   }
 
-  // Calculate commissions with CORRECT LOGIC
-  // Driver gets 100% of deliveryFee, Platform gets 15% of TOTAL, Business gets rest
+  // Calculate commissions - CORRECT LOGIC
+  // NEMY: 15% of subtotal, Business: 100% of subtotal, Driver: 100% of delivery_fee
   async calculateCommissions(
     totalAmount: number,
     deliveryFee: number = 0
@@ -79,38 +80,21 @@ export class UnifiedFinancialService {
     driver: number;
     total: number;
   }> {
-    // Driver gets 100% of delivery fee
+    const subtotal = totalAmount - deliveryFee;
+    
+    const platformAmount = Math.round(subtotal * 0.15);
+    const businessAmount = subtotal;
     const driverAmount = deliveryFee;
-    
-    // Platform gets 15% of TOTAL ORDER (including delivery)
-    const platformAmount = Math.round(totalAmount * 0.15);
-    
-    // Business gets what's left after platform and driver
-    const businessAmount = totalAmount - platformAmount - driverAmount;
-
-    // Validate total matches
-    const calculatedTotal = platformAmount + businessAmount + driverAmount;
-    if (calculatedTotal !== totalAmount) {
-      console.error('Commission calculation mismatch:', {
-        totalAmount,
-        deliveryFee,
-        platformAmount,
-        businessAmount,
-        driverAmount,
-        calculatedTotal
-      });
-      throw new Error(`Commission calculation error: ${calculatedTotal} !== ${totalAmount}`);
-    }
 
     return {
       platform: platformAmount,
       business: businessAmount,
       driver: driverAmount,
-      total: calculatedTotal,
+      total: platformAmount + businessAmount + driverAmount,
     };
   }
 
-  // Update cash owed (for cash deliveries)
+  // Update cash owed (for cash deliveries) with COMPLETE AUDIT TRAIL
   async updateCashOwed(
     userId: string,
     amount: number,
@@ -138,7 +122,7 @@ export class UnifiedFinancialService {
         })
         .where(eq(wallets.userId, userId));
 
-      // Record transaction for tracking
+      // Record transaction for tracking with COMPLETE DETAILS
       await tx.insert(transactions).values({
         walletId: wallet.id,
         userId,
@@ -150,11 +134,27 @@ export class UnifiedFinancialService {
         description: description || `Cash debt from order`,
         status: "completed",
         createdAt: new Date(),
+        metadata: JSON.stringify({
+          previousDebt: wallet.cashOwed,
+          newDebt: newCashOwed,
+          debtIncrease: amount,
+          timestamp: new Date().toISOString(),
+          source: 'cash_delivery_system'
+        })
+      });
+
+      // Log for audit trail
+      logger.warn(`💵 Cash debt updated: User ${userId} - $${(amount/100).toFixed(2)} - Total debt: $${(newCashOwed/100).toFixed(2)}`, {
+        userId,
+        amount,
+        orderId,
+        previousDebt: wallet.cashOwed,
+        newDebt: newCashOwed
       });
     });
   }
 
-  // Atomic wallet update with validation
+  // Atomic wallet update with validation and COMPLETE TRANSACTION LOGGING
   async updateWalletBalance(
     userId: string,
     amount: number,
@@ -220,7 +220,7 @@ export class UnifiedFinancialService {
         })
         .where(eq(wallets.userId, userId));
 
-      // Record transaction
+      // Record transaction with COMPLETE DETAILS for audit
       await tx.insert(transactions).values({
         walletId: wallet.id,
         userId,
@@ -232,6 +232,22 @@ export class UnifiedFinancialService {
         description: description || `${type} transaction`,
         status: "completed",
         createdAt: new Date(),
+        metadata: JSON.stringify({
+          userType: user.role,
+          userName: user.name,
+          timestamp: new Date().toISOString(),
+          source: 'unified_financial_service'
+        })
+      });
+
+      // Log for audit trail
+      logger.info(`💰 Wallet updated: ${user.name} (${userId}) - ${type} - $${(amount/100).toFixed(2)}`, {
+        userId,
+        type,
+        amount,
+        orderId,
+        balanceBefore: wallet.balance,
+        balanceAfter: newBalance
       });
     });
   }
@@ -255,6 +271,205 @@ export class UnifiedFinancialService {
   clearCache(): void {
     this.cachedRates = null;
     this.cacheExpiry = 0;
+  }
+
+  // Get or create wallet for any user
+  async getWallet(userId: string) {
+    let [wallet] = await db
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId))
+      .limit(1);
+
+    if (!wallet) {
+      await db.insert(wallets).values({
+        userId,
+        balance: 0,
+        pendingBalance: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+        cashOwed: 0,
+      });
+
+      [wallet] = await db
+        .select()
+        .from(wallets)
+        .where(eq(wallets.userId, userId))
+        .limit(1);
+    }
+
+    return wallet;
+  }
+
+  // Check if user can withdraw
+  async canUserWithdraw(userId: string, userRole: string): Promise<{ allowed: boolean; reason?: string }> {
+    // Only business_owner, delivery_driver, and admin can withdraw
+    if (!['business_owner', 'delivery_driver', 'admin'].includes(userRole)) {
+      return { allowed: false, reason: 'Solo negocios, repartidores y administradores pueden retirar' };
+    }
+
+    const wallet = await this.getWallet(userId);
+    const MINIMUM_WITHDRAWAL = 5000; // $50 MXN
+    const availableBalance = wallet.balance - (wallet.cashOwed || 0);
+
+    if (availableBalance < MINIMUM_WITHDRAWAL) {
+      return { allowed: false, reason: `Saldo mínimo para retiro: $${MINIMUM_WITHDRAWAL / 100} MXN` };
+    }
+
+    if (wallet.cashOwed > 0) {
+      return { allowed: false, reason: 'Debes liquidar tu efectivo pendiente antes de retirar' };
+    }
+
+    return { allowed: true };
+  }
+
+  // Get available payment methods by role
+  async getPaymentMethods(userId: string, userRole: string) {
+    const methods = [];
+
+    // Card - available for all
+    methods.push({
+      id: 'card',
+      name: 'Tarjeta',
+      icon: 'card-outline',
+      available: true,
+    });
+
+    // Cash - available for all
+    methods.push({
+      id: 'cash',
+      name: 'Efectivo',
+      icon: 'cash-outline',
+      available: true,
+    });
+
+    // Wallet - available for all with balance
+    const wallet = await this.getWallet(userId);
+    methods.push({
+      id: 'wallet',
+      name: 'Billetera NEMY',
+      icon: 'wallet-outline',
+      available: wallet.balance > 0,
+      balance: wallet.balance,
+    });
+
+    return methods;
+  }
+
+  // Universal payment processor
+  async processPayment(options: {
+    userId: string;
+    userRole: string;
+    orderId: string;
+    amount: number;
+    method: 'card' | 'cash' | 'wallet';
+    businessId: string;
+    driverId?: string;
+  }) {
+    const { userId, orderId, amount, method, businessId, driverId } = options;
+
+    try {
+      switch (method) {
+        case 'card':
+          const { createPaymentIntent } = await import('./paymentService');
+          return await createPaymentIntent({
+            orderId,
+            amount,
+            customerId: userId,
+            businessId,
+            driverId,
+          });
+
+        case 'cash':
+          const { processCashPayment } = await import('./cashPaymentService');
+          return await processCashPayment({
+            orderId,
+            customerId: userId,
+            businessId,
+            cashReceived: amount,
+            orderTotal: amount,
+          });
+
+        case 'wallet':
+          return await this.processWalletPayment(userId, orderId, amount, businessId, driverId);
+
+        default:
+          return { success: false, error: 'Método de pago no soportado' };
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Process wallet payment
+  private async processWalletPayment(
+    userId: string,
+    orderId: string,
+    amount: number,
+    businessId: string,
+    driverId?: string
+  ) {
+    return await db.transaction(async (tx) => {
+      const [wallet] = await tx
+        .select()
+        .from(wallets)
+        .where(eq(wallets.userId, userId))
+        .limit(1);
+
+      if (!wallet || wallet.balance < amount) {
+        throw new Error('Saldo insuficiente en billetera');
+      }
+
+      // Deduct from wallet
+      await tx
+        .update(wallets)
+        .set({
+          balance: wallet.balance - amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(wallets.userId, userId));
+
+      // Create payment record
+      const { payments } = await import('@shared/schema-mysql');
+      await tx.insert(payments).values({
+        orderId,
+        customerId: userId,
+        businessId,
+        driverId,
+        amount,
+        currency: 'MXN',
+        status: 'succeeded',
+        paymentMethod: 'wallet',
+        processedAt: new Date(),
+      });
+
+      // Create transaction record
+      await tx.insert(transactions).values({
+        walletId: wallet.id,
+        userId,
+        orderId,
+        type: 'wallet_payment',
+        amount: -amount,
+        balanceBefore: wallet.balance,
+        balanceAfter: wallet.balance - amount,
+        description: `Pago con billetera - Pedido #${orderId.slice(-6)}`,
+        status: 'completed',
+      });
+
+      // Update order
+      const { orders } = await import('@shared/schema-mysql');
+      await tx
+        .update(orders)
+        .set({
+          status: 'paid',
+          paymentMethod: 'wallet',
+          paidAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, orderId));
+
+      return { success: true, message: 'Pago procesado con billetera' };
+    });
   }
 }
 

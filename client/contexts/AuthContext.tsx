@@ -7,6 +7,7 @@ import { User, UserRole } from "@/types";
 
 interface AuthContextType {
   user: User | null;
+  token: string | null; // Add explicit token field
   isLoading: boolean;
   isAuthenticated: boolean;
   pendingVerificationPhone: string | null;
@@ -43,6 +44,7 @@ const BIOMETRIC_PHONE_KEY = "@nemy_biometric_phone";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null); // Add token state
   const [isLoading, setIsLoading] = useState(true);
   const [pendingVerificationPhone, setPendingVerificationPhone] = useState<
     string | null
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         const userData = JSON.parse(stored);
         setUser(userData);
+        setToken(userData.token || null); // Set token from user data
         
         // Ensure token is also stored separately for easy access
         if (userData.token) {
@@ -382,6 +385,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     setUser(null);
+    setToken(null);
     setPendingVerificationPhone(null);
   };
 
@@ -397,6 +401,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        token,
         isLoading,
         isAuthenticated: !!user,
         pendingVerificationPhone,

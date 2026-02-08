@@ -62,8 +62,11 @@ router.get("/stats", authenticateToken, requireRole("business_owner"), async (re
   try {
     const { businesses, orders } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
-    const { eq, inArray } = await import("drizzle-orm");
+    const { eq } = await import("drizzle-orm");
 
+    // Get the specific business (first one if no businessId provided)
+    const requestedBusinessId = req.query.businessId as string | undefined;
+    
     const ownerBusinesses = await db
       .select()
       .from(businesses)
@@ -73,12 +76,20 @@ router.get("/stats", authenticateToken, requireRole("business_owner"), async (re
       return res.status(404).json({ error: "No businesses found" });
     }
 
-    const businessIds = ownerBusinesses.map(b => b.id);
+    let targetBusiness;
+    if (requestedBusinessId) {
+      targetBusiness = ownerBusinesses.find(b => b.id === requestedBusinessId);
+      if (!targetBusiness) {
+        return res.status(403).json({ error: "No tienes acceso a este negocio" });
+      }
+    } else {
+      targetBusiness = ownerBusinesses[0]; // Default to first business
+    }
     
     const businessOrders = await db
       .select()
       .from(orders)
-      .where(inArray(orders.businessId, businessIds));
+      .where(eq(orders.businessId, targetBusiness.id));
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -119,12 +130,16 @@ router.get("/stats", authenticateToken, requireRole("business_owner"), async (re
     const avgValue = deliveredOrders.length > 0 ? Math.round(totalRevenue / deliveredOrders.length) : 0;
 
     console.log('📊 BUSINESS STATS DEBUG:');
+    console.log('  Business ID:', targetBusiness.id);
+    console.log('  Business Name:', targetBusiness.name);
     console.log('  Total Revenue:', totalRevenue, '=', (totalRevenue/100).toFixed(2));
     console.log('  Delivered Orders:', deliveredOrders.length);
     console.log('  Avg Value:', avgValue, '=', (avgValue/100).toFixed(2));
 
     res.json({
       success: true,
+      businessId: targetBusiness.id,
+      businessName: targetBusiness.name,
       revenue: {
         today: Math.round(todayRevenue),
         week: Math.round(weekRevenue),

@@ -355,6 +355,29 @@ export const withdrawals = mysqlTable("withdrawals", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Withdrawal Requests - Solicitudes de retiro con detalles bancarios
+export const withdrawalRequests = mysqlTable("withdrawal_requests", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  walletId: varchar("wallet_id", { length: 255 }).notNull(),
+  amount: int("amount").notNull(), // en centavos
+  method: text("method").notNull(), // stripe, bank_transfer
+  status: text("status").notNull().default("pending"), // pending, completed, failed, cancelled
+  // Datos bancarios para transferencia SPEI
+  bankClabe: varchar("bank_clabe", { length: 18 }), // CLABE interbancaria (18 dígitos)
+  bankName: text("bank_name"),
+  accountHolder: text("account_holder"),
+  // Stripe
+  stripePayoutId: text("stripe_payout_id"),
+  // Admin
+  approvedBy: varchar("approved_by", { length: 255 }),
+  errorMessage: text("error_message"),
+  requestedAt: timestamp("requested_at").default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+});
+
 // Delivery Drivers - Repartidores
 export const deliveryDrivers = mysqlTable("delivery_drivers", {
   id: varchar("id", { length: 255 })
@@ -396,6 +419,7 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type StripeConnectAccount = typeof stripeConnectAccounts.$inferSelect;
 export type Withdrawal = typeof withdrawals.$inferSelect;
+export type WithdrawalRequest = typeof withdrawalRequests.$inferSelect;
 export type DeliveryDriver = typeof deliveryDrivers.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Payment = typeof payments.$inferSelect;

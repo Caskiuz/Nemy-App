@@ -205,8 +205,8 @@ router.get(
       : 0;
 
     // Obtener resumen de efectivo
-    const { CashSettlementService } = await import("./cashSettlementService");
-    const cashSummary = await CashSettlementService.getDriverCashSummary(userId);
+    const { cashSettlementService } = await import("./cashSettlementService");
+    const cashSummary = await cashSettlementService.getDriverDebt(userId);
 
     const canWithdraw = Math.max(0, (wallet?.balance || 0) - (wallet?.cashOwed || 0));
 
@@ -226,7 +226,7 @@ router.get(
         // Info de efectivo
         cashOwed: wallet?.cashOwed || 0,
         availableToWithdraw: canWithdraw,
-        pendingCashOrders: cashSummary.pendingOrders,
+        pendingCashOrders: cashSummary.pendingOrders || [],
       },
     });
   }),
@@ -489,6 +489,10 @@ router.post(
       throw new AuthorizationError("Not your order");
     }
 
+    if (order.status === "delivered") {
+      return res.status(400).json({ error: "Order already delivered" });
+    }
+
     if (order.status !== "picked_up" && order.status !== "on_the_way" && order.status !== "in_transit") {
       throw new ValidationError("Order must be picked up or on the way first");
     }
@@ -516,14 +520,19 @@ router.post(
 
     // Si es pago en efectivo, registrar liquidación
     if (order.paymentMethod === "cash") {
-      const { CashSettlementService } = await import("./cashSettlementService");
-      const settlement = await CashSettlementService.recordCashCollection(orderId, userId);
+      const { cashSettlementService } = await import("./cashSettlementService");
+      await cashSettlementService.registerCashDebt(
+        orderId,
+        userId,
+        order.businessId,
+        order.total,
+        order.deliveryFee
+      );
       
-      logger.delivery("Cash collected", { 
+      logger.delivery("Cash order completed - debt registered", { 
         orderId, 
         driverId: userId,
-        totalCollected: settlement.totalCollected,
-        totalOwed: settlement.totalOwed,
+        total: order.total,
       });
     } else {
       // Si es tarjeta, distribuir comisiones normalmente

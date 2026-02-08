@@ -91,10 +91,9 @@ export default function CartScreen() {
   const deliveryFee = calculatedDeliveryFee ?? 25; // Precio REAL, no estimado
   const minimumOrder = business?.minimumOrder || 0;
   
-  // MARKUP VISIBLE: Agregar 15% NEMY a productos (TRANSPARENTE)
+  // SIN MARKUP: Usar precio base de productos
   const productosBase = subtotal;
-  const nemyCommission = Math.round(subtotal * 0.15 * 100) / 100;
-  const subtotalConMarkup = productosBase + nemyCommission;
+  const subtotalConMarkup = productosBase; // Sin markup visible
   const total = subtotalConMarkup + deliveryFee;
   const canProceed = subtotal >= minimumOrder;
 
@@ -104,9 +103,9 @@ export default function CartScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Pasar el subtotal CON markup Y el delivery fee calculado al checkout
+    // Pasar el subtotal SIN markup al checkout
     navigation.navigate("Checkout", { 
-      subtotalWithMarkup: subtotalConMarkup,
+      subtotalWithMarkup: productosBase, // Sin markup
       calculatedDeliveryFee: deliveryFee 
     } as any);
   };
@@ -291,18 +290,6 @@ export default function CartScreen() {
             Productos
           </ThemedText>
           <ThemedText type="body">${productosBase.toFixed(2)}</ThemedText>
-        </View>
-        <View style={styles.summaryRow}>
-          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-            Comisión de servicio (15%)
-          </ThemedText>
-          <ThemedText type="caption">${nemyCommission.toFixed(2)}</ThemedText>
-        </View>
-        <View style={[styles.summaryRow, { borderTopWidth: 1, borderTopColor: "rgba(0,0,0,0.1)", paddingTop: Spacing.sm, marginTop: Spacing.sm }]}>
-          <ThemedText type="body" style={{ fontWeight: "600" }}>
-            Subtotal
-          </ThemedText>
-          <ThemedText type="body" style={{ fontWeight: "600" }}>${subtotalConMarkup.toFixed(2)}</ThemedText>
         </View>
         <View style={styles.summaryRow}>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>

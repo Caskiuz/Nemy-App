@@ -2,6 +2,8 @@ import express from "express";
 
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || "nemy_local_secret_key";
+
 // Phone login
 router.post("/phone-login", async (req, res) => {
   try {
@@ -66,7 +68,7 @@ router.post("/phone-login", async (req, res) => {
 
     const token = jwt.default.sign(
       { id: user[0].id, phone: user[0].phone, role: user[0].role },
-      process.env.JWT_SECRET || "demo-secret",
+      JWT_SECRET,
       { expiresIn: "7d" }
     );
 
@@ -143,7 +145,7 @@ router.post("/dev-email-login", async (req, res) => {
 
     const token = jwt.default.sign(
       { id: user[0].id, phone: user[0].phone, role: user[0].role },
-      process.env.JWT_SECRET || "demo-secret",
+      JWT_SECRET,
       { expiresIn: "7d" }
     );
 
@@ -339,7 +341,7 @@ router.post("/biometric-login", async (req, res) => {
 
     const token = jwt.default.sign(
       { id: user[0].id, phone: user[0].phone, role: user[0].role },
-      process.env.JWT_SECRET || "demo-secret",
+      JWT_SECRET,
       { expiresIn: "7d" }
     );
 

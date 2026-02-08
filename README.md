@@ -33,9 +33,6 @@ CREATE DATABASE nemy_db_local;
 
 # Aplicar schema
 npm run db:push
-
-# Cargar datos de ejemplo (RECOMENDADO)
-load-demo-data.bat
 ```
 
 ## 🔧 Configuración
@@ -73,24 +70,12 @@ BACKEND_URL=http://localhost:5000
 
 ### Iniciar Backend
 ```bash
-npm run server:demo
+npm run server:start
 ```
 
 ### Iniciar Frontend
 ```bash
 npm run expo:dev
-```
-
-### Demo Completo con Cloudflare Tunnel
-```bash
-# Windows
-demo.bat
-
-# El script automáticamente:
-# - Inicia backend y frontend
-# - Crea tunnels públicos
-# - Configura CORS
-# - Genera URLs para compartir
 ```
 
 ## 📊 Base de Datos
@@ -123,7 +108,7 @@ NEMY-APP/
 ├── server/              # Backend Express
 │   ├── routes.ts        # Rutas API
 │   ├── db.ts           # Conexión MySQL
-│   ├── server-demo.ts  # Servidor demo
+│   ├── server.ts       # Servidor principal
 │   └── *.ts            # Servicios
 ├── shared/              # Código compartido
 │   └── schema-mysql.ts # Schema Drizzle
@@ -207,22 +192,6 @@ Ver documentación completa en [FINANCIAL-AUDIT-SYSTEM.md](./FINANCIAL-AUDIT-SYS
 - Configuración de comisiones
 
 ## 🧪 Testing
-
-### Datos de Ejemplo
-```bash
-# Cargar datos de prueba completos
-load-demo-data.bat
-
-# Ver guía completa
-cat DEMO-DATA-GUIDE.md
-```
-
-Incluye:
-- 8 usuarios (clientes, negocios, repartidores, admin)
-- 5 negocios con 24 productos
-- 5 pedidos activos en diferentes estados
-- Wallets con saldos
-- Transacciones y reseñas
 
 ### Testing Manual
 ```bash

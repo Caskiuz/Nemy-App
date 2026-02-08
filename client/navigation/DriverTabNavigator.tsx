@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 
 import DriverAvailableOrdersScreen from "@/screens/DriverAvailableOrdersScreen";
 import DriverMyDeliveriesScreen from "@/screens/DriverMyDeliveriesScreen";
-import DeliveryEarningsScreen from "@/screens/DeliveryEarningsScreen";
+import WithdrawalScreen from "@/screens/WithdrawalScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { NemyColors } from "@/constants/theme";
@@ -52,10 +52,10 @@ export default function DriverTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="DriverEarnings"
-        component={DeliveryEarningsScreen}
+        name="DriverWithdrawal"
+        component={WithdrawalScreen}
         options={{
-          title: "Wallet",
+          title: "Retiros",
           tabBarIcon: ({ color, size }) => (
             <Feather name="dollar-sign" size={size} color={color} />
           ),
