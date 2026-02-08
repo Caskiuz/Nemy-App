@@ -30,6 +30,11 @@ const { width } = Dimensions.get("window");
 const COLLAPSED_HEIGHT = 60;
 const EXPANDED_HEIGHT = 300;
 
+const isValidLocation = (location?: Location): location is Location => {
+  if (!location) return false;
+  return Number.isFinite(location.latitude) && Number.isFinite(location.longitude);
+};
+
 export function CollapsibleMap({
   businessLocation,
   deliveryPersonLocation,
@@ -58,7 +63,7 @@ export function CollapsibleMap({
       businessLocation,
       deliveryPersonLocation,
       customerLocation,
-    ].filter(Boolean) as Location[];
+    ].filter(isValidLocation);
     if (locations.length === 0) {
       return {
         latitude: 19.7708,
@@ -85,9 +90,9 @@ export function CollapsibleMap({
 
   const getRouteCoordinates = () => {
     const coords: Location[] = [];
-    if (businessLocation) coords.push(businessLocation);
-    if (deliveryPersonLocation) coords.push(deliveryPersonLocation);
-    if (customerLocation) coords.push(customerLocation);
+    if (isValidLocation(businessLocation)) coords.push(businessLocation);
+    if (isValidLocation(deliveryPersonLocation)) coords.push(deliveryPersonLocation);
+    if (isValidLocation(customerLocation)) coords.push(customerLocation);
     return coords;
   };
 
@@ -144,12 +149,13 @@ export function CollapsibleMap({
           <MapView
             style={styles.map}
             initialRegion={getInitialRegion()}
+            provider={PROVIDER_GOOGLE}
             showsUserLocation={false}
             showsMyLocationButton={false}
             showsCompass={false}
             mapType="standard"
           >
-            {businessLocation ? (
+            {isValidLocation(businessLocation) ? (
               <Marker
                 coordinate={businessLocation}
                 title="Negocio"
@@ -166,7 +172,7 @@ export function CollapsibleMap({
               </Marker>
             ) : null}
 
-            {deliveryPersonLocation ? (
+            {isValidLocation(deliveryPersonLocation) ? (
               <Marker
                 coordinate={deliveryPersonLocation}
                 title="Repartidor"
@@ -183,7 +189,7 @@ export function CollapsibleMap({
               </Marker>
             ) : null}
 
-            {customerLocation ? (
+            {isValidLocation(customerLocation) ? (
               <Marker
                 coordinate={customerLocation}
                 title="Tu ubicacion"
