@@ -181,7 +181,7 @@ export default function CheckoutScreen({ route }: any) {
         "POST",
         "/api/stripe/create-payment-intent",
         {
-          amount: total,
+          amount: Math.round(total * 100),
           userId: user.id,
         },
       );
@@ -202,9 +202,11 @@ export default function CheckoutScreen({ route }: any) {
         setIsPaymentReady(true);
       } else {
         console.error("Error initializing payment sheet:", error);
+        setIsPaymentReady(false);
       }
     } catch (error) {
       console.error("Error creating payment intent:", error);
+      setIsPaymentReady(false);
     }
   };
 
@@ -256,7 +258,7 @@ export default function CheckoutScreen({ route }: any) {
         status: "pending",
         productosBase: productosBase,  // Para contabilidad
         nemyCommission: nemyCommission, // Para contabilidad
-        subtotal: Math.round(subtotal * 100),   // Cliente ve esto (ya con markup)
+        subtotal: Math.round(subtotal * 100),   // Precio base de productos
         deliveryFee: Math.round(deliveryFee * 100),
         total: Math.round(total * 100),
         paymentMethod,

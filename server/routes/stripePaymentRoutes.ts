@@ -3,8 +3,52 @@ import { authenticateToken } from "../authMiddleware";
 import { db } from "../db";
 import { users } from "@shared/schema-mysql";
 import { eq } from "drizzle-orm";
+import { getStripe } from "../stripeClient";
 
 const router = express.Router();
+
+// Publishable key for Stripe SDK
+router.get("/publishable-key", authenticateToken, async (_req, res) => {
+  try {
+    if (!process.env.STRIPE_PUBLISHABLE_KEY) {
+      return res.status(503).json({ error: "Stripe not configured" });
+    }
+
+    res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create PaymentIntent for checkout
+router.post("/create-payment-intent", authenticateToken, async (req, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PUBLISHABLE_KEY) {
+      return res.status(503).json({ error: "Stripe not configured" });
+    }
+
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    const stripe = getStripe();
+    const amountInCents = Math.round(amount);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "mxn",
+      metadata: {
+        userId: req.user!.id,
+      },
+    });
+
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (error: any) {
+    console.error("Create payment intent error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Get saved payment method
 router.get("/payment-method/:userId", authenticateToken, async (req, res) => {
