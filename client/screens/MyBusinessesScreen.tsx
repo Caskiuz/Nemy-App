@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -12,7 +12,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -26,8 +26,10 @@ import { useBusiness, Business } from "@/contexts/BusinessContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { useAuth } from "@/contexts/AuthContext";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type MyBusinessesRouteProp = RouteProp<RootStackParamList, "MyBusinesses">;
 
 const BUSINESS_TYPES = [
   { id: "restaurant", name: "Restaurante", icon: "coffee" },
@@ -42,6 +44,8 @@ export default function MyBusinessesScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<MyBusinessesRouteProp>();
+  const { user } = useAuth();
   const { 
     businesses, 
     selectedBusiness, 
@@ -66,6 +70,29 @@ export default function MyBusinessesScreen() {
     phone: "",
     image: "",
   });
+
+  useEffect(() => {
+    const params = route.params;
+    if (!params) return;
+
+    if (params.openAddModal) {
+      setShowAddModal(true);
+    }
+
+    if (params.draft) {
+      setNewBusiness((prev) => ({
+        ...prev,
+        name: params.draft?.name || prev.name,
+        type: params.draft?.type || prev.type,
+        address: params.draft?.address || prev.address,
+        phone: params.draft?.phone || prev.phone || user?.phone || "",
+      }));
+    }
+
+    if (params.openAddModal || params.draft) {
+      navigation.setParams({ openAddModal: undefined, draft: undefined });
+    }
+  }, [navigation, route.params, user?.phone]);
 
   useFocusEffect(
     useCallback(() => {

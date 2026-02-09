@@ -412,66 +412,6 @@ export default function WithdrawalScreen() {
         </View>
       )}
 
-      {/* Connect Status Card */}
-      {connectStatus && (
-        <View style={styles.connectCard}>
-          <View style={styles.connectHeader}>
-            <Ionicons 
-              name={connectStatus.canReceivePayments ? "checkmark-circle" : "time-outline"} 
-              size={24} 
-              color={connectStatus.canReceivePayments ? "#4CAF50" : "#FF9800"} 
-            />
-            <Text style={styles.connectTitle}>Cuenta Bancaria</Text>
-          </View>
-          
-          {!connectStatus.hasAccount ? (
-            <View>
-              <Text style={styles.connectDescription}>
-                Conecta tu cuenta bancaria para recibir retiros automáticos
-              </Text>
-              <TouchableOpacity 
-                style={styles.connectButton}
-                onPress={startOnboarding}
-                disabled={onboardingLoading}
-              >
-                {onboardingLoading ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <>
-                    <Ionicons name="add-circle-outline" size={20} color="white" />
-                    <Text style={styles.connectButtonText}>Configurar Cuenta</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : connectStatus.canReceivePayments ? (
-            <Text style={styles.connectSuccess}>
-              ✅ Tu cuenta está lista para retiros automáticos
-            </Text>
-          ) : (
-            <View>
-              <Text style={styles.connectWarning}>
-                ⚠️ Completa la configuración de tu cuenta
-              </Text>
-              <TouchableOpacity 
-                style={styles.connectButton}
-                onPress={refreshOnboarding}
-                disabled={onboardingLoading}
-              >
-                {onboardingLoading ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <>
-                    <Ionicons name="refresh-outline" size={18} color="white" />
-                    <Text style={styles.connectButtonText}>Completar</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
-
       {/* Withdrawal Form */}
       <View style={styles.form}>
         <Text style={styles.sectionTitle}>Solicitar Retiro</Text>
@@ -789,55 +729,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#999',
     marginTop: 2,
-  },
-  connectCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    margin: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  connectHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  connectTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  connectDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  connectSuccess: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '500',
-  },
-  connectWarning: {
-    fontSize: 14,
-    color: '#FF9800',
-    fontWeight: '500',
-    marginBottom: 12,
-  },
-  connectButton: {
-    backgroundColor: '#4CAF50',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  connectButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
   },
   bankForm: {
     marginTop: 16,

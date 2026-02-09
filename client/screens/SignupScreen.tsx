@@ -14,10 +14,12 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
@@ -26,6 +28,7 @@ import { UserRole } from "@/types";
 import { useToast } from "@/contexts/ToastContext";
 
 const foodBgImage = require("../../assets/images/food-ingredients-bg.png");
+const PENDING_BUSINESS_DRAFT_KEY = "@nemy_pending_business_draft";
 
 type SignupScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Signup">;
@@ -45,17 +48,26 @@ const ROLES: {
     description: "Pide comida y productos",
   },
   {
-    value: "business",
+    value: "business_owner",
     label: "Negocio",
     icon: "shopping-bag",
     description: "Vende tus productos",
   },
   {
-    value: "delivery",
+    value: "delivery_driver",
     label: "Repartidor",
     icon: "truck",
     description: "Entrega pedidos",
   },
+];
+
+const BUSINESS_TYPES = [
+  { id: "restaurant", name: "Restaurante" },
+  { id: "market", name: "Mercado" },
+  { id: "bakery", name: "Panaderia" },
+  { id: "grocery", name: "Abarrotes" },
+  { id: "pharmacy", name: "Farmacia" },
+  { id: "other", name: "Otro" },
 ];
 
 export default function SignupScreen({ navigation, route }: SignupScreenProps) {
@@ -73,8 +85,13 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState(initialPhone);
   const [role, setRole] = useState<UserRole>("customer");
+  const [businessName, setBusinessName] = useState("");
+  const [businessType, setBusinessType] = useState("restaurant");
+  const [businessAddress, setBusinessAddress] = useState("");
+  const [businessPhone, setBusinessPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showUserExistsModal, setShowUserExistsModal] = useState(false);
 
   const formatPhoneDisplay = (value: string) => {
     const numbers = value.replace(/\D/g, "");
@@ -87,6 +104,9 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
   const handlePhoneChange = (text: string) => {
     const numbers = text.replace(/\D/g, "").slice(0, 10);
     setPhone(numbers);
+    if (role === "business_owner" && !businessPhone) {
+      setBusinessPhone(numbers);
+    }
     if (errors.phone) {
       setErrors((prev) => ({ ...prev, phone: "" }));
     }
@@ -104,9 +124,7 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
       newErrors.name = "El nombre es requerido";
     }
 
-    if (!email.trim()) {
-      newErrors.email = "El correo es requerido";
-    } else if (!validateEmail(email)) {
+    if (email.trim() && !validateEmail(email)) {
       newErrors.email = "Ingresa un correo válido";
     }
 
@@ -126,6 +144,18 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
       newErrors.phone = "Ingresa 10 dígitos";
     }
 
+    if (role === "business_owner") {
+      if (!businessName.trim()) {
+        newErrors.businessName = "El nombre del negocio es requerido";
+      }
+      if (!businessAddress.trim()) {
+        newErrors.businessAddress = "La direccion es requerida";
+      }
+      if (!businessType) {
+        newErrors.businessType = "Selecciona el tipo de negocio";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -138,16 +168,33 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
 
     try {
       const formattedPhone = `+52${phone}`;
-      const result = await signup(name, role, formattedPhone, email, password);
+      const result = await signup(
+        name,
+        role,
+        formattedPhone,
+        email.trim() ? email : undefined,
+        password,
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       if (result?.requiresVerification) {
+        if (role === "business_owner") {
+          await AsyncStorage.setItem(
+            PENDING_BUSINESS_DRAFT_KEY,
+            JSON.stringify({
+              name: businessName.trim(),
+              type: businessType,
+              address: businessAddress.trim(),
+              phone: businessPhone.trim() || formattedPhone,
+            })
+          );
+        }
         navigation.navigate("VerifyPhone", { phone: formattedPhone });
       }
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error.message?.includes("already") || error.message?.includes("existe")) {
-        showToast("Este correo o teléfono ya está registrado. Inicia sesión.", "error");
+        setShowUserExistsModal(true);
       } else {
         setErrors({ email: error.message || "Error al crear la cuenta" });
       }
@@ -217,7 +264,7 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
             />
 
             <Input
-              label="Correo electrónico"
+              label="Correo electrónico (opcional)"
               placeholder="tu@email.com"
               leftIcon="mail"
               value={email}
@@ -359,6 +406,155 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
               </ThemedText>
             </View>
 
+            {role === "business_owner" ? (
+              <>
+                <ThemedText type="small" style={styles.inlineSectionTitle}>
+                  Datos del negocio
+                </ThemedText>
+                <ThemedText type="caption" style={styles.inlineSectionNote}>
+                  Solo lo esencial para empezar. Podras completar mas datos despues.
+                </ThemedText>
+
+                <View style={styles.inputWrapper}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Nombre del negocio
+                  </ThemedText>
+                  <View
+                    style={[
+                      styles.inputBox,
+                      errors.businessName ? styles.inputBoxError : null,
+                    ]}
+                  >
+                    <Feather
+                      name="briefcase"
+                      size={20}
+                      color="#666666"
+                      style={styles.inputBoxIcon}
+                    />
+                    <TextInput
+                      placeholder="Ej: Taqueria El Centro"
+                      value={businessName}
+                      onChangeText={(text) => {
+                        setBusinessName(text);
+                        if (errors.businessName) {
+                          setErrors((prev) => ({ ...prev, businessName: "" }));
+                        }
+                      }}
+                      placeholderTextColor="#999999"
+                      style={styles.textInput}
+                      selectionColor={NemyColors.primary}
+                    />
+                  </View>
+                  {errors.businessName ? (
+                    <ThemedText type="caption" style={styles.inputError}>
+                      {errors.businessName}
+                    </ThemedText>
+                  ) : null}
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Tipo de negocio
+                  </ThemedText>
+                  <View style={styles.businessTypeRow}>
+                    {BUSINESS_TYPES.map((type) => (
+                      <Pressable
+                        key={type.id}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setBusinessType(type.id);
+                          if (errors.businessType) {
+                            setErrors((prev) => ({ ...prev, businessType: "" }));
+                          }
+                        }}
+                        style={[
+                          styles.businessTypeChip,
+                          businessType === type.id && styles.businessTypeChipActive,
+                        ]}
+                      >
+                        <ThemedText
+                          type="caption"
+                          style={
+                            businessType === type.id
+                              ? styles.businessTypeChipTextActive
+                              : styles.businessTypeChipText
+                          }
+                        >
+                          {type.name}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {errors.businessType ? (
+                    <ThemedText type="caption" style={styles.inputError}>
+                      {errors.businessType}
+                    </ThemedText>
+                  ) : null}
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Direccion
+                  </ThemedText>
+                  <View
+                    style={[
+                      styles.inputBox,
+                      errors.businessAddress ? styles.inputBoxError : null,
+                    ]}
+                  >
+                    <Feather
+                      name="map-pin"
+                      size={20}
+                      color="#666666"
+                      style={styles.inputBoxIcon}
+                    />
+                    <TextInput
+                      placeholder="Calle y numero"
+                      value={businessAddress}
+                      onChangeText={(text) => {
+                        setBusinessAddress(text);
+                        if (errors.businessAddress) {
+                          setErrors((prev) => ({ ...prev, businessAddress: "" }));
+                        }
+                      }}
+                      placeholderTextColor="#999999"
+                      style={styles.textInput}
+                      selectionColor={NemyColors.primary}
+                    />
+                  </View>
+                  {errors.businessAddress ? (
+                    <ThemedText type="caption" style={styles.inputError}>
+                      {errors.businessAddress}
+                    </ThemedText>
+                  ) : null}
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Telefono del negocio (opcional)
+                  </ThemedText>
+                  <View style={styles.inputBox}>
+                    <Feather
+                      name="phone"
+                      size={20}
+                      color="#666666"
+                      style={styles.inputBoxIcon}
+                    />
+                    <TextInput
+                      placeholder="Ej: 317 123 4567"
+                      value={formatPhoneDisplay(businessPhone)}
+                      onChangeText={(text) => setBusinessPhone(text.replace(/\D/g, "").slice(0, 10))}
+                      keyboardType="phone-pad"
+                      placeholderTextColor="#999999"
+                      style={styles.textInput}
+                      selectionColor={NemyColors.primary}
+                      maxLength={12}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : null}
+
             <ThemedText type="small" style={styles.roleLabel}>
               ¿Cómo quieres usar NEMY?
             </ThemedText>
@@ -421,6 +617,12 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
               ))}
             </View>
 
+            {role === "delivery_driver" ? (
+              <ThemedText type="caption" style={styles.roleInlineNote}>
+                Repartidor: INE, selfie, licencia, vehiculo, placas, CLABE y contacto de emergencia.
+              </ThemedText>
+            ) : null}
+
             <Button
               onPress={handleSignup}
               disabled={isLoading}
@@ -438,6 +640,19 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
               Al registrarte aceptas nuestros términos y condiciones
             </ThemedText>
           </View>
+
+          <ConfirmModal
+            visible={showUserExistsModal}
+            title="Cuenta ya registrada"
+            message="Este correo o telefono ya esta registrado. Inicia sesion para continuar."
+            confirmText="Ir a iniciar sesion"
+            cancelText="Cerrar"
+            onConfirm={() => {
+              setShowUserExistsModal(false);
+              navigation.navigate("Login");
+            }}
+            onCancel={() => setShowUserExistsModal(false)}
+          />
 
           <Pressable onPress={handleShare} style={styles.shareButton}>
             <Feather name="share-2" size={18} color="#FFFFFF" />
@@ -582,6 +797,44 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: Spacing.xs,
+  },
+  inlineSectionTitle: {
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+    color: "#2A225E",
+  },
+  inlineSectionNote: {
+    color: "#5D5A78",
+    marginBottom: Spacing.sm,
+  },
+  roleInlineNote: {
+    color: "#5D5A78",
+    marginBottom: Spacing.md,
+  },
+  businessTypeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+  },
+  businessTypeChip: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "#D9D7E8",
+    backgroundColor: "#FFFFFF",
+  },
+  businessTypeChipActive: {
+    borderColor: NemyColors.primary,
+    backgroundColor: NemyColors.primaryLight,
+  },
+  businessTypeChipText: {
+    color: "#5D5A78",
+    fontWeight: "600",
+  },
+  businessTypeChipTextActive: {
+    color: NemyColors.primary,
+    fontWeight: "700",
   },
   signupButton: {
     marginTop: Spacing.xs,

@@ -13,6 +13,7 @@ export interface User {
   biometricEnabled?: boolean;
   stripeCustomerId?: string;
   createdAt: string;
+  isActive?: boolean;
   token?: string; // JWT token for authentication
   preferences?: {
     theme: "light" | "dark" | "system";

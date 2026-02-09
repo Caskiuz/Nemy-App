@@ -118,6 +118,13 @@ export default function ProfileScreen() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
+
+  const approvalStatus =
+    user?.role === "business_owner" || user?.role === "delivery_driver"
+      ? user?.isActive
+        ? { text: "Aprobado", variant: "success" as const }
+        : { text: "En revision", variant: "warning" as const }
+      : null;
   const [driverStrikes, setDriverStrikes] = useState(0);
   const maxStrikes = 3;
 
@@ -400,6 +407,13 @@ export default function ProfileScreen() {
             variant="primary"
             style={{ marginTop: Spacing.sm }}
           />
+          {approvalStatus ? (
+            <Badge
+              text={approvalStatus.text}
+              variant={approvalStatus.variant}
+              style={{ marginTop: Spacing.xs }}
+            />
+          ) : null}
         </View>
 
         <View

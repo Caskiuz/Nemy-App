@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -20,6 +21,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, NemyColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { apiRequest } from "@/lib/query-client";
+
+const PENDING_BUSINESS_DRAFT_KEY = "@nemy_pending_business_draft";
+const PENDING_BUSINESS_ONBOARDING_KEY = "@nemy_pending_business_onboarding";
+const PENDING_DRIVER_ONBOARDING_KEY = "@nemy_pending_driver_onboarding";
 
 type VerifyPhoneScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "VerifyPhone">;
@@ -35,7 +41,7 @@ export default function VerifyPhoneScreen({
   const insets = useSafeAreaInsets();
   const phone = route.params?.phone || "";
 
-  const [code, setCode] = useState(["", "", "", ""]);
+  const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState("");
@@ -55,7 +61,7 @@ export default function VerifyPhoneScreen({
 
   const handleCodeChange = (value: string, index: number) => {
     if (value.length > 1) {
-      const digits = value.replace(/\D/g, "").slice(0, 4).split("");
+      const digits = value.replace(/\D/g, "").slice(0, 6).split("");
       const newCode = [...code];
       digits.forEach((digit, i) => {
         if (index + i < 4) {
@@ -63,7 +69,7 @@ export default function VerifyPhoneScreen({
         }
       });
       setCode(newCode);
-      const lastFilledIndex = Math.min(index + digits.length - 1, 3);
+      const lastFilledIndex = Math.min(index + digits.length - 1, 5);
       inputRefs.current[lastFilledIndex]?.focus();
       return;
     }
@@ -73,7 +79,7 @@ export default function VerifyPhoneScreen({
     setCode(newCode);
     setError("");
 
-    if (value && index < 3) {
+    if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -86,7 +92,7 @@ export default function VerifyPhoneScreen({
 
   const handleVerify = async () => {
     const fullCode = code.join("");
-    if (fullCode.length !== 4) {
+    if (fullCode.length !== 6) {
       setError("Ingresa el código completo");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -96,8 +102,38 @@ export default function VerifyPhoneScreen({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      await verifyPhone(phone, fullCode);
+      const verifiedUser = await verifyPhone(phone, fullCode);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (verifiedUser.role === "delivery_driver") {
+        await AsyncStorage.setItem(PENDING_DRIVER_ONBOARDING_KEY, "1");
+        return;
+      }
+
+      if (verifiedUser.role === "business_owner") {
+        const draftRaw = await AsyncStorage.getItem(PENDING_BUSINESS_DRAFT_KEY);
+        const draft = draftRaw ? JSON.parse(draftRaw) : undefined;
+        if (draftRaw) {
+          await AsyncStorage.removeItem(PENDING_BUSINESS_DRAFT_KEY);
+        }
+        if (draft) {
+          try {
+            await apiRequest("POST", "/api/business/create", {
+              name: draft.name,
+              type: draft.type,
+              address: draft.address,
+              phone: draft.phone,
+            });
+          } catch (createError) {
+            await AsyncStorage.setItem(
+              PENDING_BUSINESS_ONBOARDING_KEY,
+              JSON.stringify({ openAddModal: true, draft }),
+            );
+            setError("No se pudo crear el negocio. Completa los datos manualmente.");
+            return;
+          }
+        }
+      }
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(error.message || "Código incorrecto");
@@ -166,7 +202,7 @@ export default function VerifyPhoneScreen({
           type="body"
           style={[styles.subtitle, { color: theme.textSecondary }]}
         >
-          Enviamos un código de 4 dígitos a{"\n"}
+          Enviamos un código de 6 dígitos a{"\n"}
           <ThemedText type="body" style={{ fontWeight: "600" }}>
             {formatPhone(phone)}
           </ThemedText>
@@ -197,7 +233,7 @@ export default function VerifyPhoneScreen({
                 handleKeyPress(nativeEvent.key, index)
               }
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={6}
               selectTextOnFocus
               testID={`code-input-${index}`}
             />

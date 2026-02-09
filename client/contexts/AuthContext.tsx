@@ -27,7 +27,7 @@ interface AuthContextType {
     email?: string,
     password?: string,
   ) => Promise<{ requiresVerification: boolean }>;
-  verifyPhone: (phone: string, code: string) => Promise<void>;
+  verifyPhone: (phone: string, code: string) => Promise<User>;
   resendVerification: (phone: string) => Promise<void>;
   loginWithBiometric: () => Promise<boolean>;
   enableBiometric: () => Promise<boolean>;
@@ -159,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phone: data.user.phone,
         role: data.user.role,
         phoneVerified: data.user.phoneVerified,
+        isActive: data.user.isActive,
         stripeCustomerId: data.user.stripeCustomerId,
         cardLast4: data.user.cardLast4,
         cardBrand: data.user.cardBrand,
@@ -188,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phone: data.user.phone,
         role: data.user.role,
         phoneVerified: data.user.phoneVerified,
+        isActive: data.user.isActive,
         stripeCustomerId: data.user.stripeCustomerId,
         cardLast4: data.user.cardLast4,
         cardBrand: data.user.cardBrand,
@@ -244,6 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       phone: data.user.phone,
       role: data.user.role,
       phoneVerified: true,
+      isActive: data.user.isActive,
       biometricEnabled: data.user.biometricEnabled || false,
       stripeCustomerId: data.user.stripeCustomerId,
       createdAt: new Date().toISOString(),
@@ -259,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.removeItem(PENDING_PHONE_KEY);
     setUser(newUser);
     setPendingVerificationPhone(null);
+    return newUser;
   };
 
   const resendVerification = async (phone: string) => {
@@ -302,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.user.role,
         phoneVerified: data.user.phoneVerified,
         biometricEnabled: data.user.biometricEnabled,
+        isActive: data.user.isActive,
         stripeCustomerId: data.user.stripeCustomerId,
         createdAt: new Date().toISOString(),
         token: data.token, // Save the JWT token

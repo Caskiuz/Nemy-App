@@ -13,7 +13,7 @@ router.post("/phone-login", async (req, res) => {
       return res.status(400).json({ error: "Phone and code are required" });
     }
 
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq, or, like } = await import("drizzle-orm");
     const jwt = await import("jsonwebtoken");
@@ -65,6 +65,44 @@ router.post("/phone-login", async (req, res) => {
         phoneVerified: true 
       })
       .where(eq(users.id, user[0].id));
+
+    if (user[0].role === "delivery_driver") {
+      const [existingDriver] = await db
+        .select({ id: deliveryDrivers.id })
+        .from(deliveryDrivers)
+        .where(eq(deliveryDrivers.userId, user[0].id))
+        .limit(1);
+
+      if (!existingDriver) {
+        await db.insert(deliveryDrivers).values({
+          userId: user[0].id,
+          vehicleType: "bike",
+          vehiclePlate: null,
+          isAvailable: false,
+          totalDeliveries: 0,
+          rating: 0,
+          totalRatings: 0,
+          strikes: 0,
+          isBlocked: false,
+        });
+      }
+
+      const [existingWallet] = await db
+        .select({ id: wallets.id })
+        .from(wallets)
+        .where(eq(wallets.userId, user[0].id))
+        .limit(1);
+
+      if (!existingWallet) {
+        await db.insert(wallets).values({
+          userId: user[0].id,
+          balance: 0,
+          pendingBalance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+        });
+      }
+    }
 
     const token = jwt.default.sign(
       { id: user[0].id, phone: user[0].phone, role: user[0].role },
@@ -283,7 +321,7 @@ router.post("/phone-signup", async (req, res) => {
 
     const validRoles = ['customer', 'business_owner', 'delivery_driver'];
     const userRole = validRoles.includes(role) ? role : 'customer';
-    const requiresApproval = ['business_owner', 'delivery_driver'].includes(userRole);
+    const requiresApproval = false;
 
     await db
       .insert(users)
@@ -292,14 +330,60 @@ router.post("/phone-signup", async (req, res) => {
         name: name,
         role: userRole,
         phoneVerified: false,
-        isActive: !requiresApproval,
+        isActive: true,
       });
+
+    if (userRole === "delivery_driver") {
+      const [createdUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.phone, normalizedPhone))
+        .limit(1);
+
+      if (createdUser?.id) {
+        const [existingDriver] = await db
+          .select({ id: deliveryDrivers.id })
+          .from(deliveryDrivers)
+          .where(eq(deliveryDrivers.userId, createdUser.id))
+          .limit(1);
+
+        if (!existingDriver) {
+          await db.insert(deliveryDrivers).values({
+            userId: createdUser.id,
+            vehicleType: "bike",
+            vehiclePlate: null,
+            isAvailable: false,
+            totalDeliveries: 0,
+            rating: 0,
+            totalRatings: 0,
+            strikes: 0,
+            isBlocked: false,
+          });
+        }
+
+        const [existingWallet] = await db
+          .select({ id: wallets.id })
+          .from(wallets)
+          .where(eq(wallets.userId, createdUser.id))
+          .limit(1);
+
+        if (!existingWallet) {
+          await db.insert(wallets).values({
+            userId: createdUser.id,
+            balance: 0,
+            pendingBalance: 0,
+            totalEarned: 0,
+            totalWithdrawn: 0,
+          });
+        }
+      }
+    }
 
     res.json({ 
       success: true, 
       requiresVerification: true,
       requiresApproval,
-      message: requiresApproval ? "Registro exitoso. Espera aprobación." : "Registro exitoso."
+      message: "Registro exitoso."
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

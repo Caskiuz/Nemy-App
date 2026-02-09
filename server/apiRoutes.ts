@@ -147,7 +147,7 @@ router.get("/test-wallet/:userId", async (req, res) => {
 // List all test users with their roles (for development)
 router.get("/auth/test-users", async (req, res) => {
   try {
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
     
     const allUsers = await db
@@ -168,7 +168,7 @@ router.get("/auth/test-users", async (req, res) => {
 // Delete duplicate user (for development cleanup)
 router.delete("/auth/cleanup-user/:userId", async (req, res) => {
   try {
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
     const { eq } = await import("drizzle-orm");
     
@@ -191,7 +191,7 @@ router.post("/auth/dev-login", async (req, res) => {
       return res.status(400).json({ error: "userId is required" });
     }
 
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
     const { eq } = await import("drizzle-orm");
     const jwt = await import("jsonwebtoken");
@@ -414,7 +414,7 @@ router.post("/auth/phone-login", async (req, res) => {
       return res.status(400).json({ error: "Phone and code are required" });
     }
 
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
     const { eq } = await import("drizzle-orm");
     const jwt = await import("jsonwebtoken");
@@ -489,6 +489,44 @@ router.post("/auth/phone-login", async (req, res) => {
       })
       .where(eq(users.id, user[0].id));
 
+    if (user[0].role === "delivery_driver") {
+      const [existingDriver] = await db
+        .select({ id: deliveryDrivers.id })
+        .from(deliveryDrivers)
+        .where(eq(deliveryDrivers.userId, user[0].id))
+        .limit(1);
+
+      if (!existingDriver) {
+        await db.insert(deliveryDrivers).values({
+          userId: user[0].id,
+          vehicleType: "bike",
+          vehiclePlate: null,
+          isAvailable: false,
+          totalDeliveries: 0,
+          rating: 0,
+          totalRatings: 0,
+          strikes: 0,
+          isBlocked: false,
+        });
+      }
+
+      const [existingWallet] = await db
+        .select({ id: wallets.id })
+        .from(wallets)
+        .where(eq(wallets.userId, user[0].id))
+        .limit(1);
+
+      if (!existingWallet) {
+        await db.insert(wallets).values({
+          userId: user[0].id,
+          balance: 0,
+          pendingBalance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+        });
+      }
+    }
+
 
 
     // Generate JWT token
@@ -511,6 +549,7 @@ router.post("/auth/phone-login", async (req, res) => {
         phone: user[0].phone,
         role: user[0].role,
         phoneVerified: user[0].phoneVerified,
+        isActive: user[0].isActive,
       },
     });
   } catch (error: any) {
@@ -527,7 +566,7 @@ router.post("/auth/send-code", async (req, res) => {
       return res.status(400).json({ error: "Phone number is required" });
     }
 
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
     const { eq, or, like } = await import("drizzle-orm");
 
@@ -565,6 +604,8 @@ router.post("/auth/send-code", async (req, res) => {
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    console.log(`🔐 Verification code for ${normalizedPhone}: ${code}`);
 
     // Save code to DB
     await db
@@ -612,7 +653,7 @@ router.post("/auth/phone-signup", async (req, res) => {
       return res.status(400).json({ error: "Teléfono y nombre son requeridos" });
     }
 
-    const { users } = await import("@shared/schema-mysql");
+    const { users, deliveryDrivers, wallets } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
     const { eq, or, like } = await import("drizzle-orm");
 
@@ -644,8 +685,14 @@ router.post("/auth/phone-signup", async (req, res) => {
     const validRoles = ['customer', 'business_owner', 'delivery_driver'];
     const userRole = validRoles.includes(role) ? role : 'customer';
 
-    // Business owners and drivers require admin approval
-    const requiresApproval = ['business_owner', 'delivery_driver'].includes(userRole);
+    // No approval required for new accounts
+    const requiresApproval = false;
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    console.log(`🔐 Verification code for ${normalizedPhone}: ${code}`);
 
     // Create new user
     await db
@@ -655,18 +702,81 @@ router.post("/auth/phone-signup", async (req, res) => {
         name: name,
         role: userRole,
         phoneVerified: false,
-        isActive: !requiresApproval, // Inactive until approved
+        isActive: true,
+        verificationCode: code,
+        verificationExpires: expiresAt,
       });
 
-    console.log("✅ Usuario registrado:", normalizedPhone, name, userRole, requiresApproval ? "(requiere aprobación)" : "");
+    if (userRole === "delivery_driver") {
+      const [createdUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.phone, normalizedPhone))
+        .limit(1);
+
+      if (createdUser?.id) {
+        const [existingDriver] = await db
+          .select({ id: deliveryDrivers.id })
+          .from(deliveryDrivers)
+          .where(eq(deliveryDrivers.userId, createdUser.id))
+          .limit(1);
+
+        if (!existingDriver) {
+          await db.insert(deliveryDrivers).values({
+            userId: createdUser.id,
+            vehicleType: "bike",
+            vehiclePlate: null,
+            isAvailable: false,
+            totalDeliveries: 0,
+            rating: 0,
+            totalRatings: 0,
+            strikes: 0,
+            isBlocked: false,
+          });
+        }
+
+        const [existingWallet] = await db
+          .select({ id: wallets.id })
+          .from(wallets)
+          .where(eq(wallets.userId, createdUser.id))
+          .limit(1);
+
+        if (!existingWallet) {
+          await db.insert(wallets).values({
+            userId: createdUser.id,
+            balance: 0,
+            pendingBalance: 0,
+            totalEarned: 0,
+            totalWithdrawn: 0,
+          });
+        }
+      }
+    }
+
+    // Send SMS via Twilio (if configured)
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      try {
+        const twilio = await import("twilio");
+        const client = twilio.default(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+        await client.messages.create({
+          body: `Tu código de verificación NEMY es: ${code}`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: normalizedPhone,
+        });
+      } catch (twilioError) {
+        console.error("Twilio error:", twilioError);
+      }
+    } else {
+      console.log(`[DEV] Código de verificación para ${normalizedPhone}: ${code}`);
+    }
+
+    console.log("✅ Usuario registrado:", normalizedPhone, name, userRole);
 
     res.json({ 
       success: true, 
       requiresVerification: true,
       requiresApproval,
-      message: requiresApproval 
-        ? "Usuario registrado. Espera aprobación del administrador y verifica tu teléfono."
-        : "Usuario registrado. Verifica tu teléfono."
+      message: "Usuario registrado. Verifica tu teléfono."
     });
   } catch (error: any) {
     console.error("Signup error:", error);
@@ -849,6 +959,7 @@ router.post("/auth/login", async (req, res) => {
         phone: user.phone,
         role: user.role,
         phoneVerified: user.phoneVerified,
+        isActive: user.isActive,
         stripeCustomerId: user.stripeCustomerId,
         cardLast4: user.cardLast4,
         cardBrand: user.cardBrand,
@@ -911,6 +1022,7 @@ router.post("/auth/dev-email-login", async (req, res) => {
         phone: user.phone,
         role: user.role,
         phoneVerified: true,
+        isActive: user.isActive,
       },
     });
   } catch (error: any) {
@@ -1037,6 +1149,7 @@ router.post("/auth/verify-code", async (req, res) => {
         phone: user[0].phone,
         role: user[0].role,
         phoneVerified: user[0].phoneVerified,
+        isActive: user[0].isActive,
         profileImage: user[0].profileImage,
       },
     });
@@ -2133,101 +2246,6 @@ router.post(
   },
 );
 
-// Update business
-router.put(
-  "/business/:id",
-  authenticateToken,
-  requireRole("business_owner"),
-  async (req, res) => {
-    try {
-      const { businesses } = await import("@shared/schema-mysql");
-      const { db } = await import("./db");
-      const { eq, and } = await import("drizzle-orm");
-
-      const business = await db
-        .select()
-        .from(businesses)
-        .where(and(
-          eq(businesses.id, req.params.id),
-          eq(businesses.ownerId, req.user!.id)
-        ))
-        .limit(1);
-
-      if (!business[0]) {
-        return res.status(404).json({ error: "Negocio no encontrado" });
-      }
-
-      const allowedFields = ["name", "description", "type", "image", "address", "phone", 
-                            "categories", "isOpen", "deliveryTime", "deliveryFee", "minOrder"];
-      const updates: any = {};
-      for (const field of allowedFields) {
-        if (req.body[field] !== undefined) {
-          updates[field] = req.body[field];
-        }
-      }
-
-      await db
-        .update(businesses)
-        .set(updates)
-        .where(eq(businesses.id, req.params.id));
-
-      res.json({ success: true, message: "Negocio actualizado" });
-    } catch (error: any) {
-      console.error("Error updating business:", error);
-      res.status(500).json({ error: error.message });
-    }
-  },
-);
-
-// Delete business
-router.delete(
-  "/business/:id",
-  authenticateToken,
-  requireRole("business_owner"),
-  async (req, res) => {
-    try {
-      const { businesses, orders } = await import("@shared/schema-mysql");
-      const { db } = await import("./db");
-      const { eq, and } = await import("drizzle-orm");
-
-      const business = await db
-        .select()
-        .from(businesses)
-        .where(and(
-          eq(businesses.id, req.params.id),
-          eq(businesses.ownerId, req.user!.id)
-        ))
-        .limit(1);
-
-      if (!business[0]) {
-        return res.status(404).json({ error: "Negocio no encontrado" });
-      }
-
-      const activeOrders = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.businessId, req.params.id));
-
-      const hasActiveOrders = activeOrders.some(o => 
-        ["pending", "confirmed", "preparing", "ready", "picked_up", "on_the_way"].includes(o.status)
-      );
-
-      if (hasActiveOrders) {
-        return res.status(400).json({ 
-          error: "No se puede eliminar un negocio con pedidos activos" 
-        });
-      }
-
-      await db.delete(businesses).where(eq(businesses.id, req.params.id));
-
-      res.json({ success: true, message: "Negocio eliminado" });
-    } catch (error: any) {
-      console.error("Error deleting business:", error);
-      res.status(500).json({ error: error.message });
-    }
-  },
-);
-
 // Get business dashboard data
 router.get(
   "/business/dashboard",
@@ -2903,6 +2921,101 @@ router.get(
 // ============================================
 // ORDERS ROUTES
 // ============================================
+
+// Update business
+router.put(
+  "/business/:id",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const business = await db
+        .select()
+        .from(businesses)
+        .where(and(
+          eq(businesses.id, req.params.id),
+          eq(businesses.ownerId, req.user!.id)
+        ))
+        .limit(1);
+
+      if (!business[0]) {
+        return res.status(404).json({ error: "Negocio no encontrado" });
+      }
+
+      const allowedFields = ["name", "description", "type", "image", "address", "phone", 
+                            "categories", "isOpen", "deliveryTime", "deliveryFee", "minOrder"];
+      const updates: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+
+      await db
+        .update(businesses)
+        .set(updates)
+        .where(eq(businesses.id, req.params.id));
+
+      res.json({ success: true, message: "Negocio actualizado" });
+    } catch (error: any) {
+      console.error("Error updating business:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Delete business
+router.delete(
+  "/business/:id",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses, orders } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const business = await db
+        .select()
+        .from(businesses)
+        .where(and(
+          eq(businesses.id, req.params.id),
+          eq(businesses.ownerId, req.user!.id)
+        ))
+        .limit(1);
+
+      if (!business[0]) {
+        return res.status(404).json({ error: "Negocio no encontrado" });
+      }
+
+      const activeOrders = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.businessId, req.params.id));
+
+      const hasActiveOrders = activeOrders.some(o => 
+        ["pending", "confirmed", "preparing", "ready", "picked_up", "on_the_way"].includes(o.status)
+      );
+
+      if (hasActiveOrders) {
+        return res.status(400).json({ 
+          error: "No se puede eliminar un negocio con pedidos activos" 
+        });
+      }
+
+      await db.delete(businesses).where(eq(businesses.id, req.params.id));
+
+      res.json({ success: true, message: "Negocio eliminado" });
+    } catch (error: any) {
+      console.error("Error deleting business:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
 
 // Get user orders
 router.get(

@@ -96,7 +96,7 @@ export type RootStackParamList = {
   BecomeDriver: undefined;
   BusinessHours: undefined;
   BusinessCategories: undefined;
-  MyBusinesses: undefined;
+  MyBusinesses: { openAddModal?: boolean; draft?: { name?: string; type?: string; address?: string; phone?: string } } | undefined;
   Terms: undefined;
   Privacy: undefined;
 };

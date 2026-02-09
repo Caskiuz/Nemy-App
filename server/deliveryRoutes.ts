@@ -33,22 +33,28 @@ router.post(
       .where(eq(deliveryDrivers.userId, userId))
       .limit(1);
     if (existing) {
-      throw new ValidationError("Driver already registered");
+      await db
+        .update(deliveryDrivers)
+        .set({
+          vehicleType,
+          vehiclePlate: vehiclePlate.toUpperCase(),
+        })
+        .where(eq(deliveryDrivers.userId, userId));
+    } else {
+      await db
+        .insert(deliveryDrivers)
+        .values({
+          userId,
+          vehicleType,
+          vehiclePlate: vehiclePlate.toUpperCase(),
+          isAvailable: false,
+          totalDeliveries: 0,
+          rating: 0,
+          totalRatings: 0,
+          strikes: 0,
+          isBlocked: false,
+        });
     }
-
-    await db
-      .insert(deliveryDrivers)
-      .values({
-        userId,
-        vehicleType,
-        vehiclePlate: vehiclePlate.toUpperCase(),
-        isAvailable: false,
-        totalDeliveries: 0,
-        rating: 0,
-        totalRatings: 0,
-        strikes: 0,
-        isBlocked: false,
-      });
 
     const [driver] = await db
       .select()
@@ -56,17 +62,25 @@ router.post(
       .where(eq(deliveryDrivers.userId, userId))
       .limit(1);
 
-    await db.insert(wallets).values({
-      userId,
-      balance: 0,
-      pendingBalance: 0,
-      totalEarned: 0,
-      totalWithdrawn: 0,
-    });
+    const [existingWallet] = await db
+      .select({ id: wallets.id })
+      .from(wallets)
+      .where(eq(wallets.userId, userId))
+      .limit(1);
+
+    if (!existingWallet) {
+      await db.insert(wallets).values({
+        userId,
+        balance: 0,
+        pendingBalance: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+      });
+    }
 
     logger.delivery("Driver registered", { userId, driverId: driver.id });
 
-    res.json({ driver, message: "Registration pending admin approval" });
+    res.json({ driver, message: "Driver registered" });
   }),
 );
 

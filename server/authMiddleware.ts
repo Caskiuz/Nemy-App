@@ -58,10 +58,6 @@ export async function authenticateToken(
       return res.status(401).json({ error: "Usuario no encontrado" });
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({ error: "Cuenta desactivada" });
-    }
-
     // Attach user to request
     req.user = {
       userId: user.id, // Add userId field for compatibility

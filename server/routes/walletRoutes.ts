@@ -166,30 +166,37 @@ router.get("/balance", authenticateToken, async (req, res) => {
       .limit(1);
 
     if (!wallet) {
-      const [newWallet] = await db
-        .insert(wallets)
-        .values({
-          userId: req.user!.id,
-          balance: 0,
-          pendingBalance: 0,
-          cashOwed: 0,
-          cashPending: 0,
-          totalEarned: 0,
-          totalWithdrawn: 0,
-        })
-        .$returningId();
+      await db.insert(wallets).values({
+        userId: req.user!.id,
+        balance: 0,
+        pendingBalance: 0,
+        cashOwed: 0,
+        cashPending: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+      });
+
+      const [createdWallet] = await db
+        .select()
+        .from(wallets)
+        .where(eq(wallets.userId, req.user!.id))
+        .limit(1);
+
+      if (!createdWallet) {
+        return res.status(500).json({ error: "Failed to create wallet" });
+      }
 
       return res.json({
         success: true,
         wallet: {
-          id: newWallet.id,
-          balance: 0,
-          pendingBalance: 0,
-          cashOwed: 0,
-          cashPending: 0,
-          availableBalance: 0,
-          totalEarned: 0,
-          totalWithdrawn: 0,
+          id: createdWallet.id,
+          balance: createdWallet.balance,
+          pendingBalance: createdWallet.pendingBalance,
+          cashOwed: createdWallet.cashOwed || 0,
+          cashPending: createdWallet.cashPending || 0,
+          availableBalance: createdWallet.balance - (createdWallet.cashOwed || 0),
+          totalEarned: createdWallet.totalEarned,
+          totalWithdrawn: createdWallet.totalWithdrawn,
           pendingCashOrders: [],
         },
       });
