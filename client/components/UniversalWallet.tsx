@@ -48,6 +48,35 @@ export default function UniversalWallet({
   const [refreshing, setRefreshing] = useState(false);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
 
+  // Estado para mostrar historial
+  const [showHistory, setShowHistory] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchTransactions = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/wallet/transactions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+      }
+    } catch (e) {
+      setTransactions([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showHistory) fetchTransactions();
+  }, [showHistory]);
+
   const fetchData = async () => {
     try {
       // Fetch wallet balance
@@ -172,29 +201,50 @@ export default function UniversalWallet({
         <Ionicons name="wallet-outline" size={32} color="#FF6B35" />
         <Text style={styles.title}>Mi Wallet</Text>
         <Text style={styles.subtitle}>{getRoleText()}</Text>
+        {/* Resumen financiero para drivers y negocios */}
+        {wallet && (user?.role === 'driver' || user?.role === 'business') && (
+          <View style={{marginTop: 12, backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10, alignItems: 'center'}}>
+            <Text style={{fontSize: 13, color: '#374151', fontWeight: 'bold'}}>Resumen financiero</Text>
+            <Text style={{fontSize: 13, color: '#374151'}}>
+              Tus ingresos: <Text style={{fontWeight: 'bold', color: '#10B981'}}>${(wallet.totalEarned/100).toFixed(2)}</Text> |
+              Deuda pendiente: <Text style={{fontWeight: 'bold', color: '#F59E0B'}}>${(wallet.cashOwed/100).toFixed(2)}</Text> |
+              Saldo para retiro: <Text style={{fontWeight: 'bold', color: '#111827'}}>${(wallet.availableForWithdrawal/100).toFixed(2)}</Text>
+            </Text>
+          </View>
+        )}
       </View>
+
+      {/* Banner de notificación si hay deuda de efectivo */}
+      {wallet && wallet.cashOwed > 0 && (
+        <View style={{backgroundColor: '#FEF3C7', borderRadius: 8, marginHorizontal: 16, marginBottom: 8, padding: 12, flexDirection: 'row', alignItems: 'center'}}>
+          <Ionicons name="warning" size={20} color="#F59E0B" style={{marginRight: 8}} />
+          <View style={{flex: 1}}>
+            <Text style={{color: '#92400E', fontWeight: 'bold', marginBottom: 2}}>
+              Tienes una deuda de efectivo pendiente
+            </Text>
+            <Text style={{color: '#92400E', fontSize: 13}}>
+              Recibiste entregas en efectivo. Debes entregar ${ (wallet.cashOwed/100).toFixed(2) } al negocio antes de poder retirar tu saldo.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Balance Card */}
       {wallet && (
-        <View style={[styles.balanceCard, { borderLeftColor: getBalanceColor() }]}>
+        <View style={[styles.balanceCard, { borderLeftColor: getBalanceColor() }]}> 
           <View style={styles.balanceHeader}>
-            <Text style={styles.balanceLabel}>Saldo Disponible</Text>
+            <Text style={styles.balanceLabel}>Saldo disponible para retiro</Text>
             <Ionicons name="cash-outline" size={24} color={getBalanceColor()} />
           </View>
-          
-          <Text style={[styles.balanceAmount, { color: getBalanceColor() }]}>
+          <Text style={[styles.balanceAmount, { color: getBalanceColor() }]}> 
             ${(wallet.availableForWithdrawal / 100).toFixed(2)} MXN
           </Text>
-          
-          {wallet.cashOwed > 0 && (
-            <View style={styles.warningBanner}>
-              <Ionicons name="warning-outline" size={16} color="#F59E0B" />
-              <Text style={styles.warningText}>
-                Efectivo pendiente: ${(wallet.cashOwed / 100).toFixed(2)}
-              </Text>
-            </View>
-          )}
-
+          <View style={styles.retainRow}>
+            <Text style={styles.retainLabel}>Saldo retenido (deuda de efectivo):</Text>
+            <Text style={styles.retainAmount}>
+              ${wallet.cashOwed > 0 ? (wallet.cashOwed / 100).toFixed(2) : '0.00'}
+            </Text>
+          </View>
           <View style={styles.balanceGrid}>
             <View style={styles.balanceItem}>
               <Text style={styles.balanceItemLabel}>Total Ganado</Text>
@@ -292,16 +342,55 @@ export default function UniversalWallet({
         <Text style={styles.actionsTitle}>Acciones Rápidas</Text>
         <View style={styles.actionsGrid}>
           {showWithdrawals && (user?.role === 'driver' || user?.role === 'business') && (
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity
+              style={[styles.actionButton, wallet && wallet.cashOwed > 0 ? {opacity: 0.5} : {}]}
+              disabled={wallet && wallet.cashOwed > 0}
+              onPress={() => {
+                if (wallet && wallet.cashOwed > 0) {
+                  Alert.alert('No puedes retirar', 'No puedes retirar hasta saldar tu deuda de efectivo.');
+                  return;
+                }
+                // Aquí iría la lógica de retiro real
+              }}
+            >
               <Ionicons name="arrow-up-circle-outline" size={24} color="#FF6B35" />
               <Text style={styles.actionText}>Retirar</Text>
             </TouchableOpacity>
           )}
-          
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowHistory(!showHistory)}>
             <Ionicons name="list-outline" size={24} color="#FF6B35" />
             <Text style={styles.actionText}>Historial</Text>
           </TouchableOpacity>
+            {/* Historial de transacciones */}
+            {showHistory && (
+              <View style={{backgroundColor: 'white', margin: 16, borderRadius: 12, padding: 12, maxHeight: 320}}>
+                <Text style={{fontWeight: 'bold', fontSize: 16, marginBottom: 8}}>Historial</Text>
+                {loadingHistory ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : transactions.length === 0 ? (
+                  <Text style={{color: '#6B7280'}}>No hay transacciones recientes.</Text>
+                ) : (
+                  <ScrollView style={{maxHeight: 260}}>
+                    {transactions.map((tx, idx) => (
+                      <View key={tx.id || idx} style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                        <Ionicons
+                          name={tx.type === 'cash_debt' ? 'remove-circle-outline' : 'add-circle-outline'}
+                          size={18}
+                          color={tx.type === 'cash_debt' ? '#F59E0B' : '#10B981'}
+                          style={{marginRight: 8}}
+                        />
+                        <Text style={{flex: 1, color: '#374151'}}>
+                          {tx.type === 'cash_debt' ? 'Deuda de efectivo' : (tx.type === 'wallet_payment' ? 'Pago con billetera' : 'Ingreso por entrega')}
+                        </Text>
+                        <Text style={{fontWeight: 'bold', color: tx.type === 'cash_debt' ? '#F59E0B' : '#10B981'}}>
+                          {tx.type === 'cash_debt' ? '-' : '+'}${Math.abs(tx.amount/100).toFixed(2)}
+                        </Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            )}
           
           {(user?.role === 'driver' || user?.role === 'business') && (
             <TouchableOpacity style={styles.actionButton}>

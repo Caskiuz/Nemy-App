@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { API_CONFIG } from '../constants/config';
 
@@ -26,6 +27,7 @@ interface ConnectStatus {
 
 export default function PaymentMethodsScreen({ navigation }: any) {
   const { user, token, isAuthenticated } = useAuth();
+  const nav = navigation || useNavigation();
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -92,7 +94,14 @@ export default function PaymentMethodsScreen({ navigation }: any) {
     
     setOnboardingLoading(true);
     try {
-      const accountType = user.role === 'business' ? 'business' : 'driver';
+      const role = user.role;
+      const accountType =
+        role === 'business' ||
+        role === 'business_owner' ||
+        role === 'admin' ||
+        role === 'super_admin'
+          ? 'business'
+          : 'driver';
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/onboard`, {
         method: 'POST',
@@ -102,7 +111,8 @@ export default function PaymentMethodsScreen({ navigation }: any) {
         },
         body: JSON.stringify({
           accountType,
-          businessId: user.role === 'business' ? user.id : undefined,
+          businessId:
+            user.role === 'business' || user.role === 'business_owner' ? user.id : undefined,
         }),
       });
 
@@ -221,6 +231,18 @@ export default function PaymentMethodsScreen({ navigation }: any) {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
+          onPress={() => (nav.canGoBack ? (nav as any).canGoBack() && (nav as any).goBack() : null)}
+        >
+          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Métodos de Pago</Text>
+          <Text style={styles.headerSubtitle}>Cuenta bancaria, SPEI / CoDi y Stripe</Text>
+        </View>
+      </View>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
           accessibilityLabel="Volver"
         >
@@ -261,13 +283,12 @@ export default function PaymentMethodsScreen({ navigation }: any) {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="bank-outline" size={24} color="#6B7280" />
-              <Text style={styles.cardTitle}>Conectar Cuenta Bancaria</Text>
+              <Text style={styles.cardTitle}>Configurar Stripe para Retiros</Text>
             </View>
             <Text style={styles.cardDescription}>
-              {user?.role === 'driver' 
-                ? 'Conecta tu cuenta bancaria para recibir pagos automáticos por tus entregas.'
-                : 'Conecta tu cuenta bancaria para recibir pagos de tus ventas.'
-              }
+                {user?.role === 'driver' || user?.role === 'delivery_driver'
+                  ? 'Configura Stripe Connect para recibir retiros automaticos por tus entregas.'
+                  : 'Configura Stripe Connect para recibir retiros automaticos de tus ventas.'}
             </Text>
             <TouchableOpacity 
               style={styles.primaryButton}
@@ -418,6 +439,33 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     position: 'relative',
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 8,
+      backgroundColor: '#f8f9fa',
+      gap: 12,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: '#e2e8f0',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: '#0F172A',
+    },
+    headerSubtitle: {
+      fontSize: 13,
+      color: '#475569',
+      marginTop: 2,
+    },
   },
   backButton: {
     position: 'absolute',

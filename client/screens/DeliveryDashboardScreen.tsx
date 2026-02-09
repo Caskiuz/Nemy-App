@@ -456,11 +456,22 @@ export default function DeliveryDashboardScreen() {
     },
   });
 
+  const parseApiError = (rawMessage: string) => {
+    const colonIndex = rawMessage.indexOf(":");
+    const payload = colonIndex >= 0 ? rawMessage.slice(colonIndex + 1).trim() : rawMessage;
+    try {
+      const parsed = JSON.parse(payload);
+      return parsed?.error || parsed?.message || rawMessage;
+    } catch (parseError) {
+      return payload || rawMessage;
+    }
+  };
+
   const acceptOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
       const response = await apiRequest(
         "POST",
-        `/api/delivery/accept/${orderId}`,
+        `/api/delivery/accept-order/${orderId}`,
         {
           deliveryPersonId: user?.id,
         },
@@ -471,8 +482,12 @@ export default function DeliveryDashboardScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       queryClient.invalidateQueries({ queryKey: ["/api/delivery/orders"] });
     },
-    onError: () => {
-      showToast("No se pudo aceptar el pedido", "error");
+    onError: (error) => {
+      const message =
+        error instanceof Error
+          ? parseApiError(error.message)
+          : "No se pudo aceptar el pedido";
+      showToast(message, "error");
     },
   });
 

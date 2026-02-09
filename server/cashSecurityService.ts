@@ -18,7 +18,16 @@ export class CashSecurityService {
       .limit(1);
 
     if (!wallet) {
-      return { allowed: false, reason: 'Wallet no encontrada' };
+      await db.insert(wallets).values({
+        userId: driverId,
+        balance: 0,
+        pendingBalance: 0,
+        cashOwed: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+      });
+
+      return { allowed: true };
     }
 
     // Verificar límite de efectivo pendiente

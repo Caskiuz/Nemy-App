@@ -5,7 +5,7 @@ import {
   orders,
   payments,
   wallets,
-  walletTransactions,
+  transactions,
   businesses,
   drivers,
 } from "@shared/schema-mysql";
@@ -125,6 +125,68 @@ export async function confirmPaymentIntent(paymentIntentId: string) {
       error: error.message,
     };
   }
+}
+
+// Credit wallet with a transaction record (used by cash commissions)
+export async function creditWallet(
+  userId: string,
+  amount: number,
+  type: string,
+  orderId?: string,
+  description?: string,
+) {
+  return await db.transaction(async (tx) => {
+    let [wallet] = await tx
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId))
+      .limit(1);
+
+    if (!wallet) {
+      const result = await tx
+        .insert(wallets)
+        .values({
+          userId,
+          balance: 0,
+          pendingBalance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+          cashOwed: 0,
+        })
+        .$returningId();
+
+      const newId = Array.isArray(result) ? result[0].id : (result as any).insertId;
+      [wallet] = await tx
+        .select()
+        .from(wallets)
+        .where(eq(wallets.id, newId))
+        .limit(1);
+    }
+
+    const newBalance = (wallet?.balance || 0) + amount;
+
+    await tx
+      .update(wallets)
+      .set({
+        balance: newBalance,
+        totalEarned: (wallet?.totalEarned || 0) + amount,
+        updatedAt: new Date(),
+      })
+      .where(eq(wallets.userId, userId));
+
+    await tx.insert(transactions).values({
+      walletId: wallet!.id,
+      userId,
+      amount,
+      type,
+      status: "completed",
+      description: description || `${type} - Orden ${orderId ?? ""}`.trim(),
+      orderId,
+      createdAt: new Date(),
+    });
+
+    return { success: true, newBalance };
+  });
 }
 
 export async function processSuccessfulPayment(paymentIntentId: string) {

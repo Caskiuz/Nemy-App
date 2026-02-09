@@ -150,7 +150,7 @@ export default function DriverAvailableOrdersScreen() {
     if (!pendingOrderId) return;
     
     try {
-      const response = await apiRequest("POST", `/api/delivery/accept/${pendingOrderId}`, {});
+      const response = await apiRequest("POST", `/api/delivery/accept-order/${pendingOrderId}`, {});
       const data = await response.json();
       
       if (data.success) {
@@ -161,10 +161,25 @@ export default function DriverAvailableOrdersScreen() {
         Alert.alert("Error", data.error || "No se pudo aceptar el pedido");
       }
     } catch (error) {
-      Alert.alert("Error", `No se pudo aceptar el pedido: ${error}`);
+      const message =
+        error instanceof Error
+          ? parseApiError(error.message)
+          : "No se pudo aceptar el pedido";
+      Alert.alert("Error", message);
     } finally {
       setShowConfirmModal(false);
       setPendingOrderId(null);
+    }
+  };
+
+  const parseApiError = (rawMessage: string) => {
+    const colonIndex = rawMessage.indexOf(":");
+    const payload = colonIndex >= 0 ? rawMessage.slice(colonIndex + 1).trim() : rawMessage;
+    try {
+      const parsed = JSON.parse(payload);
+      return parsed?.error || parsed?.message || rawMessage;
+    } catch (parseError) {
+      return payload || rawMessage;
     }
   };
 

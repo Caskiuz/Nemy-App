@@ -9,7 +9,7 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -74,20 +74,27 @@ export default function CheckoutScreen({ route }: any) {
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponLoading, setCouponLoading] = useState(false);
 
-  useEffect(() => {
-    const loadAddresses = async () => {
-      if (!user?.id) return;
-      try {
-        const response = await apiRequest("GET", `/api/users/${user.id}/addresses`);
-        const data = await response.json();
-        console.log('📍 Addresses loaded:', data.addresses?.length || 0, data.addresses);
-        setAddresses(data.addresses || []);
-      } catch (error) {
-        console.error('Error loading addresses:', error);
-      }
-    };
-    loadAddresses();
+  const loadAddresses = React.useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const response = await apiRequest("GET", `/api/users/${user.id}/addresses`);
+      const data = await response.json();
+      console.log('📍 Addresses loaded:', data.addresses?.length || 0, data.addresses);
+      setAddresses(data.addresses || []);
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    loadAddresses();
+  }, [loadAddresses]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadAddresses();
+    }, [loadAddresses]),
+  );
 
   useEffect(() => {
     if (cart?.businessId) {

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, ScrollView, Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -39,24 +39,31 @@ export default function CartScreen() {
     : null;
   
   // Cargar direcciones del usuario
-  React.useEffect(() => {
-    const loadAddresses = async () => {
-      if (!user?.id) return;
-      try {
-        const { apiRequest } = await import('@/lib/query-client');
-        const response = await apiRequest('GET', `/api/users/${user.id}/addresses`);
-        const data = await response.json();
-        if (data.success) {
-          setAddresses(data.addresses);
-          const defaultAddr = data.addresses.find((a: any) => a.isDefault) || data.addresses[0];
-          setSelectedAddress(defaultAddr);
-        }
-      } catch (error) {
-        console.error('Error loading addresses:', error);
+  const loadAddresses = React.useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { apiRequest } = await import('@/lib/query-client');
+      const response = await apiRequest('GET', `/api/users/${user.id}/addresses`);
+      const data = await response.json();
+      if (data.success) {
+        setAddresses(data.addresses);
+        const defaultAddr = data.addresses.find((a: any) => a.isDefault) || data.addresses[0];
+        setSelectedAddress(defaultAddr);
       }
-    };
-    loadAddresses();
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+    }
   }, [user?.id]);
+
+  React.useEffect(() => {
+    loadAddresses();
+  }, [loadAddresses]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadAddresses();
+    }, [loadAddresses]),
+  );
 
   // Calcular delivery fee REAL basado en distancia
   React.useEffect(() => {

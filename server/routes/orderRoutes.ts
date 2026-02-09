@@ -258,7 +258,7 @@ router.post(
   validateOrderCompletion,
   async (req, res) => {
     try {
-      const { orders, wallets, transactions } = await import("@shared/schema-mysql");
+      const { orders, wallets, transactions, businesses } = await import("@shared/schema-mysql");
       const { db } = await import("../db");
       const { eq } = await import("drizzle-orm");
 
@@ -297,75 +297,94 @@ router.post(
         })
         .where(eq(orders.id, req.params.id));
 
-      // Update business wallet
-      const [businessWallet] = await db
-        .select()
-        .from(wallets)
-        .where(eq(wallets.userId, order.businessId))
+      const [business] = await db
+        .select({ ownerId: businesses.ownerId })
+        .from(businesses)
+        .where(eq(businesses.id, order.businessId))
         .limit(1);
 
-      if (businessWallet) {
-        await db
-          .update(wallets)
-          .set({ 
-            balance: businessWallet.balance + commissions.business,
-            totalEarned: businessWallet.totalEarned + commissions.business,
-          })
-          .where(eq(wallets.userId, order.businessId));
+      const businessOwnerId = business?.ownerId || order.businessId;
+
+      if (order.paymentMethod === "cash") {
+        const { cashSettlementService } = await import("../cashSettlementService");
+        await cashSettlementService.registerCashDebt(
+          order.id,
+          order.deliveryPersonId,
+          order.businessId,
+          order.total,
+          order.deliveryFee,
+        );
       } else {
-        await db.insert(wallets).values({
-          userId: order.businessId,
-          balance: commissions.business,
-          pendingBalance: 0,
-          totalEarned: commissions.business,
-          totalWithdrawn: 0,
-        });
+        // Update business wallet (card only)
+        const [businessWallet] = await db
+          .select()
+          .from(wallets)
+          .where(eq(wallets.userId, businessOwnerId))
+          .limit(1);
+
+        if (businessWallet) {
+          await db
+            .update(wallets)
+            .set({ 
+              balance: businessWallet.balance + commissions.business,
+              totalEarned: businessWallet.totalEarned + commissions.business,
+            })
+            .where(eq(wallets.userId, businessOwnerId));
+        } else {
+          await db.insert(wallets).values({
+            userId: businessOwnerId,
+            balance: commissions.business,
+            pendingBalance: 0,
+            totalEarned: commissions.business,
+            totalWithdrawn: 0,
+          });
+        }
+
+        // Update driver wallet (card only)
+        const [driverWallet] = await db
+          .select()
+          .from(wallets)
+          .where(eq(wallets.userId, order.deliveryPersonId))
+          .limit(1);
+
+        if (driverWallet) {
+          await db
+            .update(wallets)
+            .set({ 
+              balance: driverWallet.balance + commissions.driver,
+              totalEarned: driverWallet.totalEarned + commissions.driver,
+            })
+            .where(eq(wallets.userId, order.deliveryPersonId));
+        } else {
+          await db.insert(wallets).values({
+            userId: order.deliveryPersonId,
+            balance: commissions.driver,
+            pendingBalance: 0,
+            totalEarned: commissions.driver,
+            totalWithdrawn: 0,
+          });
+        }
+
+        // Create transaction records (card only)
+        await db.insert(transactions).values([
+          {
+            userId: businessOwnerId,
+            type: "order_payment",
+            amount: commissions.business,
+            status: "completed",
+            description: `Pago por pedido #${order.id.slice(-8)}`,
+            orderId: order.id,
+          },
+          {
+            userId: order.deliveryPersonId,
+            type: "delivery_payment",
+            amount: commissions.driver,
+            status: "completed",
+            description: `Entrega de pedido #${order.id.slice(-8)}`,
+            orderId: order.id,
+          },
+        ]);
       }
-
-      // Update driver wallet
-      const [driverWallet] = await db
-        .select()
-        .from(wallets)
-        .where(eq(wallets.userId, order.deliveryPersonId))
-        .limit(1);
-
-      if (driverWallet) {
-        await db
-          .update(wallets)
-          .set({ 
-            balance: driverWallet.balance + commissions.driver,
-            totalEarned: driverWallet.totalEarned + commissions.driver,
-          })
-          .where(eq(wallets.userId, order.deliveryPersonId));
-      } else {
-        await db.insert(wallets).values({
-          userId: order.deliveryPersonId,
-          balance: commissions.driver,
-          pendingBalance: 0,
-          totalEarned: commissions.driver,
-          totalWithdrawn: 0,
-        });
-      }
-
-      // Create transaction records
-      await db.insert(transactions).values([
-        {
-          userId: order.businessId,
-          type: "order_payment",
-          amount: commissions.business,
-          status: "completed",
-          description: `Pago por pedido #${order.id.slice(-6)}`,
-          orderId: order.id,
-        },
-        {
-          userId: order.deliveryPersonId,
-          type: "delivery_payment",
-          amount: commissions.driver,
-          status: "completed",
-          description: `Entrega de pedido #${order.id.slice(-6)}`,
-          orderId: order.id,
-        },
-      ]);
 
       res.json({
         success: true,

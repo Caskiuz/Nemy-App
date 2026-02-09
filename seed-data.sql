@@ -1,5 +1,5 @@
 -- Seed data for NEMY database
-USE nemy_db_local;
+USE nemy_db;
 
 -- Clear existing data
 DELETE FROM order_items;

@@ -114,13 +114,15 @@ async function processCashCommissions(orderId: string) {
 
     if (!order) return;
 
-    // Get commission rates from system settings
-    const { getCommissionSettings } = await import("./systemSettingsService");
-    const settings = await getCommissionSettings();
+    // Get commission rates from system settings; fall back to defaults if missing
+    const { getSettingValue } = await import("./systemSettingsService");
 
-    const platformRate = settings.platformCommission / 100;
-    const businessRate = settings.businessCommission / 100;
-    const driverRate = settings.driverCommission / 100;
+    const platformRate =
+      ((await getSettingValue("platform_commission_rate", 0.15)) as number);
+    const businessRate =
+      ((await getSettingValue("business_commission_rate", 0.7)) as number);
+    const driverRate =
+      ((await getSettingValue("driver_commission_rate", 0.15)) as number);
 
     const platformAmount = Math.round(order.total * platformRate);
     const businessAmount = Math.round(order.total * businessRate);

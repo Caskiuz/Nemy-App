@@ -123,7 +123,7 @@ export default function DriverMyDeliveriesScreen() {
           method = 'PUT';
           break;
         case 'delivered':
-          endpoint = `/api/delivery/deliver/${orderId}`;
+          endpoint = `/api/orders/${orderId}/complete-delivery`;
           break;
         default:
           endpoint = `/api/delivery/orders/${orderId}/status`;
@@ -171,7 +171,7 @@ export default function DriverMyDeliveriesScreen() {
       const body = location ? { latitude: location.latitude, longitude: location.longitude } : {};
       
       try {
-        await apiRequest('POST', `/api/delivery/deliver/${pendingOrderId}`, body);
+        await apiRequest('POST', `/api/orders/${pendingOrderId}/complete-delivery`, body);
         loadOrders();
       } catch (error) {
         console.error('Error confirming delivery:', error);
@@ -279,7 +279,7 @@ export default function DriverMyDeliveriesScreen() {
           <View>
             <ThemedText type="h4">{item.businessName}</ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Pedido #{item.id.slice(-6)}
+              Pedido #{item.id.slice(-8)}
             </ThemedText>
           </View>
           <Badge
@@ -406,7 +406,7 @@ export default function DriverMyDeliveriesScreen() {
           <View>
             <ThemedText type="h4">{item.businessName}</ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Pedido #{item.id.slice(-6)}
+              Pedido #{item.id.slice(-8)}
             </ThemedText>
           </View>
           <Badge text="Entregado" variant="success" />

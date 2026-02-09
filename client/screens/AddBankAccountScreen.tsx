@@ -205,10 +205,13 @@ export default function AddBankAccountScreen({ navigation }: any) {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#FF6B35" />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={20} color="#FF6B35" />
         </TouchableOpacity>
-        <Text style={styles.title}>Agregar Cuenta Bancaria</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Agregar Cuenta Bancaria</Text>
+          <Text style={styles.headerSubtitle}>CLABE SPEI para retiros</Text>
+        </View>
       </View>
 
       <View style={styles.form}>
@@ -362,11 +365,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  title: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFE1D5',
+    backgroundColor: '#FFF5F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginLeft: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
   },
   form: {
     padding: 20,

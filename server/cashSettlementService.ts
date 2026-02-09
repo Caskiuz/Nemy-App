@@ -1,6 +1,6 @@
 // Cash Settlement Service - Liquidación de Efectivo
 import { db } from "./db";
-import { wallets, transactions, orders } from "@shared/schema-mysql";
+import { wallets, transactions, orders, businesses } from "@shared/schema-mysql";
 import { eq, and } from "drizzle-orm";
 import { financialService } from "./unifiedFinancialService";
 
@@ -14,6 +14,14 @@ export class CashSettlementService {
     deliveryFee: number
   ): Promise<void> {
     const commissions = await financialService.calculateCommissions(total, deliveryFee);
+
+    const [business] = await db
+      .select({ ownerId: businesses.ownerId })
+      .from(businesses)
+      .where(eq(businesses.id, businessId))
+      .limit(1);
+
+    const businessOwnerId = business?.ownerId || businessId;
 
     await db.transaction(async (tx) => {
       // Obtener wallet del repartidor
@@ -57,12 +65,12 @@ export class CashSettlementService {
       let [businessWallet] = await tx
         .select()
         .from(wallets)
-        .where(eq(wallets.userId, businessId))
+        .where(eq(wallets.userId, businessOwnerId))
         .limit(1);
 
       if (!businessWallet) {
         await tx.insert(wallets).values({
-          userId: businessId,
+          userId: businessOwnerId,
           balance: 0,
           pendingBalance: 0,
           cashOwed: 0,
@@ -73,7 +81,7 @@ export class CashSettlementService {
         [businessWallet] = await tx
           .select()
           .from(wallets)
-          .where(eq(wallets.userId, businessId))
+          .where(eq(wallets.userId, businessOwnerId))
           .limit(1);
       }
 
@@ -83,7 +91,7 @@ export class CashSettlementService {
           cashPending: businessWallet.cashPending + commissions.business,
           updatedAt: new Date(),
         })
-        .where(eq(wallets.userId, businessId));
+        .where(eq(wallets.userId, businessOwnerId));
 
       // Crear transacciones de tracking
       await tx.insert(transactions).values([
@@ -95,7 +103,7 @@ export class CashSettlementService {
           amount: commissions.driver,
           balanceBefore: driverWallet.balance,
           balanceAfter: driverWallet.balance + commissions.driver,
-          description: `Delivery en efectivo - Pedido #${orderId.slice(-6)}`,
+          description: `Delivery en efectivo - Pedido #${orderId.slice(-8)}`,
           status: "completed",
         },
         {
@@ -106,7 +114,7 @@ export class CashSettlementService {
           amount: -debtAmount,
           balanceBefore: driverWallet.cashOwed,
           balanceAfter: driverWallet.cashOwed + debtAmount,
-          description: `Efectivo a liquidar - Pedido #${orderId.slice(-6)}`,
+          description: `Efectivo a liquidar - Pedido #${orderId.slice(-8)}`,
           status: "pending",
         },
       ]);
@@ -196,33 +204,39 @@ export class CashSettlementService {
 
       if (remainingAmount >= orderDebt) {
         // Liquidar orden completa
+        const [business] = await tx
+          .select({ ownerId: businesses.ownerId })
+          .from(businesses)
+          .where(eq(businesses.id, order.businessId))
+          .limit(1);
+
+        const businessOwnerId = business?.ownerId || order.businessId;
+
         const [businessWallet] = await tx
           .select()
           .from(wallets)
-          .where(eq(wallets.userId, order.businessId))
+          .where(eq(wallets.userId, businessOwnerId))
           .limit(1);
 
         if (businessWallet) {
           await tx
             .update(wallets)
             .set({
-              balance: businessWallet.balance + commissions.business,
               cashPending: businessWallet.cashPending - commissions.business,
-              totalEarned: businessWallet.totalEarned + commissions.business,
               updatedAt: new Date(),
             })
-            .where(eq(wallets.userId, order.businessId));
+            .where(eq(wallets.userId, businessOwnerId));
 
           // Registrar transacción al negocio
           await tx.insert(transactions).values({
             walletId: businessWallet.id,
-            userId: order.businessId,
+            userId: businessOwnerId,
             orderId: order.id,
             type: "cash_settlement",
             amount: commissions.business,
             balanceBefore: businessWallet.balance,
-            balanceAfter: businessWallet.balance + commissions.business,
-            description: `Efectivo liquidado - Pedido #${order.id.slice(-6)}`,
+            balanceAfter: businessWallet.balance,
+            description: `Efectivo liquidado - Pedido #${order.id.slice(-8)}`,
             status: "completed",
           });
         }

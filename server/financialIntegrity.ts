@@ -42,17 +42,30 @@ export class FinancialIntegrity {
     platformFee?: number;
     businessEarnings?: number;
     deliveryEarnings?: number;
+    productosBase?: number | null;
+    nemyCommission?: number | null;
   }): Promise<ValidationResult> {
     // 1. Validar total del pedido
-    const calculatedTotal = order.subtotal + order.deliveryFee;
-    if (calculatedTotal !== order.total) {
+    const subtotalTotal = order.subtotal + order.deliveryFee;
+    const hasMarkup =
+      order.productosBase !== undefined &&
+      order.productosBase !== null &&
+      order.nemyCommission !== undefined &&
+      order.nemyCommission !== null;
+    const markupTotal = hasMarkup
+      ? (order.productosBase || 0) + (order.nemyCommission || 0) + order.deliveryFee
+      : subtotalTotal;
+
+    if (order.total !== subtotalTotal && order.total !== markupTotal) {
       return {
         valid: false,
         error: "Total del pedido inválido",
         details: {
-          expected: calculatedTotal,
+          expected: hasMarkup ? markupTotal : subtotalTotal,
           received: order.total,
           subtotal: order.subtotal,
+          productosBase: order.productosBase,
+          nemyCommission: order.nemyCommission,
           deliveryFee: order.deliveryFee,
         },
       };
@@ -210,7 +223,16 @@ export class FinancialIntegrity {
     }
 
     // Validar estructura del pedido
-    const orderValidation = await this.validateOrder(order);
+    const orderForValidation =
+      order.status === "delivered"
+        ? order
+        : {
+            ...order,
+            platformFee: undefined,
+            businessEarnings: undefined,
+            deliveryEarnings: undefined,
+          };
+    const orderValidation = await this.validateOrder(orderForValidation);
     if (!orderValidation.valid) {
       return orderValidation;
     }

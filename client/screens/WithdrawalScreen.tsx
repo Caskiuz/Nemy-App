@@ -11,6 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { API_CONFIG } from '../constants/api';
 
@@ -27,6 +28,7 @@ interface ConnectStatus {
 
 export default function WithdrawalScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [wallet, setWallet] = useState<any>(null);
   const [amount, setAmount] = useState('');
@@ -44,7 +46,50 @@ export default function WithdrawalScreen() {
     loadWalletData();
     loadTransactions();
     loadConnectStatus();
+    loadBankAccount();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadWalletData();
+      loadTransactions();
+      loadConnectStatus();
+      loadBankAccount();
+    }, []),
+  );
+
+  const loadBankAccount = async () => {
+    try {
+      const token = user?.token;
+      if (!token) return;
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/bank-account`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (response.ok && data?.bankAccount) {
+        const parsed =
+          typeof data.bankAccount === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(data.bankAccount);
+                } catch (err) {
+                  return {};
+                }
+              })()
+            : data.bankAccount;
+
+        setBankData({
+          clabe: parsed?.clabe || '',
+          bankName: parsed?.bankName || '',
+          accountHolder: parsed?.accountHolder || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading bank account:', error);
+    }
+  };
 
   const loadConnectStatus = async () => {
     try {
@@ -150,8 +195,8 @@ export default function WithdrawalScreen() {
       const data = await response.json();
       console.log('💰 Wallet response:', data);
       
-      if (data.success) {
-        setWallet(data);
+      if (data?.wallet || data?.success) {
+        setWallet(data.wallet || data);
         console.log('✅ Wallet loaded:', data);
       } else {
         console.log('⚠️ Wallet load failed:', data);
@@ -170,11 +215,15 @@ export default function WithdrawalScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
+      console.log('📑 Transactions response:', data);
+      if (data?.transactions) {
         setTransactions(data.transactions || []);
+      } else {
+        setTransactions([]);
       }
     } catch (error) {
       console.error('Error loading transactions:', error);
+      setTransactions([]);
     }
   };
 
@@ -198,20 +247,69 @@ export default function WithdrawalScreen() {
     }
 
     if (method === 'stripe' && !connectStatus?.canReceivePayments) {
-      Alert.alert('Error', 'Debes configurar tu cuenta bancaria primero');
+      Alert.alert(
+        'Configura tu cuenta Stripe',
+        'Ve a Metodos de Pago para completar la configuracion de Stripe Connect.',
+        [
+          {
+            text: 'Ir a configurar',
+            onPress: () => navigation.navigate('PaymentMethods' as never),
+          },
+          { text: 'Cancelar', style: 'cancel' },
+        ],
+      );
       return;
     }
 
     if (method === 'bank_transfer') {
-      if (!bankData.clabe || bankData.clabe.length !== 18) {
-        Alert.alert('Error', 'CLABE debe tener 18 dígitos');
-        return;
-      }
-      if (!bankData.bankName || !bankData.accountHolder) {
-        Alert.alert('Error', 'Completa todos los datos bancarios');
+      if (!bankData.clabe || bankData.clabe.length !== 18 || !bankData.bankName || !bankData.accountHolder) {
+        Alert.alert(
+          'Configura tu cuenta SPEI',
+          'Ve a Métodos de Pago > Agregar cuenta bancaria para guardar tu CLABE y titular.',
+          [
+            {
+              text: 'Ir a configurar',
+              onPress: () => navigation.navigate('AddBankAccount' as never),
+            },
+            { text: 'Cancelar', style: 'cancel' },
+          ],
+        );
         return;
       }
     }
+
+    const persistBankAccount = async () => {
+      if (method !== 'bank_transfer') return true;
+      try {
+        const token = user?.token;
+        if (!token) return false;
+
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/bank-account`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            clabe: bankData.clabe,
+            bankName: bankData.bankName,
+            accountHolder: bankData.accountHolder,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          Alert.alert('Error', error.error || 'No se pudo guardar la cuenta bancaria');
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Error saving bank account:', error);
+        Alert.alert('Error', 'No se pudo guardar la cuenta bancaria');
+        return false;
+      }
+    };
 
     setLoading(true);
     try {
@@ -219,6 +317,14 @@ export default function WithdrawalScreen() {
       if (!token) {
         Alert.alert('Error', 'Sesión expirada');
         return;
+      }
+
+      if (method === 'bank_transfer') {
+        const saved = await persistBankAccount();
+        if (!saved) {
+          setLoading(false);
+          return;
+        }
       }
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/wallet/withdraw`, {
@@ -258,20 +364,53 @@ export default function WithdrawalScreen() {
     }
   };
 
-  const availableBalance = ((wallet?.balance || 0) - (wallet?.cashOwed || 0)) / 100;
+  const availableBalance = (wallet?.availableBalance !== undefined
+    ? wallet.availableBalance / 100
+    : ((wallet?.balance || 0) - (wallet?.cashOwed || 0)) / 100);
+  const retainedCash = (wallet?.cashOwed || 0) / 100;
 
   return (
     <ScrollView style={styles.container}>
-      {/* Balance Card */}
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Saldo Disponible</Text>
-        <Text style={styles.balanceAmount}>${availableBalance.toFixed(2)} MXN</Text>
-        {wallet?.cashOwed > 0 && (
-          <Text style={styles.cashOwed}>
-            Efectivo pendiente: ${(wallet.cashOwed / 100).toFixed(2)}
-          </Text>
-        )}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : null)}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Retiros</Text>
+          <Text style={styles.headerSubtitle}>Gestiona tu saldo y transferencias</Text>
+        </View>
       </View>
+
+      {/* Balance Card con saldo disponible y retenido */}
+      <View style={styles.balanceCard}>
+        <Text style={styles.balanceLabel}>Saldo disponible para retiro</Text>
+        <Text style={styles.balanceAmount}>${availableBalance.toFixed(2)} MXN</Text>
+        <View style={styles.retainRow}>
+          <Ionicons name="lock-closed-outline" size={16} color="#F59E0B" style={{marginRight: 6}} />
+          <Text style={styles.cashOwed}>Saldo retenido (deuda de efectivo): ${retainedCash.toFixed(2)}</Text>
+        </View>
+        <View style={{marginTop: 10}}>
+          <Text style={{color: '#fff', fontSize: 12}}>
+            Ganado: ${(wallet?.totalEarned ? wallet.totalEarned / 100 : 0).toFixed(2)} | Retirado: ${(wallet?.totalWithdrawn ? wallet.totalWithdrawn / 100 : 0).toFixed(2)} | Pendiente: ${(wallet?.pendingBalance ? wallet.pendingBalance / 100 : 0).toFixed(2)}
+          </Text>
+        </View>
+      </View>
+
+      {/* Banner si hay deuda de efectivo */}
+      {wallet?.cashOwed > 0 && (
+        <View style={styles.warningBanner}>
+          <Ionicons name="warning" size={18} color="#F59E0B" style={{marginRight: 8}} />
+          <View style={{flex: 1}}>
+            <Text style={{color: '#92400E', fontWeight: 'bold'}}>Tienes deuda de efectivo pendiente</Text>
+            <Text style={{color: '#92400E', fontSize: 13}}>
+              Entrega ${retainedCash.toFixed(2)} al negocio para habilitar retiros. Mientras haya deuda, no podrás retirar.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Connect Status Card */}
       {connectStatus && (
@@ -353,28 +492,22 @@ export default function WithdrawalScreen() {
         <View style={styles.methodButtons}>
           <TouchableOpacity
             style={[
-              styles.methodButton, 
+              styles.methodButton,
               method === 'stripe' && styles.methodButtonActive,
-              !connectStatus?.canReceivePayments && styles.methodButtonDisabled
             ]}
-            onPress={() => connectStatus?.canReceivePayments && setMethod('stripe')}
-            disabled={!connectStatus?.canReceivePayments}
+            onPress={() => setMethod('stripe')}
           >
-            <Ionicons 
-              name="flash-outline" 
-              size={16} 
-              color={connectStatus?.canReceivePayments ? (method === 'stripe' ? '#4CAF50' : '#666') : '#ccc'} 
+            <Ionicons
+              name="flash-outline"
+              size={16}
+              color={method === 'stripe' ? '#4CAF50' : '#666'}
             />
-            <Text style={[
-              styles.methodText, 
-              method === 'stripe' && styles.methodTextActive,
-              !connectStatus?.canReceivePayments && styles.methodTextDisabled
-            ]}>
-              Automático (1-2 días)
+            <Text style={[styles.methodText, method === 'stripe' && styles.methodTextActive]}>
+              Automatico (1-2 dias)
             </Text>
-            {!connectStatus?.canReceivePayments && (
-              <Text style={styles.methodSubtext}>Requiere configuración</Text>
-            )}
+            <Text style={styles.methodSubtext}>
+              {connectStatus?.canReceivePayments ? 'Listo para retirar' : 'Configurar en Metodos de Pago'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.methodButton, method === 'bank_transfer' && styles.methodButtonActive]}
@@ -386,45 +519,82 @@ export default function WithdrawalScreen() {
               color={method === 'bank_transfer' ? '#4CAF50' : '#666'} 
             />
             <Text style={[styles.methodText, method === 'bank_transfer' && styles.methodTextActive]}>
-              Manual (3-5 días)
+              SPEI / CoDi (manual)
             </Text>
+            <Text style={styles.methodSubtext}>Procesa en 3-5 días hábiles</Text>
           </TouchableOpacity>
         </View>
 
         {method === 'bank_transfer' && (
           <View style={styles.bankForm}>
-            <Text style={styles.label}>CLABE Interbancaria</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="18 dígitos"
-              keyboardType="numeric"
-              maxLength={18}
-              value={bankData.clabe}
-              onChangeText={(text) => setBankData({ ...bankData, clabe: text })}
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="card-outline" size={18} color="#4CAF50" style={{ marginRight: 8 }} />
+              <Text style={{ fontWeight: '600', color: '#0F172A' }}>Cuenta SPEI / CoDi para retiros</Text>
+            </View>
 
-            <Text style={styles.label}>Banco</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ej: BBVA, Santander"
-              value={bankData.bankName}
-              onChangeText={(text) => setBankData({ ...bankData, bankName: text })}
-            />
+            {bankData.clabe ? (
+              <View style={styles.bankSummary}>
+                <Text style={styles.bankSummaryLabel}>CLABE</Text>
+                <Text style={styles.bankSummaryValue}>{bankData.clabe}</Text>
+                <Text style={styles.bankSummaryLabel}>Banco</Text>
+                <Text style={styles.bankSummaryValue}>{bankData.bankName || '—'}</Text>
+                <Text style={styles.bankSummaryLabel}>Titular</Text>
+                <Text style={styles.bankSummaryValue}>{bankData.accountHolder || '—'}</Text>
+              </View>
+            ) : (
+              <Text style={{ color: '#6B7280', marginBottom: 8 }}>
+                Configura tu cuenta SPEI en Métodos de Pago. Se usará automáticamente para tus retiros.
+              </Text>
+            )}
 
-            <Text style={styles.label}>Titular de la Cuenta</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre completo"
-              value={bankData.accountHolder}
-              onChangeText={(text) => setBankData({ ...bankData, accountHolder: text })}
-            />
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => navigation.navigate('AddBankAccount' as never)}
+            >
+              <Ionicons name="settings-outline" size={16} color="#FF6B35" />
+              <Text style={styles.secondaryButtonText}>
+                Configurar cuenta SPEI
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {method === 'stripe' && (
+          <View style={styles.bankForm}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="flash-outline" size={18} color="#4CAF50" style={{ marginRight: 8 }} />
+              <Text style={{ fontWeight: '600', color: '#0F172A' }}>Retiros automaticos via Stripe</Text>
+            </View>
+
+            {connectStatus?.canReceivePayments ? (
+              <View style={styles.bankSummary}>
+                <Text style={styles.bankSummaryLabel}>Estado</Text>
+                <Text style={styles.bankSummaryValue}>Cuenta lista para retiros</Text>
+                <Text style={styles.bankSummaryLabel}>Retiros</Text>
+                <Text style={styles.bankSummaryValue}>Disponibles en 1-2 dias</Text>
+              </View>
+            ) : (
+              <Text style={{ color: '#6B7280', marginBottom: 8 }}>
+                Configura tu cuenta Stripe Connect en Metodos de Pago para habilitar retiros automaticos.
+              </Text>
+            )}
+
+            {!connectStatus?.canReceivePayments && (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => navigation.navigate('PaymentMethods' as never)}
+              >
+                <Ionicons name="settings-outline" size={16} color="#FF6B35" />
+                <Text style={styles.secondaryButtonText}>Configurar Stripe</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
         <TouchableOpacity
-          style={[styles.withdrawButton, loading && styles.withdrawButtonDisabled]}
+          style={[styles.withdrawButton, (loading || retainedCash > 0) && styles.withdrawButtonDisabled]}
           onPress={handleWithdraw}
-          disabled={loading}
+          disabled={loading || retainedCash > 0}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -432,6 +602,11 @@ export default function WithdrawalScreen() {
             <Text style={styles.withdrawButtonText}>Solicitar Retiro</Text>
           )}
         </TouchableOpacity>
+        {retainedCash > 0 && (
+          <Text style={{color: '#B45309', fontSize: 12, marginTop: 4}}>
+            No puedes retirar hasta saldar tu deuda de efectivo.
+          </Text>
+        )}
       </View>
 
       {/* History */}
@@ -449,6 +624,8 @@ export default function WithdrawalScreen() {
                 <Text style={styles.historyMethod}>
                   {tx.type === 'income' ? 'Ingreso' : 
                    tx.type === 'delivery_payment' ? 'Pago Entrega' :
+                   tx.type === 'order_payment' ? 'Venta (tarjeta)' :
+                   tx.type === 'cash_settlement' ? 'Venta (efectivo)' :
                    tx.type === 'withdrawal' ? 'Retiro' : tx.type}
                 </Text>
               </View>
@@ -492,6 +669,33 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: '#f5f5f5',
+    gap: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#475569',
+    marginTop: 2,
+  },
   balanceLabel: {
     color: '#fff',
     fontSize: 16,
@@ -505,6 +709,19 @@ const styles = StyleSheet.create({
   cashOwed: {
     color: '#ffeb3b',
     fontSize: 14,
+    marginTop: 8,
+  },
+  retainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 16,
     marginTop: 8,
   },
   form: {
@@ -695,6 +912,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#f44336',
     marginTop: 2,
+  infoCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  infoText: {
+    fontSize: 13,
+    color: '#475569',
+  },
+  infoButton: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoButtonText: {
+    color: '#0F172A',
+    fontWeight: '600',
+    fontSize: 13,
+  },
     fontStyle: 'italic',
     maxWidth: 150,
   },

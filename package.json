@@ -116,18 +116,17 @@
     "zod-validation-error": "^3.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/express": "^5.0.0",
-    
     "@types/node": "24.10.0",
     "@types/react": "~19.1.0",
-    "@playwright/test": "^1.58.2",
     "babel-plugin-module-resolver": "^5.0.2",
     "drizzle-kit": "^0.31.8",
-    
     "prettier": "3.6.2",
     "supertest": "^7.0.0",
     "ts-jest": "^29.3.4",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0"
   },
   "private": true
 }

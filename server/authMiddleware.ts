@@ -41,23 +41,12 @@ export async function authenticateToken(
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
 
-    console.log("🔍 Auth Debug:", {
-      url: req.url,
-      method: req.method,
-      authHeader: authHeader ? `${authHeader.substring(0, 20)}...` : 'undefined',
-      token: token ? `${token.substring(0, 20)}...` : 'undefined',
-      hasToken: !!token
-    });
-
     if (!token) {
-      console.log("❌ No token provided");
       return res.status(401).json({ error: "Token requerido" });
     }
 
     // Verify JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "nemy_local_secret_key") as any;
-    console.log("✅ Token decoded successfully:", { id: decoded.id, role: decoded.role });
-    
     // Get user from database
     const [user] = await db
       .select()
@@ -66,12 +55,10 @@ export async function authenticateToken(
       .limit(1);
 
     if (!user) {
-      console.log("❌ User not found in DB:", decoded.id);
       return res.status(401).json({ error: "Usuario no encontrado" });
     }
 
     if (!user.isActive) {
-      console.log("❌ User inactive:", decoded.id);
       return res.status(403).json({ error: "Cuenta desactivada" });
     }
 
@@ -86,7 +73,6 @@ export async function authenticateToken(
       phoneVerified: user.phoneVerified,
     };
 
-    console.log("✅ User authenticated:", { id: user.id, name: user.name, role: user.role });
     next();
   } catch (error) {
     console.error("❌ Auth error:", error);

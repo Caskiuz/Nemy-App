@@ -346,10 +346,10 @@ export const withdrawals = mysqlTable("withdrawals", {
   walletId: varchar("wallet_id", { length: 255 }).notNull(),
   userId: varchar("user_id", { length: 255 }).notNull(),
   amount: int("amount").notNull(), // en centavos
-  status: text("status").notNull().default("pending"), // pending, processing, completed, failed, cancelled
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, processing, completed, failed, cancelled
   stripeTransferId: text("stripe_transfer_id"),
   stripePayoutId: text("stripe_payout_id"),
-  method: text("method").notNull().default("stripe"), // stripe, bank_transfer, cash
+  method: varchar("method", { length: 50 }).notNull().default("stripe"), // stripe, bank_transfer, cash
   bankAccount: text("bank_account"), // JSON con datos bancarios
   failureReason: text("failure_reason"),
   processedAt: timestamp("processed_at"),
@@ -364,8 +364,8 @@ export const withdrawalRequests = mysqlTable("withdrawal_requests", {
   userId: varchar("user_id", { length: 255 }).notNull(),
   walletId: varchar("wallet_id", { length: 255 }).notNull(),
   amount: int("amount").notNull(), // en centavos
-  method: text("method").notNull(), // stripe, bank_transfer
-  status: text("status").notNull().default("pending"), // pending, completed, failed, cancelled
+  method: varchar("method", { length: 50 }).notNull(), // stripe, bank_transfer
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, completed, failed, cancelled
   // Datos bancarios para transferencia SPEI
   bankClabe: varchar("bank_clabe", { length: 18 }), // CLABE interbancaria (18 dígitos)
   bankName: text("bank_name"),

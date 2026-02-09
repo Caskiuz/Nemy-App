@@ -113,7 +113,7 @@ function TopProductRow({
       </View>
       <View style={styles.revenueCol}>
         <ThemedText type="body" style={{ fontWeight: "600", color: "#4CAF50" }}>
-          ${(product.revenue / 100).toFixed(0)}
+          ${product.revenue.toFixed(2)}
         </ThemedText>
       </View>
     </Animated.View>
