@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { apiRequest } from '@/lib/query-client';
 
@@ -31,10 +31,19 @@ class GPSService {
             resolve(true); // Assume permission available if query fails
           });
         });
-      } else {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        return status === 'granted';
       }
+
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+      const granted = status === 'granted';
+
+      if (!granted) {
+        const message = canAskAgain
+          ? 'Activa el GPS para continuar con las entregas.'
+          : 'Activa el GPS desde ajustes para continuar con las entregas.';
+        Alert.alert('GPS requerido', message);
+      }
+
+      return granted;
     } catch (error) {
       console.error('Error requesting GPS permissions:', error);
       return false;
@@ -43,6 +52,11 @@ class GPSService {
 
   async getCurrentLocation(): Promise<GPSLocation | null> {
     try {
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) {
+        return null;
+      }
+
       if (Platform.OS === 'web') {
         return new Promise((resolve) => {
           if (!navigator.geolocation) {
@@ -69,18 +83,18 @@ class GPSService {
             }
           );
         });
-      } else {
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-          timeoutMs: 10000
-        });
-        
-        return {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          timestamp: location.timestamp
-        };
       }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeoutMs: 10000
+      });
+      
+      return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        timestamp: location.timestamp
+      };
     } catch (error) {
       console.error('Error getting current location:', error);
       return null;
@@ -93,6 +107,7 @@ class GPSService {
     const hasPermission = await this.requestPermissions();
     if (!hasPermission) {
       console.log('GPS permission denied');
+      this.isTracking = false;
       return false;
     }
 
@@ -114,6 +129,7 @@ class GPSService {
           },
           (error) => {
             console.error('Web GPS tracking error:', error);
+            this.stopTracking();
           },
           {
             enableHighAccuracy: true,
@@ -143,6 +159,7 @@ class GPSService {
       return true;
     } catch (error) {
       console.error('Error starting GPS tracking:', error);
+      this.stopTracking();
       return false;
     }
   }

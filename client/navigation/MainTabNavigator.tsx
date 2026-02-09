@@ -1,8 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
@@ -47,7 +46,6 @@ export default function MainTabNavigator() {
         tabBarActiveTintColor: NemyColors.primary,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {
-          position: "absolute",
           backgroundColor: theme.background,
           borderTopWidth: 1,
           borderTopColor: theme.border,

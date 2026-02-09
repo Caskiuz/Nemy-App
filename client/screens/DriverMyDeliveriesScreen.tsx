@@ -201,6 +201,34 @@ export default function DriverMyDeliveriesScreen() {
     }
   };
 
+  const parseCoordinate = (value: any): number | null => {
+    if (value === undefined || value === null || value === "") return null;
+    const num = typeof value === "string" ? parseFloat(value) : Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const getOrderCoordinates = (order: any) => {
+    const lat = [
+      order.deliveryLatitude,
+      order.deliveryLat,
+      order.latitude,
+      order.delivery_latitude,
+    ]
+      .map(parseCoordinate)
+      .find((value) => value !== null);
+
+    const lng = [
+      order.deliveryLongitude,
+      order.deliveryLng,
+      order.longitude,
+      order.delivery_longitude,
+    ]
+      .map(parseCoordinate)
+      .find((value) => value !== null);
+
+    return { lat, lng };
+  };
+
   const openGoogleMaps = (lat: number, lng: number, address: string) => {
     const url = Platform.select({
       ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
@@ -237,11 +265,10 @@ export default function DriverMyDeliveriesScreen() {
   };
 
   const showNavigationOptions = (order: any) => {
-    const lat = order.deliveryLat || order.latitude;
-    const lng = order.deliveryLng || order.longitude;
+    const { lat, lng } = getOrderCoordinates(order);
     const address = parseDeliveryAddress(order.deliveryAddress);
 
-    if (!lat || !lng) {
+    if (lat === null || lng === null) {
       Alert.alert("Error", "No hay coordenadas disponibles para este pedido");
       return;
     }

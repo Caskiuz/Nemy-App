@@ -193,7 +193,7 @@ export default function SupportChatScreen() {
     try {
       const token = await AsyncStorage.getItem("token");
       if (!token) {
-        throw new Error("Token requerido");
+        throw new Error("No hay sesión activa (token requerido)");
       }
 
       const response = await fetch(
@@ -215,6 +215,11 @@ export default function SupportChatScreen() {
         },
       );
 
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Error ${response.status}: ${text || response.statusText}`);
+      }
+
       const data = await response.json();
 
       if (data.response) {
@@ -227,15 +232,17 @@ export default function SupportChatScreen() {
         setMessages((prev) => [...prev, assistantMessage]);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        throw new Error(data.error || "Error al obtener respuesta");
+        throw new Error(data.error || "Sin respuesta del asistente");
       }
     } catch (error: any) {
-      console.error("Support chat error:", error);
+      console.error("Support chat error:", error?.message || error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content:
-          "Lo siento, hubo un problema al procesar tu mensaje. Por favor intenta de nuevo o contáctanos por WhatsApp.",
+          error?.message?.includes("401") || error?.message?.includes("session")
+            ? "No pudimos autenticarte. Cierra sesión y vuelve a entrar, luego intenta de nuevo."
+            : "Lo siento, hubo un problema al procesar tu mensaje. Intenta de nuevo o contáctanos por WhatsApp.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);

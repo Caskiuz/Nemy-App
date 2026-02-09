@@ -51,10 +51,17 @@ export default function LocationPickerScreen() {
   }, []);
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
     if (status === 'granted') {
       getCurrentLocation();
+      return;
     }
+
+    const message = canAskAgain
+      ? 'Necesitamos acceso al GPS para autocompletar tu dirección.'
+      : 'Activa el GPS desde ajustes para autocompletar tu dirección.';
+    Alert.alert('GPS requerido', message);
+    setLocation(AUTLAN_CENTER);
   };
 
   const getCurrentLocation = async () => {

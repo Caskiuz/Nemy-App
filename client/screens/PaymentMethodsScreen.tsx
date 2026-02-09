@@ -11,7 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { API_CONFIG } from '../constants/config';
 
@@ -27,7 +27,7 @@ interface ConnectStatus {
 
 export default function PaymentMethodsScreen({ navigation }: any) {
   const { user, token, isAuthenticated } = useAuth();
-  const nav = navigation || useNavigation();
+  const insets = useSafeAreaInsets();
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,6 +84,21 @@ export default function PaymentMethodsScreen({ navigation }: any) {
     fetchConnectStatus();
   };
 
+  const openExternalUrl = async (rawUrl?: string) => {
+    if (!rawUrl) {
+      Alert.alert('Error', 'No se recibio el enlace de configuracion');
+      return;
+    }
+
+    const normalizedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+
+    try {
+      await Linking.openURL(normalizedUrl);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo abrir el enlace de configuracion');
+    }
+  };
+
   const startOnboarding = async () => {
     if (!user || !token) {
       console.log('❌ No user or token available for onboarding');
@@ -118,14 +133,8 @@ export default function PaymentMethodsScreen({ navigation }: any) {
 
       if (response.ok) {
         const data = await response.json();
-        
-        // Abrir URL de onboarding en navegador
-        const supported = await Linking.canOpenURL(data.onboardingUrl);
-        if (supported) {
-          await Linking.openURL(data.onboardingUrl);
-        } else {
-          Alert.alert('Error', 'No se pudo abrir el enlace de configuración');
-        }
+
+        await openExternalUrl(data.onboardingUrl);
       } else {
         const error = await response.json();
         console.error('Onboarding error:', response.status, error);
@@ -152,11 +161,8 @@ export default function PaymentMethodsScreen({ navigation }: any) {
 
       if (response.ok) {
         const data = await response.json();
-        
-        const supported = await Linking.canOpenURL(data.onboardingUrl);
-        if (supported) {
-          await Linking.openURL(data.onboardingUrl);
-        }
+
+        await openExternalUrl(data.onboardingUrl);
       } else {
         Alert.alert('Error', 'Error al actualizar configuración');
       }
@@ -179,11 +185,8 @@ export default function PaymentMethodsScreen({ navigation }: any) {
 
       if (response.ok) {
         const data = await response.json();
-        
-        const supported = await Linking.canOpenURL(data.dashboardUrl);
-        if (supported) {
-          await Linking.openURL(data.dashboardUrl);
-        }
+
+        await openExternalUrl(data.dashboardUrl);
       } else {
         Alert.alert('Error', 'Error al abrir dashboard');
       }
@@ -191,7 +194,6 @@ export default function PaymentMethodsScreen({ navigation }: any) {
       Alert.alert('Error', 'Error de conexión');
     }
   };
-
   const getStatusColor = (status: boolean) => {
     return status ? '#10B981' : '#EF4444';
   };
@@ -204,8 +206,12 @@ export default function PaymentMethodsScreen({ navigation }: any) {
     if (!user) return '';
     switch (user.role) {
       case 'business':
+      case 'business_owner':
+      case 'admin':
+      case 'super_admin':
         return 'Cuenta de Negocio';
       case 'driver':
+      case 'delivery_driver':
         return 'Cuenta de Repartidor';
       default:
         return 'Cuenta de Usuario';
@@ -224,25 +230,14 @@ export default function PaymentMethodsScreen({ navigation }: any) {
   return (
     <ScrollView 
       style={styles.container}
+      contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => (nav.canGoBack ? (nav as any).canGoBack() && (nav as any).goBack() : null)}
-        >
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Métodos de Pago</Text>
-          <Text style={styles.headerSubtitle}>Cuenta bancaria, SPEI / CoDi y Stripe</Text>
-        </View>
-      </View>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
+          style={[styles.backButton, { top: insets.top + 12 }]}
           onPress={() => navigation.goBack()}
           accessibilityLabel="Volver"
         >
@@ -421,6 +416,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  content: {
+    paddingBottom: 24,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -433,44 +431,17 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   header: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
     alignItems: 'center',
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     position: 'relative',
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 8,
-      backgroundColor: '#f8f9fa',
-      gap: 12,
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: '#e2e8f0',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    headerTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: '#0F172A',
-    },
-    headerSubtitle: {
-      fontSize: 13,
-      color: '#475569',
-      marginTop: 2,
-    },
   },
   backButton: {
     position: 'absolute',
     left: 16,
-    top: 20,
     width: 44,
     height: 44,
     justifyContent: 'center',

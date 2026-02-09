@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Dimensions } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, Pressable, Dimensions, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
@@ -7,7 +7,13 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import { useEffect } from "react";
+import { Platform } from "react-native";
+// MapView se carga de forma diferida para evitar crash si react-native-maps no está disponible en el dispositivo
+let MapView: any = null;
+let Marker: any = null;
+let Polyline: any = null;
+let PROVIDER_GOOGLE: any = null;
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -43,11 +49,31 @@ export function CollapsibleMap({
 }: CollapsibleMapProps) {
   const { theme, isDark } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [mapAvailable, setMapAvailable] = useState(false);
   const height = useSharedValue(COLLAPSED_HEIGHT);
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: height.value,
   }));
+
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      setMapAvailable(false);
+      return;
+    }
+
+    try {
+      const maps = require("react-native-maps");
+      MapView = maps.default;
+      Marker = maps.Marker;
+      Polyline = maps.Polyline;
+      PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+      setMapAvailable(true);
+    } catch (error) {
+      console.warn("react-native-maps no disponible en este dispositivo", error);
+      setMapAvailable(false);
+    }
+  }, []);
 
   const toggleExpand = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -144,7 +170,7 @@ export function CollapsibleMap({
         </View>
       </Pressable>
 
-      {isExpanded ? (
+      {isExpanded && mapAvailable ? (
         <View style={styles.mapContainer}>
           <MapView
             style={styles.map}

@@ -24,12 +24,20 @@ router.get("/publishable-key", authenticateToken, async (_req, res) => {
 router.post("/create-payment-intent", authenticateToken, async (req, res) => {
   try {
     if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PUBLISHABLE_KEY) {
-      return res.status(503).json({ error: "Stripe not configured" });
+      console.error("Stripe config missing", {
+        hasSecret: !!process.env.STRIPE_SECRET_KEY,
+        hasPublishable: !!process.env.STRIPE_PUBLISHABLE_KEY,
+      });
+      return res.status(503).json({ message: "Stripe no está configurado" });
     }
 
     const { amount } = req.body;
     if (!amount || amount <= 0) {
-      return res.status(400).json({ error: "Invalid amount" });
+      console.error("Invalid amount for payment intent", {
+        amount,
+        userId: req.user?.id,
+      });
+      return res.status(400).json({ message: "Monto inválido" });
     }
 
     const stripe = getStripe();
@@ -45,8 +53,14 @@ router.post("/create-payment-intent", authenticateToken, async (req, res) => {
 
     res.json({ clientSecret: paymentIntent.client_secret });
   } catch (error: any) {
-    console.error("Create payment intent error:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Create payment intent error", {
+      userId: req.user?.id,
+      amount: req.body?.amount,
+      code: error?.code,
+      type: error?.type,
+      message: error?.message,
+    });
+    res.status(500).json({ message: "No se pudo crear el pago", error: error?.message });
   }
 });
 

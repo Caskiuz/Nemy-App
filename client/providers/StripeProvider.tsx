@@ -30,10 +30,20 @@ export function StripeProvider({ children }: StripeProviderProps) {
       setStripeAvailable(true);
 
       const response = await apiRequest("GET", "/api/stripe/publishable-key");
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        console.error("Publishable key fetch failed", {
+          status: response.status,
+          body: errorBody,
+        });
+        setStripeAvailable(false);
+        return;
+      }
+
       const data = await response.json();
       setPublishableKey(data.publishableKey);
     } catch (error) {
-      console.log("Stripe native not available in this environment");
+      console.log("Stripe native not available in this environment", error);
       setStripeAvailable(false);
     }
   };

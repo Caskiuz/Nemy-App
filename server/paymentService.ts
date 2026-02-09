@@ -202,12 +202,27 @@ export async function processSuccessfulPayment(paymentIntentId: string) {
       throw new Error("Payment not found");
     }
 
-    // Get commission rates from unified service
-    const rates = await financialService.getCommissionRates();
+    // Fetch order to calculate commissions correctly (card sales)
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, payment.orderId))
+      .limit(1);
 
-    const platformAmount = payment.amount * rates.platform;
-    const businessAmount = payment.amount * rates.business;
-    const driverAmount = payment.amount * rates.driver;
+    if (!order) {
+      throw new Error(`Order ${payment.orderId} not found for payment ${paymentIntentId}`);
+    }
+
+    const commissions = await financialService.calculateCommissions(
+      payment.amount,
+      order.deliveryFee || 0,
+      order.productosBase || undefined,
+      order.nemyCommission || undefined
+    );
+
+    const platformAmount = commissions.platform;
+    const businessAmount = commissions.business;
+    const driverAmount = payment.driverId ? commissions.driver : 0;
 
     // Update business wallet using unified service
     await financialService.updateWalletBalance(
@@ -215,11 +230,11 @@ export async function processSuccessfulPayment(paymentIntentId: string) {
       businessAmount,
       "commission",
       payment.orderId,
-      `Business commission for order ${payment.orderId}`
+      `Venta con tarjeta - Pedido ${payment.orderId}`
     );
 
     // Update driver wallet (if assigned) using unified service
-    if (payment.driverId) {
+    if (payment.driverId && driverAmount > 0) {
       await financialService.updateWalletBalance(
         payment.driverId,
         driverAmount,

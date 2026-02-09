@@ -184,14 +184,31 @@ export default function CheckoutScreen({ route }: any) {
     if (!cart || !user || !stripeModule) return;
 
     try {
+      const payload = {
+        amount: Math.round(total * 100),
+        userId: user.id,
+      };
       const response = await apiRequest(
         "POST",
         "/api/stripe/create-payment-intent",
-        {
-          amount: Math.round(total * 100),
-          userId: user.id,
-        },
+        payload,
       );
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message =
+          (errorBody && (errorBody.message || errorBody.error)) ||
+          "No se pudo preparar el pago";
+        console.error("Create payment intent failed", {
+          status: response.status,
+          body: errorBody,
+          payload,
+        });
+        setIsPaymentReady(false);
+        showToast(message, "error");
+        return;
+      }
+
       const { clientSecret } = await response.json();
 
       const { error } = await stripeModule.initPaymentSheet({
@@ -210,10 +227,12 @@ export default function CheckoutScreen({ route }: any) {
       } else {
         console.error("Error initializing payment sheet:", error);
         setIsPaymentReady(false);
+        showToast(error.message || "No se pudo preparar el pago", "error");
       }
     } catch (error) {
       console.error("Error creating payment intent:", error);
       setIsPaymentReady(false);
+      showToast("No se pudo preparar el pago. Reintenta.", "error");
     }
   };
 
@@ -233,6 +252,17 @@ export default function CheckoutScreen({ route }: any) {
 
     try {
       if (paymentMethod === "card" && Platform.OS !== "web" && stripeModule) {
+        // Si la hoja no está lista, intenta re-prepararla antes de presentar
+        if (!isPaymentReady) {
+          await initializePaymentSheet();
+        }
+
+        if (!isPaymentReady) {
+          showToast("No se pudo preparar el pago. Intenta de nuevo.", "error");
+          setIsLoading(false);
+          return;
+        }
+
         const { error } = await stripeModule.presentPaymentSheet();
 
         if (error) {

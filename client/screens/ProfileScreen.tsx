@@ -204,11 +204,14 @@ export default function ProfileScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
+      quality: 0.5, // reduce size to avoid backend limits
     });
 
-    if (!result.canceled && result.assets[0]) {
-      await uploadImage(result.assets[0].uri);
+    const asset = result?.assets?.[0];
+    if (!result.canceled && asset?.uri) {
+      await uploadImage(asset.uri);
+    } else if (!result.canceled) {
+      showToast("No se pudo leer la imagen seleccionada", "error");
     }
   };
 
@@ -229,12 +232,19 @@ export default function ProfileScreen() {
         });
       } else {
         // On native, use FileSystem
+        const encoding = (FileSystem as any)?.EncodingType?.Base64 || "base64";
         const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding,
         });
         const extension = uri.split(".").pop()?.toLowerCase() || "jpg";
         const mimeType = extension === "png" ? "image/png" : "image/jpeg";
         imageData = `data:${mimeType};base64,${base64}`;
+      }
+
+      // Reject images larger than ~2 MB to avoid backend failures
+      const estimatedBytes = Math.ceil(imageData.length * 0.75);
+      if (estimatedBytes > 2 * 1024 * 1024) {
+        throw new Error("La imagen es muy pesada. Usa una foto mas ligera (~2MB max)");
       }
 
       const apiResponse = await apiRequest("POST", "/api/user/profile-image", {
@@ -253,9 +263,14 @@ export default function ProfileScreen() {
         throw new Error(data.error || "Error al subir imagen");
       }
     } catch (error: any) {
-      console.error("Error uploading image:", error);
+      console.error("Error uploading image:", error?.message || error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showToast("No se pudo subir la imagen", "error");
+      const friendly = error?.message || "No se pudo subir la imagen";
+      showToast(friendly, "error");
+      // Si el backend devolvió texto de error completo (ej. 400: ...), muéstralo para diagnóstico en dispositivo.
+      if (error?.message && error.message.includes(":")) {
+        showToast(error.message, "error");
+      }
     } finally {
       setIsUploadingImage(false);
     }
@@ -353,7 +368,7 @@ export default function ProfileScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.md,
+            paddingTop: Math.max(headerHeight, insets.top + 44) + Spacing.md,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
