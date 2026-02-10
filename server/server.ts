@@ -6,6 +6,10 @@ import path from 'path';
 import apiRoutes from './apiRoutes';  // ← Volver al original
 import devRoutes from './devRoutes';
 import financialTestRoute from './financialTestRoute';
+import { validateEnv } from './env';
+
+// Validate environment variables at startup so we never run with bad Stripe/Twilio keys
+validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

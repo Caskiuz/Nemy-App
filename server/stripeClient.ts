@@ -27,6 +27,13 @@ function getStripeCredentials(): StripeCredentials {
     );
   }
 
+  // Guard: ensure we never run with an invalid key (e.g., mk_ or pk_)
+  if (!secretKey.startsWith("sk_")) {
+    throw new Error(
+      "Invalid STRIPE_SECRET_KEY format; expected sk_* (check environment variables)",
+    );
+  }
+
   cachedCredentials = { secretKey, publishableKey, webhookSecret };
   return cachedCredentials;
 }

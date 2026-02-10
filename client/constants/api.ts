@@ -9,8 +9,9 @@ export const getApiBaseUrl = (): string => {
   // Check for environment variable first (production)
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (envBackendUrl) {
-    console.log('Using EXPO_PUBLIC_BACKEND_URL:', envBackendUrl);
-    return envBackendUrl;
+    const trimmed = envBackendUrl.trim();
+    console.log('Using EXPO_PUBLIC_BACKEND_URL:', trimmed);
+    return trimmed;
   }
 
   // Development mode - use localhost
