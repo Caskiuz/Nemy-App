@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequestRaw } from "@/lib/query-client";
 
 interface StripeProviderProps {
   children: React.ReactNode;
@@ -29,19 +29,27 @@ export function StripeProvider({ children }: StripeProviderProps) {
       setStripeNativeProvider(() => NativeStripeProvider);
       setStripeAvailable(true);
 
-      const response = await apiRequest("GET", "/api/stripe/publishable-key");
+      const response = await apiRequestRaw("GET", "/api/stripe/publishable-key");
+      const responseText = await response.text();
+      let parsedBody: any = {};
+      if (responseText) {
+        try {
+          parsedBody = JSON.parse(responseText);
+        } catch {
+          parsedBody = { error: responseText };
+        }
+      }
+
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
         console.error("Publishable key fetch failed", {
           status: response.status,
-          body: errorBody,
+          body: parsedBody,
         });
         setStripeAvailable(false);
         return;
       }
 
-      const data = await response.json();
-      setPublishableKey(data.publishableKey);
+      setPublishableKey(parsedBody.publishableKey);
     } catch (error) {
       console.log("Stripe native not available in this environment", error);
       setStripeAvailable(false);

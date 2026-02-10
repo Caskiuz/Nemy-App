@@ -87,6 +87,33 @@ export async function apiRequest(
   return res;
 }
 
+// Use when you need to handle non-2xx responses manually
+export async function apiRequestRaw(
+  method: string,
+  route: string,
+  data?: unknown | undefined,
+): Promise<Response> {
+  const baseUrl = getApiUrl();
+  const url = new URL(route, baseUrl);
+
+  const token = await getAuthToken();
+
+  const headers: Record<string, string> = {};
+  if (data) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return fetch(url, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;

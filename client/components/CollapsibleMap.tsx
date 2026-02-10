@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Pressable, Dimensions, Platform } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  Dimensions,
+  Platform,
+  Animated,
+  Easing,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { useEffect } from "react";
-import { Platform } from "react-native";
 // MapView se carga de forma diferida para evitar crash si react-native-maps no está disponible en el dispositivo
 let MapView: any = null;
 let Marker: any = null;
@@ -50,13 +51,10 @@ export function CollapsibleMap({
   const { theme, isDark } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [mapAvailable, setMapAvailable] = useState(false);
-  const height = useSharedValue(COLLAPSED_HEIGHT);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    height: height.value,
-  }));
+  const height = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
 
   useEffect(() => {
+    if (!isExpanded) return;
     if (Platform.OS === "web") {
       setMapAvailable(false);
       return;
@@ -73,14 +71,19 @@ export function CollapsibleMap({
       console.warn("react-native-maps no disponible en este dispositivo", error);
       setMapAvailable(false);
     }
-  }, []);
+  }, [isExpanded]);
 
   const toggleExpand = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsExpanded(!isExpanded);
-    height.value = withSpring(isExpanded ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
-      damping: 15,
-      stiffness: 100,
+    setIsExpanded((prev) => {
+      const next = !prev;
+      Animated.timing(height, {
+        toValue: next ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }).start();
+      return next;
     });
   };
 
@@ -128,7 +131,7 @@ export function CollapsibleMap({
         styles.container,
         { backgroundColor: theme.card },
         Shadows.md,
-        animatedStyle,
+        { height },
       ]}
     >
       <Pressable onPress={toggleExpand} style={styles.header}>
@@ -268,6 +271,12 @@ export function CollapsibleMap({
               <ThemedText type="caption">Tu casa</ThemedText>
             </View>
           </View>
+        </View>
+      ) : isExpanded ? (
+        <View style={styles.mapContainer}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            Mapa no disponible en este dispositivo.
+          </ThemedText>
         </View>
       ) : null}
     </Animated.View>

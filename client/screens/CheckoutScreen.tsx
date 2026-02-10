@@ -22,7 +22,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, apiRequestRaw } from "@/lib/query-client";
 import { useToast } from "@/contexts/ToastContext";
 import { calculateDistance, calculateDeliveryFee, estimateDeliveryTime } from "@/utils/distance";
 
@@ -188,20 +188,29 @@ export default function CheckoutScreen({ route }: any) {
         amount: Math.round(total * 100),
         userId: user.id,
       };
-      const response = await apiRequest(
+      const response = await apiRequestRaw(
         "POST",
         "/api/stripe/create-payment-intent",
         payload,
       );
 
+      const responseText = await response.text();
+      let parsedBody: any = {};
+      if (responseText) {
+        try {
+          parsedBody = JSON.parse(responseText);
+        } catch {
+          parsedBody = { error: responseText };
+        }
+      }
+
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
         const message =
-          (errorBody && (errorBody.message || errorBody.error)) ||
+          (parsedBody && (parsedBody.message || parsedBody.error)) ||
           "No se pudo preparar el pago";
         console.error("Create payment intent failed", {
           status: response.status,
-          body: errorBody,
+          body: parsedBody,
           payload,
         });
         setIsPaymentReady(false);
@@ -209,7 +218,13 @@ export default function CheckoutScreen({ route }: any) {
         return;
       }
 
-      const { clientSecret } = await response.json();
+      const clientSecret = parsedBody?.clientSecret;
+      if (!clientSecret) {
+        console.error("Missing clientSecret", { body: parsedBody, payload });
+        setIsPaymentReady(false);
+        showToast("No se pudo preparar el pago", "error");
+        return;
+      }
 
       const { error } = await stripeModule.initPaymentSheet({
         paymentIntentClientSecret: clientSecret,
@@ -354,9 +369,7 @@ export default function CheckoutScreen({ route }: any) {
   const isWeb = Platform.OS === "web";
   const canPlaceOrder =
     (paymentMethod === "cash" ? isCashAmountValid : true) &&
-    (paymentMethod === "cash" ||
-      isWeb ||
-      (paymentMethod === "card" && isPaymentReady));
+    (paymentMethod === "cash" || isWeb || !!stripeModule);
 
   // Helper para obtener el icono y texto de sustitución
   const getSubstitutionInfo = (option: SubstitutionOption) => {

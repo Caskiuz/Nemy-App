@@ -19,7 +19,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from "@/components/ThemedText";
@@ -140,8 +140,11 @@ export default function BusinessProductsScreen() {
           quality: 0.8,
         });
 
-    if (!result.canceled) {
-      await uploadProductImage(result.assets[0].uri);
+    const asset = result?.assets?.[0];
+    if (!result.canceled && asset?.uri) {
+      await uploadProductImage(asset.uri);
+    } else if (!result.canceled) {
+      alert("No se pudo leer la imagen seleccionada");
     }
   };
 
@@ -160,8 +163,9 @@ export default function BusinessProductsScreen() {
           reader.readAsDataURL(blob);
         });
       } else {
+        const encoding = (FileSystem as any)?.EncodingType?.Base64 || "base64";
         const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding,
         });
         const extension = uri.split(".").pop()?.toLowerCase() || "jpg";
         const mimeType = extension === "png" ? "image/png" : "image/jpeg";

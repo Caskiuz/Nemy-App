@@ -21,7 +21,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
@@ -109,6 +109,7 @@ export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const { showToast } = useToast();
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileImageVersion, setProfileImageVersion] = useState(0);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
@@ -152,10 +153,12 @@ export default function ProfileScreen() {
         const data = await response.json();
         if (data.success && data.user) {
           if (data.user.profileImage) {
-            const imageUrl = data.user.profileImage.startsWith("http")
+            const version = Date.now();
+            setProfileImageVersion(version);
+            const baseUrl = data.user.profileImage.startsWith("http")
               ? data.user.profileImage
               : `${getApiUrl()}${data.user.profileImage}`;
-            setProfileImage(imageUrl);
+            setProfileImage(`${baseUrl}?v=${version}`);
             await updateUser({ profileImage: data.user.profileImage });
           }
         }
@@ -171,10 +174,11 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (user?.profileImage) {
-      const imageUrl = user.profileImage.startsWith("http")
+      const version = profileImageVersion || Date.now();
+      const baseUrl = user.profileImage.startsWith("http")
         ? user.profileImage
         : `${getApiUrl()}${user.profileImage}`;
-      setProfileImage(imageUrl);
+      setProfileImage(`${baseUrl}?v=${version}`);
     }
   }, [user?.profileImage]);
 
@@ -254,7 +258,9 @@ export default function ProfileScreen() {
       const data = await apiResponse.json();
 
       if (data.success && data.profileImage) {
-        const fullUrl = `${getApiUrl()}${data.profileImage}`;
+        const version = Date.now();
+        setProfileImageVersion(version);
+        const fullUrl = `${getApiUrl()}${data.profileImage}?v=${version}`;
         setProfileImage(fullUrl);
         await updateUser({ profileImage: data.profileImage });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
