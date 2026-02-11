@@ -570,8 +570,8 @@ export default function AdminMenuScreen() {
                   >
                     <ThemedText style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Guardar Cambios</ThemedText>
                   </Pressable>
-                </View>
-              </View>
+                </Pressable>
+              </Pressable>
             )}
           </View>
         );
@@ -661,8 +661,8 @@ export default function AdminMenuScreen() {
                   >
                     <ThemedText style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Actualizar Estado</ThemedText>
                   </Pressable>
-                </View>
-              </View>
+                </Pressable>
+              </Pressable>
             )}
           </View>
         );
@@ -799,8 +799,8 @@ export default function AdminMenuScreen() {
                   >
                     <ThemedText style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Guardar Cambios</ThemedText>
                   </Pressable>
-                </View>
-              </View>
+                </Pressable>
+              </Pressable>
             )}
           </View>
         );

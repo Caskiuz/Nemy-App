@@ -59,6 +59,15 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       const response = await apiRequest("GET", "/api/business/my-businesses");
+      
+      // Handle 404 gracefully - user might not have businesses yet
+      if (response.status === 404) {
+        console.log("No businesses found for user");
+        setBusinesses([]);
+        setSelectedBusiness(null);
+        return;
+      }
+      
       const data = await response.json();
       
       if (data.success && data.businesses) {
@@ -75,9 +84,15 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
         } else if (data.businesses.length > 0) {
           setSelectedBusiness(data.businesses[0]);
         }
+      } else {
+        // No businesses found
+        setBusinesses([]);
+        setSelectedBusiness(null);
       }
     } catch (error) {
-      console.error("Error loading businesses:", error);
+      console.log("Error loading businesses (user may not have any):", error);
+      setBusinesses([]);
+      setSelectedBusiness(null);
     } finally {
       setIsLoading(false);
     }

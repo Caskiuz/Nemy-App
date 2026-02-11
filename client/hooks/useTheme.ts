@@ -59,8 +59,15 @@ export function useTheme() {
   const isDark = effectiveScheme === "dark";
   const themeData = Colors[effectiveScheme] ?? Colors.light; // Fallback to light to avoid undefined theme
 
+  // Ensure gradients always have values
+  const safeTheme = {
+    ...themeData,
+    gradientStart: themeData.gradientStart || '#FFFFFF',
+    gradientEnd: themeData.gradientEnd || '#F5F5F5',
+  };
+
   return {
-    theme: themeData,
+    theme: safeTheme,
     isDark,
     themeMode,
     setThemeMode,
