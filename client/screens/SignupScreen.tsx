@@ -167,7 +167,7 @@ export default function SignupScreen({ navigation, route }: SignupScreenProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const formattedPhone = `+52${phone}`;
+      const formattedPhone = phone.startsWith('+') ? phone : `+52${phone}`;
       const result = await signup(
         name,
         role,
