@@ -1,6 +1,10 @@
-# NEMY - Plataforma de Delivery para Autlán
+# NEMY - Plataforma de Delivery
 
-> Del náhuatl "vivir" - Conectando negocios locales con la comunidad
+> Del náhuatl "vivir" - Conectando negocios locales con la comunidad de Autlán, Jalisco
+
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![MySQL](https://img.shields.io/badge/mysql-8.0%2B-blue.svg)](https://www.mysql.com/)
 
 ## 🚀 Stack Tecnológico
 
@@ -8,9 +12,9 @@
 - **Backend**: Express.js + TypeScript
 - **Base de Datos**: MySQL + Drizzle ORM
 - **Pagos**: Stripe + Stripe Connect
-- **SMS/Llamadas**: Twilio
+- **SMS**: Twilio Verify
 - **Emails**: Resend
-- **IA**: OpenAI GPT
+- **IA**: Google Gemini
 
 ## 📋 Requisitos
 
@@ -21,15 +25,20 @@
 ## 🛠️ Instalación
 
 ```bash
+# Clonar repositorio
+git clone https://github.com/tu-usuario/nemy-app.git
+cd nemy-app
+
 # Instalar dependencias
 npm install
 
 # Configurar variables de entorno
 cp .env.example .env.local
 
-# Configurar base de datos MySQL
+# Configurar base de datos
 mysql -u root -p
 CREATE DATABASE nemy_db_local;
+exit
 
 # Aplicar schema
 npm run db:push
@@ -37,10 +46,12 @@ npm run db:push
 
 ## 🔧 Configuración
 
-### Variables de Entorno (.env.local)
+### Variables de Entorno
+
+Crea un archivo `.env.local` con las siguientes variables:
 
 ```env
-# Base de Datos MySQL
+# Base de Datos
 DATABASE_URL=mysql://root:password@localhost:3306/nemy_db_local
 DB_HOST=localhost
 DB_PORT=3306
@@ -48,22 +59,33 @@ DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=nemy_db_local
 
-# Stripe
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# Twilio
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_PHONE_NUMBER=+1...
-TWILIO_VERIFY_SERVICE_SID=VA...
+# JWT
+JWT_SECRET=your_jwt_secret
+REFRESH_SECRET=your_refresh_secret
 
 # Aplicación
 NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:8081
 BACKEND_URL=http://localhost:5000
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_CONNECT_CLIENT_ID=ca_...
+
+# Twilio (Opcional)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+TWILIO_VERIFY_SERVICE_SID=
+
+# Google Gemini AI (Opcional)
+GEMINI_API_KEY=
+
+# Resend (Opcional)
+RESEND_API_KEY=
 ```
 
 ## 🚀 Desarrollo
@@ -78,6 +100,11 @@ npm run server:start
 npm run expo:dev
 ```
 
+### Iniciar Ambos
+```bash
+npm run dev
+```
+
 ## 📊 Base de Datos
 
 ### Schema
@@ -85,7 +112,7 @@ El schema completo está en `shared/schema-mysql.ts`
 
 ### Migraciones
 ```bash
-# Aplicar cambios
+# Aplicar cambios al schema
 npm run db:push
 
 # Backup
@@ -106,56 +133,23 @@ NEMY-APP/
 │   ├── navigation/      # Navegación
 │   └── constants/       # Configuración
 ├── server/              # Backend Express
-│   ├── routes.ts        # Rutas API
+│   ├── routes/          # Rutas API
+│   ├── services/        # Servicios de negocio
 │   ├── db.ts           # Conexión MySQL
-│   ├── server.ts       # Servidor principal
-│   └── *.ts            # Servicios
+│   └── server.ts       # Servidor principal
 ├── shared/              # Código compartido
 │   └── schema-mysql.ts # Schema Drizzle
 └── scripts/            # Scripts de utilidad
 ```
 
-## 🔐 Seguridad
-
-- Autenticación por teléfono (Twilio Verify)
-- Rate limiting
-- Validación de roles
-- Auditoría de acciones
-- Cumplimiento PCI (Stripe)
-- **Sistema de Auditoría Financiera** (Nivel bancario)
-
-## 🔒 Sistema de Auditoría Financiera
-
-NEMY incluye un sistema de auditoría financiera de nivel bancario que valida 6 reglas críticas:
-
-1. ✅ **Comisiones suman 100%** - Las tasas siempre cuadran
-2. ✅ **Totales de pedidos correctos** - Subtotal + Fee + Tax = Total
-3. ✅ **Distribución exacta** - Comisiones distribuidas = Total pedido
-4. ✅ **Balances consistentes** - Balance wallet = Suma transacciones
-5. ✅ **Cadena de transacciones** - Cada tx mantiene integridad contable
-6. ✅ **Sincronización Stripe** - Pagos = Totales de pedidos
-
-### Ejecutar Auditoría
-```bash
-# Auditoría completa (requiere admin)
-curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:5000/api/audit/full
-
-# Prueba local
-cd server
-npx ts-node testFinancialAudit.ts
-```
-
-Ver documentación completa en [FINANCIAL-AUDIT-SYSTEM.md](./FINANCIAL-AUDIT-SYSTEM.md)
-
 ## 💳 Sistema de Pagos
 
 ### Comisiones
-- Plataforma: 15%
+- Plataforma NEMY: 15%
 - Negocio: 70%
 - Repartidor: 15%
 
-### Flujo
+### Flujo de Pago
 1. Cliente realiza pedido
 2. Pago capturado con Stripe
 3. Fondos retenidos hasta entrega
@@ -191,9 +185,35 @@ Ver documentación completa en [FINANCIAL-AUDIT-SYSTEM.md](./FINANCIAL-AUDIT-SYS
 - Resolución de disputas
 - Configuración de comisiones
 
+## 🔐 Seguridad
+
+- Autenticación por teléfono (Twilio Verify)
+- JWT con refresh tokens
+- Rate limiting
+- Validación de roles (RBAC)
+- Auditoría de acciones críticas
+- Cumplimiento PCI (Stripe)
+- Sistema de auditoría financiera
+
+## 📦 Producción
+
+### Build Backend
+```bash
+npm run server:build
+```
+
+### Build Frontend (APK Android)
+```bash
+npm run build:android
+```
+
+### Iniciar Producción
+```bash
+npm run production:start
+```
+
 ## 🧪 Testing
 
-### Testing Manual
 ```bash
 # Linting
 npm run lint
@@ -201,33 +221,6 @@ npm run lint
 # Type checking
 npm run check:types
 ```
-
-## 📦 Producción
-
-```bash
-# Build
-npm run server:build
-
-# Iniciar
-npm run production:start
-```
-
-## 📚 Documentación
-
-- [Especificación Técnica](./ESPECIFICACION-TECNICA.md)
-- [Guía de Testing](./TESTING_GUIDE.md)
-- [Checklist de Producción](./PRODUCTION_CHECKLIST.md)
-- [Sistema de Pagos](./COMO_FUNCIONA_PAGOS.md)
-- [Sistema de Auditoría Financiera](./FINANCIAL-AUDIT-SYSTEM.md) 🆕
-- [Resumen de Implementación](./AUDIT-IMPLEMENTATION-SUMMARY.md) 🆕
-
-## 🤝 Contribuir
-
-1. Fork el proyecto
-2. Crea tu rama (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
 
 ## 📄 Licencia
 
