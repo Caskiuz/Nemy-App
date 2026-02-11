@@ -89,6 +89,11 @@ import favoritesRoutes from './favoritesRoutes';
 console.log('🔧 Registering favorites routes at /api/favorites');
 app.use('/api/favorites', favoritesRoutes);
 
+// Stripe Connect routes
+import connectRoutes from './connectRoutes';
+console.log('🔧 Registering Stripe Connect routes at /api/stripe/connect');
+app.use('/api/stripe/connect', connectRoutes);
+
 // Secure payment routes
 import securePaymentRoutes from './securePaymentIntegration';
 app.use('/api', securePaymentRoutes);

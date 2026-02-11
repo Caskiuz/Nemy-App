@@ -14,7 +14,7 @@ import { useScreenOptions } from "@/hooks/useScreenOptions";
 export type ProfileStackParamList = {
   Profile: undefined;
   SavedAddresses: undefined;
-  AddAddress: undefined;
+  AddAddress: { address?: any; fromCheckout?: boolean } | undefined;
   LocationPicker: {
     onLocationSelected: (coords: { latitude: number; longitude: number }, address: string) => void;
   };

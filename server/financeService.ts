@@ -1,6 +1,6 @@
 // Central Finance Service - Manages all financial data consistently
 import { db } from './db';
-import { users, businesses, orders, orderItems, wallets, transactions } from '@shared/schema-mysql';
+import { users, businesses, orders, wallets, transactions } from '@shared/schema-mysql';
 import { eq, and, gte, sum, count, desc } from 'drizzle-orm';
 import { financialService } from './unifiedFinancialService';
 
@@ -47,40 +47,49 @@ export class FinanceService {
       // Calculate today's date range
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayOrders = allOrders.filter(order => {
+      const todayOrders = allOrders.filter((order) => {
         const orderDate = new Date(order.createdAt);
         return orderDate >= today;
       });
 
       // Calculate revenue metrics
-      const completedOrders = allOrders.filter(o => o.status === 'delivered');
+      const completedOrders = allOrders.filter((o) => o.status === 'delivered');
       const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
       const todayRevenue = todayOrders
-        .filter(o => o.status === 'delivered')
+        .filter((o) => o.status === 'delivered')
         .reduce((sum, order) => sum + (order.total || 0), 0);
 
-      // Calculate commissions using unified service
-      const rates = await financialService.getCommissionRates();
-      const platformCommission = Math.round(totalRevenue * rates.platform);
-      const businessPayouts = Math.round(totalRevenue * rates.business);
-      const driverPayouts = Math.round(totalRevenue * rates.driver);
+      // Calcular comisiones usando el modelo real (15% markup sobre productos, 100% delivery al driver)
+      let platformCommission = 0;
+      let businessPayouts = 0;
+      let driverPayouts = 0;
+
+      for (const order of completedOrders) {
+        const { platform, business, driver } = await financialService.calculateCommissions(
+          order.total || 0,
+          order.deliveryFee || 0
+        );
+        platformCommission += platform;
+        businessPayouts += business;
+        driverPayouts += driver;
+      }
 
       // Count users by role
       const usersByRole = {
-        customers: allUsers.filter(u => u.role === 'customer').length,
-        businesses: allUsers.filter(u => u.role === 'business_owner').length,
-        delivery: allUsers.filter(u => u.role === 'delivery_driver').length,
-        admins: allUsers.filter(u => u.role === 'admin' || u.role === 'super_admin').length,
+        customers: allUsers.filter((u) => u.role === 'customer').length,
+        businesses: allUsers.filter((u) => u.role === 'business_owner').length,
+        delivery: allUsers.filter((u) => u.role === 'delivery_driver').length,
+        admins: allUsers.filter((u) => u.role === 'admin' || u.role === 'super_admin').length,
       };
 
       // Count orders by status
       const ordersByStatus = {
-        pending: allOrders.filter(o => o.status === 'pending').length,
-        confirmed: allOrders.filter(o => o.status === 'confirmed').length,
-        preparing: allOrders.filter(o => o.status === 'preparing').length,
-        on_the_way: allOrders.filter(o => o.status === 'on_the_way').length,
-        delivered: allOrders.filter(o => o.status === 'delivered').length,
-        cancelled: allOrders.filter(o => o.status === 'cancelled').length,
+        pending: allOrders.filter((o) => o.status === 'pending').length,
+        confirmed: allOrders.filter((o) => o.status === 'confirmed').length,
+        preparing: allOrders.filter((o) => o.status === 'preparing').length,
+        on_the_way: allOrders.filter((o) => o.status === 'on_the_way').length,
+        delivered: allOrders.filter((o) => o.status === 'delivered').length,
+        cancelled: allOrders.filter((o) => o.status === 'cancelled').length,
       };
 
       return {
@@ -135,8 +144,14 @@ export class FinanceService {
 
       const completedOrders = businessOrders.filter(o => o.status === 'delivered');
       const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-      const rates = await financialService.getCommissionRates();
-      const businessEarnings = Math.round(totalRevenue * rates.business); // Business percentage
+      let businessEarnings = 0;
+      for (const order of completedOrders) {
+        const { business } = await financialService.calculateCommissions(
+          order.total || 0,
+          order.deliveryFee || 0
+        );
+        businessEarnings += business;
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -172,8 +187,14 @@ export class FinanceService {
 
       const completedOrders = driverOrders.filter(o => o.status === 'delivered');
       const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-      const rates = await financialService.getCommissionRates();
-      const driverEarnings = Math.round(totalRevenue * rates.driver); // Driver percentage
+      let driverEarnings = 0;
+      for (const order of completedOrders) {
+        const { driver } = await financialService.calculateCommissions(
+          order.total || 0,
+          order.deliveryFee || 0
+        );
+        driverEarnings += driver;
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -181,7 +202,14 @@ export class FinanceService {
         const orderDate = new Date(order.createdAt);
         return orderDate >= today && order.status === 'delivered';
       });
-      const todayEarnings = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0) * 0.15;
+      let todayEarnings = 0;
+      for (const order of todayOrders) {
+        const { driver } = await financialService.calculateCommissions(
+          order.total || 0,
+          order.deliveryFee || 0
+        );
+        todayEarnings += driver;
+      }
 
       return {
         totalDeliveries: completedOrders.length,

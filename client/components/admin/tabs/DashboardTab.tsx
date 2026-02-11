@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, ScrollView, StyleSheet, Platform } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Platform, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { NemyColors, Spacing } from "../../../constants/theme";
 import { DashboardMetrics, ActiveOrder, OnlineDriver, AdminStats } from "../types/admin.types";
@@ -9,6 +9,8 @@ interface DashboardTabProps {
   activeOrders: ActiveOrder[];
   onlineDrivers: OnlineDriver[];
   stats?: AdminStats | null;
+  onOrderPress?: (order: ActiveOrder) => void;
+  onDriverPress?: (driver: OnlineDriver) => void;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
@@ -16,6 +18,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   activeOrders,
   onlineDrivers,
   stats,
+  onOrderPress,
+  onDriverPress,
 }) => {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -56,6 +60,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   };
 
   const isDriverAvailable = (driver: OnlineDriver) => driver.activeOrder === null;
+  const [showAllOrders, setShowAllOrders] = React.useState(false);
+  const displayedOrders = showAllOrders ? activeOrders : activeOrders.slice(0, 5);
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -174,15 +180,27 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Pedidos activos ({activeOrders.length})</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Pedidos activos hoy ({activeOrders.length})</Text>
+          {activeOrders.length > 5 ? (
+            <TouchableOpacity onPress={() => setShowAllOrders((prev) => !prev)}>
+              <Text style={styles.linkText}>{showAllOrders ? "Ver menos" : "Ver todos"}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         {activeOrders.length === 0 ? (
           <View style={styles.emptyCard}>
             <Feather name="inbox" size={32} color="#ccc" />
             <Text style={styles.emptyText}>No hay pedidos activos</Text>
           </View>
         ) : (
-          activeOrders.slice(0, 8).map((order) => (
-            <View key={order.id} style={styles.orderCard}>
+          displayedOrders.map((order) => (
+            <TouchableOpacity
+              key={order.id}
+              style={styles.orderCard}
+              activeOpacity={0.8}
+              onPress={() => onOrderPress?.(order)}
+            >
               <View style={styles.orderHeader}>
                 <View style={styles.orderInfo}>
                   <Text style={styles.orderCustomer}>{order.customer?.name || "Cliente"}</Text>
@@ -200,7 +218,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               <Text style={styles.orderDriver}>
                 {order.driver?.name || "Sin asignar"}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
@@ -214,7 +232,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </View>
         ) : (
           onlineDrivers.map((driver) => (
-            <View key={driver.id} style={styles.driverCard}>
+            <TouchableOpacity
+              key={driver.id}
+              style={styles.driverCard}
+              activeOpacity={0.8}
+              onPress={() => onDriverPress?.(driver)}
+            >
               <View style={styles.driverInfo}>
                 <View style={[styles.driverAvatar, { backgroundColor: NemyColors.primaryLight }]}>
                   <Feather name="user" size={16} color={NemyColors.primary} />
@@ -236,7 +259,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   {isDriverAvailable(driver) ? "Disponible" : "Ocupado"}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
@@ -256,6 +279,17 @@ const styles = StyleSheet.create({
     color: "#333",
     marginBottom: 12,
     marginTop: 8,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  linkText: {
+    color: NemyColors.primary,
+    fontWeight: "600",
+    fontSize: 13,
   },
   metricsGrid: {
     flexDirection: "row",

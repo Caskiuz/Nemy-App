@@ -33,9 +33,14 @@ interface EarningsData {
   };
   stats: {
     totalDeliveries: number;
-    averageRating: number;
+    averageRating?: number;
+    rating?: number;
     completionRate: number;
     avgDeliveryTime: number;
+    todayEarnings?: number;
+    weekEarnings?: number;
+    monthEarnings?: number;
+    totalEarnings?: number;
   };
 }
 
@@ -47,7 +52,7 @@ interface WalletData {
 
 interface Transaction {
   id: string;
-  type: "earning" | "withdrawal" | "tip";
+  type: "earning" | "withdrawal" | "tip" | "delivery_income";
   amount: number;
   description: string;
   status: string;
@@ -353,6 +358,19 @@ export default function DeliveryEarningsScreen() {
               </Pressable>
             </Animated.View>
 
+            <View style={[styles.infoCard, { backgroundColor: theme.backgroundSecondary, marginTop: Spacing.md }]}>
+              <Feather name="alert-triangle" size={20} color={theme.textSecondary} />
+              <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>¿Cómo leemos este saldo?</ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                  Balance digital = pagos con tarjeta listos para retiro. Efectivo cobrado = dinero que tienes en mano.
+                </ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                  Si cobraste en efectivo, la comisión de NEMY aparece como "Debes depositar". Hasta saldarla, los retiros quedan retenidos.
+                </ThemedText>
+              </View>
+            </View>
+
             <View style={[styles.totalCard, { backgroundColor: theme.card }, Shadows.md]}>
               <View style={styles.totalRow}>
                 <View>
@@ -379,7 +397,10 @@ export default function DeliveryEarningsScreen() {
                 <View style={{ flex: 1, marginLeft: Spacing.md }}>
                   <ThemedText type="body" style={{ fontWeight: "600" }}>¿Por qué debo depositar?</ThemedText>
                   <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: 4 }}>
-                    Cobraste efectivo del cliente. Ya pagaste al negocio su parte. Los ${wallet.cashOwed.toFixed(2)} son la comisión de NEMY (15% del producto) que debes depositar cada viernes.
+                    Cobraste efectivo al cliente. Los ${wallet.cashOwed.toFixed(2)} son la comisión de NEMY (15% de productos) que debes entregar. Hasta que deposites, tus retiros quedan retenidos.
+                  </ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                    Deposita antes del viernes y sube tu comprobante: al aprobarlo liberamos tu saldo digital y desaparece esta deuda.
                   </ThemedText>
                 </View>
               </View>
@@ -601,7 +622,7 @@ export default function DeliveryEarningsScreen() {
             {/* Datos bancarios removidos - usar sección wallet */}
             <ThemedText type="body" style={{ color: theme.textSecondary, marginBottom: Spacing.lg }}>
               Contacta al administrador para obtener los datos de depósito.
-            </ThemedText>}
+            </ThemedText>
 
             <View style={{ borderTopWidth: 1, borderTopColor: theme.border, paddingTop: Spacing.lg }}>
               <ThemedText type="body" style={{ fontWeight: "600", marginBottom: Spacing.sm }}>

@@ -728,11 +728,11 @@ export default function AdminScreen() {
               setShowBusinessModal(true);
             }}
             onEditBusiness={openEditBusiness}
-            onManageProducts={(id) => {
+            onManageProducts={(id: string) => {
               setSelectedBusinessId(id);
               setActiveTab("products");
             }}
-          />
+          /> as any
         )}
 
         {activeTab === "products" ? (
@@ -1048,23 +1048,23 @@ export default function AdminScreen() {
         )}
 
         {activeTab === "drivers" && (
-          <DriversTab theme={theme} showToast={showToast} />
+          <DriversTab showToast={showToast} /> as any
         )}
 
         {activeTab === "coupons" && (
-          <CouponsTab theme={theme} showToast={showToast} />
+          <CouponsTab showToast={showToast} onSelectCoupon={() => {}} /> as any
         )}
 
         {activeTab === "support" && (
-          <SupportTab theme={theme} showToast={showToast} />
+          <SupportTab showToast={showToast} /> as any
         )}
 
         {activeTab === "zones" && (
-          <ZonesTab theme={theme} showToast={showToast} />
+          <ZonesTab showToast={showToast} onSelectZone={() => {}} /> as any
         )}
 
         {activeTab === "settings" && (
-          <SettingsTab theme={theme} showToast={showToast} />
+          <SettingsTab showToast={showToast} /> as any
         )}
       </ScrollView>
 
@@ -1073,7 +1073,7 @@ export default function AdminScreen() {
           <View
             style={[
               styles.modalContent,
-              { backgroundColor: theme.backgroundDefault },
+              { backgroundColor: theme.background },
             ]}
           >
             <View style={styles.modalHeader}>
@@ -1697,7 +1697,7 @@ export default function AdminScreen() {
 
       <Modal visible={showOrderModal} animationType="slide" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}> 
             <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
               <ThemedText type="h3">Detalles del Pedido</ThemedText>
               <Pressable onPress={() => setShowOrderModal(false)}>
@@ -1819,19 +1819,19 @@ export default function AdminScreen() {
                       <View style={[styles.detailSection, { backgroundColor: theme.backgroundSecondary }]}>
                         {selectedOrder.platformFee ? (
                           <View style={styles.detailRow}>
-                            <ThemedText type="body" style={{ color: theme.textSecondary }}>Plataforma (15%)</ThemedText>
+                            <ThemedText type="body" style={{ color: theme.textSecondary }}>Plataforma (15% productos)</ThemedText>
                             <ThemedText type="body">${(selectedOrder.platformFee / 100).toFixed(2)}</ThemedText>
                           </View>
                         ) : null}
                         {selectedOrder.businessEarnings ? (
                           <View style={styles.detailRow}>
-                            <ThemedText type="body" style={{ color: theme.textSecondary }}>Negocio (70%)</ThemedText>
+                            <ThemedText type="body" style={{ color: theme.textSecondary }}>Negocio (100% productos)</ThemedText>
                             <ThemedText type="body">${(selectedOrder.businessEarnings / 100).toFixed(2)}</ThemedText>
                           </View>
                         ) : null}
                         {selectedOrder.deliveryEarnings ? (
                           <View style={styles.detailRow}>
-                            <ThemedText type="body" style={{ color: theme.textSecondary }}>Repartidor (15%)</ThemedText>
+                            <ThemedText type="body" style={{ color: theme.textSecondary }}>Repartidor (100% delivery)</ThemedText>
                             <ThemedText type="body">${(selectedOrder.deliveryEarnings / 100).toFixed(2)}</ThemedText>
                           </View>
                         ) : null}
@@ -1889,6 +1889,14 @@ export default function AdminScreen() {
                 </>
               ) : null}
             </ScrollView>
+            <Pressable
+              onPress={() => setShowOrderModal(false)}
+              style={[styles.saveButton, { backgroundColor: theme.backgroundSecondary }]}
+            >
+              <ThemedText type="body" style={{ color: theme.text, fontWeight: "600" }}>
+                Cerrar
+              </ThemedText>
+            </Pressable>
           </View>
         </View>
       </Modal>

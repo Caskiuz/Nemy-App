@@ -3,6 +3,7 @@ import { stripe } from "./stripeClient";
 import { db } from "./db";
 import { orders, businesses, users, transactions } from "@shared/schema-mysql";
 import { eq, and } from "drizzle-orm";
+import { financialService } from "./unifiedFinancialService";
 
 interface ConnectAccountSetup {
   businessId: string;
@@ -122,20 +123,6 @@ export async function updateBusinessAccountStatus(accountId: string) {
   }
 }
 
-// Calculate commission distribution (15% platform, 70% business, 15% delivery)
-function calculateCommissions(totalAmount: number): PaymentDistribution {
-  const platformAmount = Math.round(totalAmount * 0.15);
-  const deliveryAmount = Math.round(totalAmount * 0.15);
-  const businessAmount = totalAmount - platformAmount - deliveryAmount;
-
-  return {
-    platformAmount,
-    businessAmount,
-    deliveryAmount,
-    totalAmount,
-  };
-}
-
 // Process payment with automatic commission distribution
 export async function processOrderPaymentWithCommissions(orderId: string) {
   try {
@@ -168,8 +155,20 @@ export async function processOrderPaymentWithCommissions(orderId: string) {
       );
     }
 
-    // Calculate commission distribution
-    const distribution = calculateCommissions(order.total);
+    // Calculate commission distribution using unified financial service
+    const commissions = await financialService.calculateCommissions(
+      order.total,
+      order.deliveryFee || 0,
+      order.productosBase || undefined,
+      order.nemyCommission || undefined
+    );
+
+    const distribution: PaymentDistribution = {
+      platformAmount: commissions.platform,
+      businessAmount: commissions.business,
+      deliveryAmount: commissions.driver,
+      totalAmount: commissions.total,
+    };
 
     // Create payment intent with application fee (platform commission)
     const paymentIntent = await stripe.paymentIntents.create({

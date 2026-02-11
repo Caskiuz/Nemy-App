@@ -94,7 +94,7 @@ export default function UniversalWallet({
 
       // Fetch Connect status for eligible roles
       if (showConnectSetup && (user?.role === 'driver' || user?.role === 'business')) {
-        const connectResponse = await fetch(`${API_CONFIG.BASE_URL}/api/connect/status`, {
+        const connectResponse = await fetch(`${API_CONFIG.BASE_URL}/api/stripe/connect/status`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ export default function UniversalWallet({
     try {
       const accountType = user.role === 'business' ? 'business' : 'driver';
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/onboard`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/stripe/connect/onboard`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

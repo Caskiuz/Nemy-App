@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -14,6 +14,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { ProfileStackParamList } from "@/navigation/ProfileStackNavigator";
 
 interface Address {
   id: string;
@@ -25,9 +27,11 @@ interface Address {
   isDefault: boolean;
 }
 
+type Nav = NativeStackNavigationProp<ProfileStackParamList>;
+
 export default function SavedAddressesScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<Nav>();
   const { theme } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -37,6 +41,12 @@ export default function SavedAddressesScreen() {
   useEffect(() => {
     loadAddresses();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadAddresses();
+    }, []),
+  );
 
   const loadAddresses = async () => {
     try {
@@ -173,6 +183,18 @@ export default function SavedAddressesScreen() {
               </ThemedText>
 
               <View style={styles.addressActions}>
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}
+                  onPress={() => navigation.navigate("AddAddress", { address })}
+                >
+                  <Feather name="edit-2" size={16} color={NemyColors.primary} />
+                  <ThemedText
+                    type="small"
+                    style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}
+                  >
+                    Editar
+                  </ThemedText>
+                </Pressable>
                 {!address.isDefault && (
                   <Pressable
                     style={[
@@ -191,10 +213,7 @@ export default function SavedAddressesScreen() {
                   </Pressable>
                 )}
                 <Pressable
-                  style={[
-                    styles.actionButton,
-                    { backgroundColor: "#FFEBEE" },
-                  ]}
+                  style={[styles.actionButton, { backgroundColor: "#FFEBEE" }]}
                   onPress={() => handleDelete(address.id)}
                 >
                   <Feather name="trash-2" size={16} color={NemyColors.error} />
@@ -221,7 +240,7 @@ export default function SavedAddressesScreen() {
         ]}
       >
         <Button
-          onPress={() => navigation.navigate("AddAddress" as never)}
+          onPress={() => navigation.navigate("AddAddress")}
           style={styles.addButton}
         >
           <Feather name="plus" size={20} color="#FFFFFF" />

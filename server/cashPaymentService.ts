@@ -2,6 +2,7 @@
 import { db } from "./db";
 import { orders, payments } from "@shared/schema-mysql";
 import { eq } from "drizzle-orm";
+import { financialService } from "./unifiedFinancialService";
 
 interface CashPaymentParams {
   orderId: string;
@@ -114,19 +115,17 @@ async function processCashCommissions(orderId: string) {
 
     if (!order) return;
 
-    // Get commission rates from system settings; fall back to defaults if missing
-    const { getSettingValue } = await import("./systemSettingsService");
+    // Use unified financial service to keep commission split consistent system-wide
+    const commissions = await financialService.calculateCommissions(
+      order.total,
+      order.deliveryFee || 0,
+      order.productosBase || undefined,
+      order.nemyCommission || undefined
+    );
 
-    const platformRate =
-      ((await getSettingValue("platform_commission_rate", 0.15)) as number);
-    const businessRate =
-      ((await getSettingValue("business_commission_rate", 0.7)) as number);
-    const driverRate =
-      ((await getSettingValue("driver_commission_rate", 0.15)) as number);
-
-    const platformAmount = Math.round(order.total * platformRate);
-    const businessAmount = Math.round(order.total * businessRate);
-    const driverAmount = Math.round(order.total * driverRate);
+    const platformAmount = commissions.platform;
+    const businessAmount = commissions.business;
+    const driverAmount = commissions.driver;
 
     // Update wallets using wallet functions
     const { creditWallet } = await import("./paymentService");
@@ -148,6 +147,11 @@ async function processCashCommissions(orderId: string) {
         orderId,
       );
     }
+
+      if (platformAmount > 0) {
+        // TODO: Define platform wallet handling for cash; currently held at platform level
+        console.log(`ℹ️ Plataforma debe registrar $${platformAmount} para pedido ${orderId}`);
+      }
 
     console.log(`💰 Cash commissions processed for order ${orderId}`);
   } catch (error) {

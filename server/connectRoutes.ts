@@ -50,8 +50,8 @@ router.post('/onboard', authenticateToken, async (req, res) => {
     // Crear link de onboarding
     const onboardingUrl = await stripeConnectService.createOnboardingLink({
       accountId,
-      refreshUrl: `${process.env.FRONTEND_URL}/profile/payment-methods?refresh=true`,
-      returnUrl: `${process.env.FRONTEND_URL}/profile/payment-methods?success=true`,
+      refreshUrl: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/profile/payment-methods?refresh=true`,
+      returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/profile/payment-methods?success=true`,
     });
 
     res.json({
@@ -111,8 +111,8 @@ router.post('/refresh-onboarding', authenticateToken, async (req, res) => {
 
     const onboardingUrl = await stripeConnectService.createOnboardingLink({
       accountId: connectAccount.stripeAccountId,
-      refreshUrl: `${process.env.FRONTEND_URL}/profile/payment-methods?refresh=true`,
-      returnUrl: `${process.env.FRONTEND_URL}/profile/payment-methods?success=true`,
+      refreshUrl: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/profile/payment-methods?refresh=true`,
+      returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/profile/payment-methods?success=true`,
     });
 
     res.json({

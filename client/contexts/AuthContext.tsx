@@ -42,6 +42,13 @@ const STORAGE_KEY = "@nemy_user";
 const PENDING_PHONE_KEY = "@nemy_pending_phone";
 const BIOMETRIC_PHONE_KEY = "@nemy_biometric_phone";
 
+const normalizePhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `+52${digits}`;
+  if (phone.startsWith("+")) return phone.replace(/\s+/g, "");
+  return `+${digits}`;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null); // Add token state
@@ -118,9 +125,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const requestPhoneLogin = async (
     phone: string,
   ): Promise<{ userNotFound?: boolean; requiresVerification?: boolean }> => {
-    // First, send the code request
+    const normalizedPhone = normalizePhone(phone);
+
     const response = await apiRequest("POST", "/api/auth/send-code", {
-      phone,
+      phone: normalizedPhone,
     });
     const data = await response.json();
 
@@ -128,8 +136,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { userNotFound: true };
     }
 
-    await AsyncStorage.setItem(PENDING_PHONE_KEY, phone);
-    setPendingVerificationPhone(phone);
+    await AsyncStorage.setItem(PENDING_PHONE_KEY, normalizedPhone);
+    setPendingVerificationPhone(normalizedPhone);
     return { requiresVerification: true };
   };
 
@@ -137,11 +145,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     identifier: string,
     password: string,
   ): Promise<{ success: boolean; requiresVerification?: boolean }> => {
-    // Check if it's an email (use dev endpoint) or phone (use regular endpoint)
+    // Email → dev password login; Phone → trigger OTP flow first (no code validation here)
     const isEmail = identifier.includes('@');
     
     if (isEmail) {
-      // Use development email login
       const response = await apiRequest("POST", "/api/auth/dev-email-login", {
         email: identifier,
         password,
@@ -161,38 +168,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phoneVerified: data.user.phoneVerified,
         isActive: data.user.isActive,
         stripeCustomerId: data.user.stripeCustomerId,
-        cardLast4: data.user.cardLast4,
-        cardBrand: data.user.cardBrand,
-        token: data.token,
-      };
-
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-      await AsyncStorage.setItem("token", data.token);
-      setUser(newUser);
-      return { success: true };
-    } else {
-      // Use phone-login endpoint directly
-      const response = await apiRequest("POST", "/api/auth/phone-login", {
-        phone: identifier,
-        code: password, // Treat password as verification code for now
-      });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Credenciales incorrectas");
-      }
-
-      const newUser: User = {
-        id: data.user.id,
-        email: data.user.email || undefined,
-        name: data.user.name,
-        phone: data.user.phone,
-        role: data.user.role,
-        phoneVerified: data.user.phoneVerified,
-        isActive: data.user.isActive,
-        stripeCustomerId: data.user.stripeCustomerId,
-        cardLast4: data.user.cardLast4,
-        cardBrand: data.user.cardBrand,
         token: data.token,
       };
 
@@ -201,6 +176,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(newUser);
       return { success: true };
     }
+
+    // Phone path: send OTP and force verification screen instead of validating code here
+    await requestPhoneLogin(identifier);
+    return { success: false, requiresVerification: true };
   };
 
   const signup = async (
@@ -233,8 +212,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const verifyPhone = async (phone: string, code: string) => {
+    const normalizedPhone = normalizePhone(phone);
     const response = await apiRequest("POST", "/api/auth/phone-login", {
-      phone,
+      phone: normalizedPhone,
       code,
     });
     const data = await response.json();

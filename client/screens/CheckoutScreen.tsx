@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Platform,
   TextInput,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -73,28 +74,52 @@ export default function CheckoutScreen({ route }: any) {
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponLoading, setCouponLoading] = useState(false);
+  const [addressPickerVisible, setAddressPickerVisible] = useState(false);
 
-  const loadAddresses = React.useCallback(async () => {
+  const loadAddresses = React.useCallback(async (preferredId?: string) => {
     if (!user?.id) return;
     try {
       const response = await apiRequest("GET", `/api/users/${user.id}/addresses`);
       const data = await response.json();
       console.log('📍 Addresses loaded:', data.addresses?.length || 0, data.addresses);
-      setAddresses(data.addresses || []);
+      const fetchedAddresses = data.addresses || [];
+      setAddresses(fetchedAddresses);
+      setSelectedAddress((current: any) => {
+        if (preferredId) {
+          const preferred = fetchedAddresses.find((a: any) => a.id === preferredId);
+          if (preferred) return preferred;
+        }
+        if (current) {
+          const updated = fetchedAddresses.find((a: any) => a.id === current.id);
+          if (updated) return updated;
+        }
+        return (
+          fetchedAddresses.find((a: any) => a.isDefault) ||
+          fetchedAddresses[0] ||
+          null
+        );
+      });
     } catch (error) {
       console.error('Error loading addresses:', error);
     }
   }, [user?.id]);
 
   useEffect(() => {
-    loadAddresses();
-  }, [loadAddresses]);
+    loadAddresses(route?.params?.selectedAddressId);
+  }, [loadAddresses, route?.params?.selectedAddressId]);
 
   useFocusEffect(
     React.useCallback(() => {
       loadAddresses();
     }, [loadAddresses]),
   );
+
+  useEffect(() => {
+    if (route?.params?.addressRefreshToken) {
+      loadAddresses(route.params.selectedAddressId);
+      navigation.setParams({ addressRefreshToken: undefined } as any);
+    }
+  }, [route?.params?.addressRefreshToken, route?.params?.selectedAddressId, loadAddresses, navigation]);
 
   useEffect(() => {
     if (cart?.businessId) {
@@ -111,14 +136,6 @@ export default function CheckoutScreen({ route }: any) {
       console.error("Error loading business:", error);
     }
   };
-
-  useEffect(() => {
-    if (addresses.length > 0 && !selectedAddress) {
-      const defaultAddr = addresses.find((a: any) => a.isDefault) || addresses[0];
-      setSelectedAddress(defaultAddr);
-    }
-  }, [addresses]);
-
 
   const deliveryFee = route?.params?.calculatedDeliveryFee ?? (dynamicDeliveryFee ?? (business?.deliveryFee ? business.deliveryFee / 100 : 0));
   
@@ -150,8 +167,16 @@ export default function CheckoutScreen({ route }: any) {
   // Calcular cambio para efectivo
   const cashAmountNumber = parseFloat(cashPaymentAmount) || 0;
   const changeAmount = cashAmountNumber - total;
-  const isCashAmountValid =
-    paymentMethod === "cash" ? cashAmountNumber >= total : true;
+  // Para efectivo no bloqueamos el botón por monto: si es menor, se ajusta al total en el momento de crear pedido
+  const isCashAmountValid = paymentMethod === "cash" ? true : true;
+
+  // Si se elige efectivo y no hay monto, prellenar con el total para no bloquear el flujo
+  useEffect(() => {
+    if (paymentMethod === "cash" && !cashPaymentAmount) {
+      setCashPaymentAmount(total.toFixed(2));
+      setCashError("");
+    }
+  }, [paymentMethod, total, cashPaymentAmount]);
 
   useEffect(() => {
     if (Platform.OS !== "web" && !isExpoGo) {
@@ -262,6 +287,13 @@ export default function CheckoutScreen({ route }: any) {
       return;
     }
 
+    // Ajustar monto de efectivo si el usuario ingresó menos que el total
+    let effectiveCashAmount = cashAmountNumber;
+    if (paymentMethod === "cash" && cashAmountNumber < total) {
+      effectiveCashAmount = total;
+      setCashPaymentAmount(total.toFixed(2));
+    }
+
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -314,6 +346,7 @@ export default function CheckoutScreen({ route }: any) {
         deliveryFee: Math.round(deliveryFee * 100),
         total: Math.round(total * 100),
         paymentMethod,
+        deliveryAddressId: selectedAddress.id,
         deliveryAddress: `${selectedAddress.street}, ${selectedAddress.city}`,
         deliveryLatitude: selectedAddress.latitude,
         deliveryLongitude: selectedAddress.longitude,
@@ -323,9 +356,9 @@ export default function CheckoutScreen({ route }: any) {
             ? JSON.stringify(finalItemSubstitutions)
             : null,
         cashPaymentAmount:
-          paymentMethod === "cash" ? Math.round(cashAmountNumber * 100) : null,
+          paymentMethod === "cash" ? Math.round(effectiveCashAmount * 100) : null,
         cashChangeAmount:
-          paymentMethod === "cash" ? Math.round(changeAmount * 100) : null,
+          paymentMethod === "cash" ? Math.round((effectiveCashAmount - total) * 100) : null,
         couponCode: appliedCoupon ? couponCode.toUpperCase() : null,
         couponDiscount: appliedCoupon ? Math.round(couponDiscount * 100) : null,
       });
@@ -368,8 +401,9 @@ export default function CheckoutScreen({ route }: any) {
 
   const isWeb = Platform.OS === "web";
   const canPlaceOrder =
-    (paymentMethod === "cash" ? isCashAmountValid : true) &&
-    (paymentMethod === "cash" || isWeb || !!stripeModule);
+    paymentMethod === "cash"
+      ? isCashAmountValid // No Stripe needed for cash
+      : isWeb || !!stripeModule;
 
   // Helper para obtener el icono y texto de sustitución
   const getSubstitutionInfo = (option: SubstitutionOption) => {
@@ -442,6 +476,116 @@ export default function CheckoutScreen({ route }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <Modal
+        visible={addressPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAddressPickerVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setAddressPickerVisible(false)}
+          />
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: theme.card,
+                paddingBottom: insets.bottom + Spacing.lg,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <ThemedText type="h4">Selecciona una dirección</ThemedText>
+              <Pressable onPress={() => setAddressPickerVisible(false)}>
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 380 }}>
+              {addresses.map((addr: any) => {
+                const isSelected = selectedAddress?.id === addr.id;
+                return (
+                  <Pressable
+                    key={addr.id}
+                    onPress={() => {
+                      setSelectedAddress(addr);
+                      setAddressPickerVisible(false);
+                    }}
+                    style={[
+                      styles.modalAddress,
+                      {
+                        borderColor: isSelected
+                          ? NemyColors.primary
+                          : theme.border,
+                        backgroundColor: theme.backgroundSecondary,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="body" style={{ fontWeight: "700" }}>
+                        {addr.label}
+                      </ThemedText>
+                      <ThemedText
+                        type="small"
+                        style={{ color: theme.textSecondary }}
+                      >
+                        {addr.street}, {addr.city}
+                      </ThemedText>
+                    </View>
+                    {isSelected ? (
+                      <Feather
+                        name="check-circle"
+                        size={18}
+                        color={NemyColors.primary}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => {
+                  setAddressPickerVisible(false);
+                  navigation.navigate("AddAddress", { fromCheckout: true } as never);
+                }}
+                style={[
+                  styles.manageAddressButton,
+                  { backgroundColor: theme.backgroundSecondary },
+                ]}
+              >
+                <Feather name="plus" size={16} color={NemyColors.primary} />
+                <ThemedText
+                  type="small"
+                  style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}
+                >
+                  Nueva dirección
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setAddressPickerVisible(false);
+                  navigation.navigate("SavedAddresses" as never);
+                }}
+                style={[
+                  styles.manageAddressButton,
+                  { backgroundColor: theme.backgroundSecondary },
+                ]}
+              >
+                <Feather name="map" size={16} color={NemyColors.primary} />
+                <ThemedText
+                  type="small"
+                  style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}
+                >
+                  Ver todas
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -462,14 +606,28 @@ export default function CheckoutScreen({ route }: any) {
           style={[styles.section, { backgroundColor: theme.card }, Shadows.sm]}
         >
           <View style={styles.sectionHeader}>
-            <Feather name="map-pin" size={20} color={NemyColors.primary} />
-            <ThemedText type="h4" style={styles.sectionTitle}>
-              Dirección de entrega
-            </ThemedText>
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+              <Feather name="map-pin" size={20} color={NemyColors.primary} />
+              <ThemedText type="h4" style={styles.sectionTitle}>
+                Dirección de entrega
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                setAddressPickerVisible(true);
+              }}
+              style={styles.inlineLink}
+            >
+              <Feather name="edit-3" size={16} color={NemyColors.primary} />
+              <ThemedText type="small" style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}>
+                Cambiar
+              </ThemedText>
+            </Pressable>
           </View>
           {addresses.length === 0 ? (
             <Pressable
-              onPress={() => navigation.navigate("AddAddress" as never)}
+              onPress={() => navigation.navigate("AddAddress", { fromCheckout: true } as never)}
               style={[
                 styles.addressCard,
                 {
@@ -530,6 +688,29 @@ export default function CheckoutScreen({ route }: any) {
               </Pressable>
             ))
           )}
+
+          {selectedAddress ? (
+            <View style={styles.addressActionsRow}>
+              <Pressable
+                onPress={() => navigation.navigate("AddAddress", { address: selectedAddress, fromCheckout: true } as never)}
+                style={[styles.manageAddressButton, { backgroundColor: theme.backgroundSecondary }]}
+              >
+                <Feather name="edit-2" size={16} color={NemyColors.primary} />
+                <ThemedText type="small" style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}>
+                  Editar esta
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.navigate("SavedAddresses" as never)}
+                style={[styles.manageAddressButton, { backgroundColor: theme.backgroundSecondary }]}
+              >
+                <Feather name="map" size={16} color={NemyColors.primary} />
+                <ThemedText type="small" style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}>
+                  Gestionar direcciones
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         <View
@@ -586,6 +767,10 @@ export default function CheckoutScreen({ route }: any) {
             onPress={() => {
               Haptics.selectionAsync();
               setPaymentMethod("cash");
+              if (!cashPaymentAmount) {
+                setCashPaymentAmount(total.toFixed(2));
+              }
+              setCashError("");
             }}
             style={[
               styles.paymentOption,
@@ -937,8 +1122,9 @@ export default function CheckoutScreen({ route }: any) {
         style={[
           styles.footer,
           {
-            backgroundColor: theme.backgroundRoot,
+            backgroundColor: theme.backgroundSecondary,
             paddingBottom: insets.bottom + Spacing.lg,
+            borderTopColor: theme.border,
           },
         ]}
       >
@@ -1063,6 +1249,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: Spacing.xs,
   },
+  inlineLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  addressActionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  manageAddressButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
   footer: {
     padding: Spacing.xl,
     borderTopWidth: 1,
@@ -1180,5 +1385,38 @@ const styles = StyleSheet.create({
   },
   removeCouponButton: {
     padding: Spacing.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: Spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  modalAddress: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    marginBottom: Spacing.sm,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
   },
 });

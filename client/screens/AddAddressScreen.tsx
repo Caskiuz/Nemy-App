@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { ProfileStackParamList } from '@/navigation/ProfileStackNavigator';
+import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '@/lib/query-client';
 import { isInCoverageArea, AUTLAN_CENTER } from '@/utils/coverage';
@@ -11,10 +11,18 @@ import { useDebounce, usePerformanceMonitor } from '@/hooks/usePerformance';
 import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 
-type NavigationProp = NativeStackNavigationProp<ProfileStackParamList, 'AddAddress'>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddAddress'>;
+
+type RouteParams = {
+  address?: Partial<Address>;
+  fromCheckout?: boolean;
+};
 
 export default function AddAddressScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute();
+  const existingAddress = (route.params as any)?.address as Partial<Address> | undefined;
+  const fromCheckout = Boolean((route.params as Partial<RouteParams> | undefined)?.fromCheckout);
   const { user } = useAuth();
   usePerformanceMonitor('AddAddressScreen');
   
@@ -25,16 +33,21 @@ export default function AddAddressScreen() {
   });
   const existingAddresses = addressesData?.addresses || [];
   
-  const [label, setLabel] = useState('');
-  const [street, setStreet] = useState('');
-  const [city, setCity] = useState('Autlán');
-  const [state, setState] = useState('Jalisco');
-  const [zipCode, setZipCode] = useState('');
+  const [label, setLabel] = useState(existingAddress?.label || '');
+  const [street, setStreet] = useState(existingAddress?.street || '');
+  const [city, setCity] = useState(existingAddress?.city || 'Autlán');
+  const [state, setState] = useState(existingAddress?.state || 'Jalisco');
+  const [zipCode, setZipCode] = useState(existingAddress?.zipCode || '');
   const [loading, setLoading] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [touched, setTouched] = useState(false);
+  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(
+    existingAddress?.latitude && existingAddress?.longitude
+      ? { latitude: existingAddress.latitude, longitude: existingAddress.longitude }
+      : null,
+  );
   const [duplicateWarning, setDuplicateWarning] = useState<Address | null>(null);
   const [suggestions, setSuggestions] = useState<Address[]>([]);
   
@@ -72,6 +85,7 @@ export default function AddAddressScreen() {
   }, []);
 
   const handleSave = async () => {
+    setTouched(true);
     setError(null);
     setSuccess(null);
     
@@ -95,7 +109,7 @@ export default function AddAddressScreen() {
 
     setLoading(true);
     try {
-      const response = await apiRequest('POST', `/api/users/${user?.id}/addresses`, {
+      const payload = {
         label: label.trim(),
         street: street.trim(),
         city: city.trim(),
@@ -103,13 +117,32 @@ export default function AddAddressScreen() {
         zipCode: zipCode.trim(),
         latitude: finalCoordinates.latitude,
         longitude: finalCoordinates.longitude,
-      });
+      };
+
+      const response = existingAddress?.id
+        ? await apiRequest('PUT', `/api/users/${user?.id}/addresses/${existingAddress.id}`, payload)
+        : await apiRequest('POST', `/api/users/${user?.id}/addresses`, payload);
 
       if (response.ok) {
-        setSuccess('✅ Dirección guardada correctamente');
+        const responseData = await response.json().catch(() => ({}));
+        const savedAddress = (responseData as any)?.address || {
+          ...(existingAddress || {}),
+          ...payload,
+          id: (responseData as any)?.id || existingAddress?.id,
+        };
+        const savedId = (savedAddress as any)?.id;
+
+        setSuccess(existingAddress?.id ? '✅ Dirección actualizada' : '✅ Dirección guardada correctamente');
         setTimeout(() => {
-          navigation.goBack();
-        }, 1500);
+          if (fromCheckout && savedId) {
+            navigation.navigate('Checkout' as never, {
+              addressRefreshToken: Date.now(),
+              selectedAddressId: savedId,
+            } as never);
+          } else {
+            navigation.goBack();
+          }
+        }, 500);
       } else {
         setError('❌ No se pudo guardar la dirección. Intenta de nuevo.');
       }
@@ -142,7 +175,11 @@ export default function AddAddressScreen() {
           value={label}
           onChangeText={setLabel}
           placeholder="Casa, Trabajo, etc."
+          onBlur={() => setTouched(true)}
         />
+        {touched && !label.trim() && (
+          <Text style={styles.fieldHint}>Necesitamos una etiqueta para identificar la dirección</Text>
+        )}
 
         <Text style={styles.label}>Calle y número *</Text>
         <TextInput
@@ -155,6 +192,7 @@ export default function AddAddressScreen() {
           placeholder="Ej: Calle Allende #123"
           accessibilityLabel="Calle y número"
           accessibilityHint="Ingresa la calle y número de tu dirección"
+          onBlur={() => setTouched(true)}
         />
         
         {/* Address suggestions */}
@@ -395,6 +433,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6c757d',
     marginTop: 2,
+  },
+  fieldHint: {
+    fontSize: 12,
+    color: '#d9534f',
+    marginTop: 4,
+    marginBottom: 8,
   },
   warningBox: {
     flexDirection: 'row',

@@ -21,6 +21,7 @@ interface ConnectStatus {
   hasAccount: boolean;
   onboardingComplete: boolean;
   canReceivePayments: boolean;
+  accountId?: string;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
   detailsSubmitted?: boolean;
@@ -148,6 +149,10 @@ export default function WithdrawalScreen() {
   };
 
   const refreshOnboarding = async () => {
+    if (!connectStatus?.accountId) {
+      Alert.alert('Error', 'No hay cuenta Stripe para refrescar');
+      return;
+    }
     setOnboardingLoading(true);
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/refresh-onboarding`, {
@@ -156,6 +161,7 @@ export default function WithdrawalScreen() {
           'Authorization': `Bearer ${user?.token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ accountId: connectStatus.accountId })
       });
 
       if (response.ok) {
@@ -166,7 +172,8 @@ export default function WithdrawalScreen() {
           await Linking.openURL(data.onboardingUrl);
         }
       } else {
-        Alert.alert('Error', 'Error al actualizar configuración');
+        const error = await response.json().catch(() => ({}));
+        Alert.alert('Error', error.error || 'Error al actualizar configuración');
       }
     } catch (error) {
       Alert.alert('Error', 'Error de conexión');

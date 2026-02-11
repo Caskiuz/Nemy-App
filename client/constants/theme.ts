@@ -34,6 +34,9 @@ export const theme = {
     lg: 24,
     xl: 32,
     xxl: 48,
+    "3xl": 56,
+    "4xl": 64,
+    buttonHeight: 52,
   },
   borderRadius: {
     sm: 4,

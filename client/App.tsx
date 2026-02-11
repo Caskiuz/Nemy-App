@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Platform, View } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -30,6 +30,7 @@ import {
   checkOnboardingCompleted,
 } from "@/components/OnboardingOverlay";
 import { NotificationPermissionModal } from "@/components/NotificationPermissionModal";
+import { useTheme } from "@/hooks/useTheme";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -117,9 +118,9 @@ export default function App() {
                     <BusinessProvider>
                       <CartProvider>
                         <ToastProvider>
-                          <NavigationContainer>
+                          <AppThemedShell>
                             <RootStackNavigator />
-                          </NavigationContainer>
+                          </AppThemedShell>
                           {showOnboarding && (
                             <OnboardingOverlay
                               onComplete={() => setShowOnboarding(false)}
@@ -142,6 +143,19 @@ export default function App() {
         </SafeAreaProvider>
       </QueryClientProvider>
     </ErrorBoundary>
+  );
+}
+
+function AppThemedShell({ children }: { children: React.ReactNode }) {
+  const { isDark } = useTheme();
+
+  return (
+    <>
+      <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
+        {children}
+      </NavigationContainer>
+      <StatusBar style={isDark ? "light" : "dark"} />
+    </>
   );
 }
 

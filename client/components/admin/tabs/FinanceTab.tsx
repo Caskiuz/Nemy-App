@@ -127,7 +127,14 @@ export const FinanceTab: React.FC<FinanceTabProps> = ({ transactions, onTransact
               <ThemedText style={styles.emptySubtitle}>Las transacciones aparecerán aquí cuando se realicen pagos</ThemedText>
             </View>
           ) : (
-            transactions.map((transaction) => (
+            <>
+              <View style={styles.legendCard}>
+                <ThemedText style={styles.legendTitle}>Cómo leer estas transacciones</ThemedText>
+                <ThemedText style={styles.legendLine}>Pago: ingreso total del pedido (cliente → NEMY)</ThemedText>
+                <ThemedText style={styles.legendLine}>Comisión: 15% NEMY; Retiros: saldo enviado al usuario</ThemedText>
+                <ThemedText style={styles.legendLine}>Efectivo a liquidar: montos negativos pendientes por cobrar en cash</ThemedText>
+              </View>
+              {transactions.map((transaction) => (
               <TouchableOpacity
                 key={transaction.id}
                 style={styles.card}
@@ -154,7 +161,8 @@ export const FinanceTab: React.FC<FinanceTabProps> = ({ transactions, onTransact
                   <ThemedText style={styles.date}>{new Date(transaction.createdAt).toLocaleDateString('es-MX')}</ThemedText>
                 </View>
               </TouchableOpacity>
-            ))
+              ))}
+            </>
           )
         ) : (
           wallets.length === 0 ? (
@@ -307,6 +315,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999999",
     textAlign: "center",
+  },
+  legendCard: {
+    backgroundColor: "#F7F8FA",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  legendTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  legendLine: {
+    fontSize: 12,
+    color: "#374151",
+    marginBottom: 2,
   },
   walletHeader: {
     flexDirection: "row",

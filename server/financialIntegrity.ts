@@ -94,7 +94,12 @@ export class FinancialIntegrity {
       }
 
       // Validar que las comisiones sean correctas según rates
-      const expectedCommissions = await financialService.calculateCommissions(order.total);
+      const expectedCommissions = await financialService.calculateCommissions(
+        order.total,
+        order.deliveryFee || 0,
+        order.productosBase || undefined,
+        order.nemyCommission || undefined
+      );
       
       if (order.platformFee !== expectedCommissions.platform ||
           order.businessEarnings !== expectedCommissions.business ||

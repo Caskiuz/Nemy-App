@@ -23,6 +23,7 @@ interface ConnectStatus {
   payoutsEnabled?: boolean;
   detailsSubmitted?: boolean;
   requirements?: any;
+  accountId?: string;
 }
 
 export default function PaymentMethodsScreen({ navigation }: any) {
@@ -61,9 +62,11 @@ export default function PaymentMethodsScreen({ navigation }: any) {
         setConnectStatus(data);
       } else {
         console.error('Connect status error:', response.status, response.statusText);
+        Alert.alert('Error', 'No se pudo obtener el estado de Stripe');
       }
     } catch (error) {
       console.error('Error fetching Connect status:', error);
+      Alert.alert('Error', 'No se pudo obtener el estado de Stripe');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -149,6 +152,10 @@ export default function PaymentMethodsScreen({ navigation }: any) {
   };
 
   const refreshOnboarding = async () => {
+    if (!connectStatus?.accountId) {
+      Alert.alert('Error', 'No hay cuenta Stripe para refrescar');
+      return;
+    }
     setOnboardingLoading(true);
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/refresh-onboarding`, {
@@ -157,6 +164,7 @@ export default function PaymentMethodsScreen({ navigation }: any) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ accountId: connectStatus.accountId })
       });
 
       if (response.ok) {
@@ -164,7 +172,8 @@ export default function PaymentMethodsScreen({ navigation }: any) {
 
         await openExternalUrl(data.onboardingUrl);
       } else {
-        Alert.alert('Error', 'Error al actualizar configuración');
+        const error = await response.json().catch(() => ({}));
+        Alert.alert('Error', error.error || 'Error al actualizar configuración');
       }
     } catch (error) {
       Alert.alert('Error', 'Error de conexión');
@@ -174,6 +183,10 @@ export default function PaymentMethodsScreen({ navigation }: any) {
   };
 
   const openDashboard = async () => {
+    if (!connectStatus?.accountId) {
+      Alert.alert('Error', 'No hay cuenta Stripe para abrir dashboard');
+      return;
+    }
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/dashboard`, {
         method: 'POST',
@@ -181,6 +194,7 @@ export default function PaymentMethodsScreen({ navigation }: any) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ accountId: connectStatus.accountId })
       });
 
       if (response.ok) {
@@ -188,7 +202,8 @@ export default function PaymentMethodsScreen({ navigation }: any) {
 
         await openExternalUrl(data.dashboardUrl);
       } else {
-        Alert.alert('Error', 'Error al abrir dashboard');
+        const error = await response.json().catch(() => ({}));
+        Alert.alert('Error', error.error || 'Error al abrir dashboard');
       }
     } catch (error) {
       Alert.alert('Error', 'Error de conexión');

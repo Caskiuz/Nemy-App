@@ -23,13 +23,23 @@ interface ProcessPaymentResult {
   distribution?: PaymentDistribution;
 }
 
-async function calculateCommissions(totalAmount: number): Promise<PaymentDistribution> {
-  const commissions = await financialService.calculateCommissions(totalAmount);
+async function calculateCommissionsForOrder(order: {
+  total: number;
+  deliveryFee?: number | null;
+  productosBase?: number | null;
+  nemyCommission?: number | null;
+}): Promise<PaymentDistribution> {
+  const commissions = await financialService.calculateCommissions(
+    order.total,
+    order.deliveryFee || 0,
+    order.productosBase || undefined,
+    order.nemyCommission || undefined
+  );
   return {
     platformAmount: commissions.platform,
     businessAmount: commissions.business,
     deliveryAmount: commissions.driver,
-    totalAmount,
+    totalAmount: commissions.total,
   };
 }
 
@@ -54,12 +64,30 @@ export async function createPaymentIntent(orderData: {
   }
 
   try {
+    // Fetch order to ensure we use canonical totals for commission split
+    const [order] = await db
+      .select({
+        id: orders.id,
+        total: orders.total,
+        deliveryFee: orders.deliveryFee,
+        productosBase: orders.productosBase,
+        nemyCommission: orders.nemyCommission,
+      })
+      .from(orders)
+      .where(eq(orders.id, orderData.orderId))
+      .limit(1);
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
     // Get business Stripe account
     const [business] = await db
       .select({
         stripeAccountId: businesses.stripeAccountId,
         name: businesses.name,
-        status: businesses.status,
+        isActive: businesses.isActive,
+        stripeAccountStatus: businesses.stripeAccountStatus,
       })
       .from(businesses)
       .where(eq(businesses.id, orderData.businessId))
@@ -69,7 +97,7 @@ export async function createPaymentIntent(orderData: {
       return { success: false, error: "Business not found" };
     }
 
-    if (business.status !== "active") {
+    if (!business.isActive || business.stripeAccountStatus !== "active") {
       return { success: false, error: "Business account is not active" };
     }
 
@@ -80,12 +108,13 @@ export async function createPaymentIntent(orderData: {
       };
     }
 
-    // Calculate commission distribution using unified service
-    const distribution = await calculateCommissions(orderData.amount);
+    // Calculate commission distribution using unified service with canonical order values
+    const distribution = await calculateCommissionsForOrder(order);
+    const amountToCharge = order.total;
 
     // Create payment intent with application fee
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
-      amount: orderData.amount,
+      amount: amountToCharge,
       currency: orderData.currency,
       application_fee_amount: distribution.platformAmount,
       transfer_data: {
@@ -133,7 +162,7 @@ export async function createPaymentIntent(orderData: {
 
     console.log(`Payment intent created for order ${orderData.orderId}:`, {
       paymentIntentId: paymentIntent.id,
-      amount: orderData.amount,
+      amount: amountToCharge,
       distribution,
     });
 
@@ -244,7 +273,7 @@ export async function processDeliveryPayment(
     }
 
     // Calculate delivery commission using unified service
-    const distribution = await calculateCommissions(order.total);
+    const distribution = await calculateCommissionsForOrder(order);
 
     // Transfer delivery commission to driver
     const transfer = await stripe.transfers.create({

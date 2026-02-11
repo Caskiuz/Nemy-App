@@ -74,24 +74,24 @@ export default function TermsScreen() {
           <BulletPoint>Panel de gestión de productos</BulletPoint>
           <BulletPoint>Control de inventario</BulletPoint>
           <BulletPoint>Estadísticas de ventas</BulletPoint>
-          <BulletPoint>Comisión: 15% por transacción</BulletPoint>
+          <BulletPoint>Comisión: markup 15% solo sobre productos (el negocio recibe 100% del precio base)</BulletPoint>
 
           <ThemedText type="body" style={[styles.subsectionTitle, { color: theme.text }]}>
             Para Repartidores:
           </ThemedText>
           <BulletPoint>Aceptar/rechazar pedidos libremente</BulletPoint>
           <BulletPoint>Navegación GPS integrada</BulletPoint>
-          <BulletPoint>Ganancias: 15% del total del pedido</BulletPoint>
-          <BulletPoint>Retiros inmediatos disponibles</BulletPoint>
+          <BulletPoint>Ganancias: 100% de la tarifa de entrega</BulletPoint>
+          <BulletPoint>Retiros via Stripe Connect</BulletPoint>
         </Section>
 
         <Section title="3. Sistema de Pagos y Comisiones">
           <Paragraph>
             Por cada pedido, la distribución es:
           </Paragraph>
-          <BulletPoint>Negocio: 70% del total</BulletPoint>
-          <BulletPoint>Repartidor: 15% del total</BulletPoint>
-          <BulletPoint>NEMY: 15% del total</BulletPoint>
+          <BulletPoint>Negocio: 100% del precio base de productos</BulletPoint>
+          <BulletPoint>Repartidor: 100% de la tarifa de entrega</BulletPoint>
+          <BulletPoint>NEMY: 15% de markup sobre productos</BulletPoint>
           <Paragraph>
             Los pagos se procesan de forma segura mediante Stripe. Fondos disponibles después de entrega confirmada.
           </Paragraph>

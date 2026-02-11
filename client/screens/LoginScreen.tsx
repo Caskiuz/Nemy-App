@@ -61,7 +61,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
 
-  const [loginMode, setLoginMode] = useState<"sms" | "password">("password");
+  // Default to SMS to avoid "código inválido" before sending code
+  const [loginMode, setLoginMode] = useState<"sms" | "password">("sms");
   const [phone, setPhone] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -141,11 +142,15 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      const digits = identifier.replace(/\D/g, "");
+      const normalizedPhone = digits.length === 10
+        ? `+52${digits}`
+        : identifier.replace(/\s+/g, "");
       const result = await loginWithPassword(identifier, password);
 
       if (result?.requiresVerification) {
         showToast("Verifica tu teléfono para continuar", "info");
-        navigation.navigate("VerifyPhone", { phone: identifier });
+        navigation.navigate("VerifyPhone", { phone: normalizedPhone });
       }
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -162,18 +167,18 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Format phone with +52 prefix for Mexico
-      const formattedPhone = `+52 ${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}`;
-      const result = await requestPhoneLogin(formattedPhone);
+      const digits = phone.replace(/\D/g, "");
+      const normalizedPhone = digits.length === 10 ? `+52${digits}` : `+${digits}`;
+      const result = await requestPhoneLogin(normalizedPhone);
 
       if (result?.userNotFound) {
         showToast("No encontramos tu cuenta. Regístrate primero.", "info");
-        navigation.navigate("Signup", { phone: formattedPhone });
+        navigation.navigate("Signup", { phone: normalizedPhone });
         return;
       }
 
       if (result?.requiresVerification) {
-        navigation.navigate("VerifyPhone", { phone: formattedPhone });
+        navigation.navigate("VerifyPhone", { phone: normalizedPhone });
       }
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -392,7 +397,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               onPress={loginMode === "password" ? handlePasswordLogin : handlePhoneLogin}
               disabled={isLoading}
               style={styles.loginButton}
-              testID="button-login"
             >
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -486,7 +490,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                       <PlaceholderImage
                         width={140}
                         height={100}
-                        icon="store"
+                        icon="image"
                         style={styles.featuredImage}
                       />
                     )}
@@ -528,24 +532,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               />
             </View>
           ) : null}
-
-          <Pressable
-            onPress={() => navigation.navigate("Carnival")}
-            style={styles.carnivalButton}
-          >
-            <LinearGradient
-              colors={[NemyColors.carnival.pink, "#9C27B0"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.carnivalGradient}
-            >
-              <Feather name="calendar" size={20} color="#FFFFFF" />
-              <ThemedText type="body" style={styles.carnivalText}>
-                Programa Carnaval 2026
-              </ThemedText>
-              <Feather name="chevron-right" size={20} color="#FFFFFF" />
-            </LinearGradient>
-          </Pressable>
 
           <Pressable onPress={handleShare} style={styles.shareButton}>
             <Feather name="share-2" size={18} color="#FFFFFF" />
@@ -621,13 +607,11 @@ const styles = StyleSheet.create({
   appName: {
     color: "#FFFFFF",
     marginBottom: Spacing.xs,
-    textShadow: "1px 1px 3px rgba(0,0,0,0.5)",
   },
   slogan: {
     color: NemyColors.primary,
     fontStyle: "italic",
     fontWeight: "500",
-    textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
   },
   formCard: {
     borderRadius: BorderRadius.xl,
@@ -751,25 +735,6 @@ const styles = StyleSheet.create({
   biometricText: {
     fontWeight: "600",
     color: NemyColors.primary,
-  },
-  carnivalButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
-    marginBottom: Spacing.md,
-  },
-  carnivalGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  carnivalText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    flex: 1,
-    textAlign: "center",
   },
   shareButton: {
     flexDirection: "row",

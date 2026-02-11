@@ -7,6 +7,7 @@ import {
   RefreshControl,
   Alert,
   Switch,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -25,13 +26,15 @@ import { GPS_CONFIG } from '@/constants/api';
 export default function DriverAvailableOrdersScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
   const loadStatus = async () => {
     try {
@@ -56,6 +59,7 @@ export default function DriverAvailableOrdersScreen() {
   };
 
   const loadOrders = async () => {
+    setLoadingOrders(true);
     try {
       console.log('📦 Loading available orders...');
       const response = await apiRequest("GET", "/api/delivery/available-orders");
@@ -70,6 +74,7 @@ export default function DriverAvailableOrdersScreen() {
     } catch (error) {
       console.error("❌ Error loading orders:", error);
     }
+    setLoadingOrders(false);
   };
 
   const handleToggleStatus = async () => {
@@ -148,9 +153,14 @@ export default function DriverAvailableOrdersScreen() {
 
   const confirmAccept = async () => {
     if (!pendingOrderId) return;
-    
+    const orderId = pendingOrderId;
+    const previousOrders = orders;
+
+    setAcceptingOrderId(orderId);
+    setOrders((prev: any[]) => prev.filter((o) => o.id !== orderId));
+
     try {
-      const response = await apiRequest("POST", `/api/delivery/accept-order/${pendingOrderId}`, {});
+      const response = await apiRequest("POST", `/api/delivery/accept-order/${orderId}`, {});
       const data = await response.json();
       
       if (data.success) {
@@ -159,6 +169,7 @@ export default function DriverAvailableOrdersScreen() {
         loadOrders();
       } else {
         Alert.alert("Error", data.error || "No se pudo aceptar el pedido");
+        setOrders(previousOrders);
       }
     } catch (error) {
       const message =
@@ -166,9 +177,11 @@ export default function DriverAvailableOrdersScreen() {
           ? parseApiError(error.message)
           : "No se pudo aceptar el pedido";
       Alert.alert("Error", message);
+      setOrders(previousOrders);
     } finally {
       setShowConfirmModal(false);
       setPendingOrderId(null);
+      setAcceptingOrderId(null);
     }
   };
 
@@ -249,14 +262,25 @@ export default function DriverAvailableOrdersScreen() {
               console.log('🔥 Button pressed for order:', item.id);
               handleAcceptOrder(item.id);
             }}
-            style={[styles.acceptButton, { backgroundColor: NemyColors.primary }]}
+            disabled={!!acceptingOrderId}
+            style={[
+              styles.acceptButton,
+              {
+                backgroundColor: NemyColors.primary,
+                opacity: acceptingOrderId === item.id ? 0.7 : 1,
+              },
+            ]}
           >
-            <Feather name="check" size={18} color="#FFF" />
+            {acceptingOrderId === item.id ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Feather name="check" size={18} color="#FFF" />
+            )}
             <ThemedText
               type="body"
               style={{ color: "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}
             >
-              Aceptar
+              {acceptingOrderId === item.id ? "Aceptando..." : "Aceptar"}
             </ThemedText>
           </Pressable>
         </View>
@@ -315,19 +339,25 @@ export default function DriverAvailableOrdersScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Feather name="inbox" size={64} color={theme.textSecondary} />
-            <ThemedText
-              type="h4"
-              style={{ color: theme.textSecondary, marginTop: Spacing.lg }}
-            >
-              No hay pedidos disponibles
-            </ThemedText>
-            <ThemedText
-              type="body"
-              style={{ color: theme.textSecondary, marginTop: Spacing.sm }}
-            >
-              Los pedidos listos aparecerán aquí
-            </ThemedText>
+            {loadingOrders ? (
+              <ActivityIndicator size="large" color={NemyColors.primary} />
+            ) : (
+              <>
+                <Feather name="inbox" size={64} color={theme.textSecondary} />
+                <ThemedText
+                  type="h4"
+                  style={{ color: theme.textSecondary, marginTop: Spacing.lg }}
+                >
+                  No hay pedidos disponibles
+                </ThemedText>
+                <ThemedText
+                  type="body"
+                  style={{ color: theme.textSecondary, marginTop: Spacing.sm }}
+                >
+                  Los pedidos listos aparecerán aquí
+                </ThemedText>
+              </>
+            )}
           </View>
         }
       />
@@ -347,7 +377,7 @@ export default function DriverAvailableOrdersScreen() {
         onConfirm={() => setShowOfflineModal(false)}
         onCancel={() => setShowOfflineModal(false)}
         confirmText="Entendido"
-        showCancel={false}
+        cancelText="Cancelar"
       />
     </View>
   );

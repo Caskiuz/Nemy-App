@@ -377,6 +377,57 @@ export default function AdminMenuScreen() {
     );
   };
 
+  const handleDashboardOrderPress = (order: ActiveOrder) => {
+    const mappedOrder: AdminOrder = {
+      id: order.id,
+      userId: order.customer?.id || "",
+      businessId: order.business?.id || "",
+      businessName: order.business?.name || "Negocio",
+      businessImage: null,
+      customerName: order.customer?.name || "Cliente",
+      customerPhone: "",
+      status: order.status,
+      subtotal: order.total,
+      deliveryFee: 0,
+      total: order.total,
+      paymentMethod: "card",
+      deliveryAddress: order.deliveryAddress?.address || "Dirección no disponible",
+      deliveryLatitude: order.deliveryAddress?.latitude,
+      deliveryLongitude: order.deliveryAddress?.longitude,
+      items: "",
+      notes: null,
+      createdAt: order.createdAt,
+      estimatedDelivery: null,
+      deliveredAt: null,
+      deliveryPersonId: order.driver?.id || null,
+      platformFee: null,
+      businessEarnings: null,
+      deliveryEarnings: null,
+    };
+    setSelectedOrder(mappedOrder);
+    setActiveTab("orders");
+    setOrderModalVisible(true);
+  };
+
+  const handleDashboardDriverPress = (driver: OnlineDriver) => {
+    const existing = drivers.find((d) => d.id === driver.id);
+    const fallback = {
+      id: driver.id,
+      name: driver.name,
+      email: existing?.email || "",
+      phone: existing?.phone || "",
+      isOnline: driver.isOnline,
+      isApproved: existing?.isApproved ?? true,
+      strikes: existing?.strikes ?? 0,
+      totalDeliveries: existing?.totalDeliveries ?? 0,
+      rating: existing?.rating ?? null,
+      createdAt: existing?.createdAt || driver.lastActiveAt || new Date().toISOString(),
+    };
+    setSelectedDriver(existing || fallback);
+    setActiveTab("drivers");
+    setDriverModalVisible(true);
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case "dashboard":
@@ -386,6 +437,8 @@ export default function AdminMenuScreen() {
             activeOrders={activeOrders}
             onlineDrivers={onlineDrivers}
             stats={null}
+            onOrderPress={handleDashboardOrderPress}
+            onDriverPress={handleDashboardDriverPress}
           />
         );
       case "drivers":
@@ -393,26 +446,15 @@ export default function AdminMenuScreen() {
           <View style={{ flex: 1 }}>
             <DriversTab drivers={drivers} onDriverPress={handleDriverPress} />
             {driverModalVisible && selectedDriver && (
-              <View style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 999999
-              }}>
-                <View style={{
-                  backgroundColor: 'white',
-                  borderRadius: 15,
-                  padding: 25,
-                  width: '90%',
-                  maxWidth: 500,
-                  maxHeight: '85%'
-                }}>
+              <Pressable style={styles.modalOverlay} onPress={() => setDriverModalVisible(false)}>
+                <Pressable
+                  style={[styles.modalCard, { backgroundColor: theme.card }]}
+                  onPress={(e) => e.stopPropagation()}
+                >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <ThemedText type="h3">Detalles del Repartidor</ThemedText>
-                    <Pressable onPress={() => setDriverModalVisible(false)}>
-                      <ThemedText style={{ fontSize: 24, color: '#666' }}>✕</ThemedText>
+                    <ThemedText type="h3" style={{ color: theme.text }}>Detalles del Repartidor</ThemedText>
+                    <Pressable onPress={() => setDriverModalVisible(false)} hitSlop={12}>
+                      <Feather name="x" size={24} color={theme.text} />
                     </Pressable>
                   </View>
                   
@@ -425,33 +467,36 @@ export default function AdminMenuScreen() {
                       </View>
                       
                       <View style={{ width: '100%', marginBottom: 15 }}>
-                        <ThemedText style={{ marginBottom: 5, fontWeight: '600' }}>Nombre:</ThemedText>
+                        <ThemedText style={{ marginBottom: 5, fontWeight: '600', color: theme.text }}>Nombre:</ThemedText>
                         <TextInput
-                          style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, fontSize: 16 }}
+                          style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, fontSize: 16, color: theme.text, backgroundColor: theme.backgroundSecondary }}
                           value={selectedDriver.name}
                           onChangeText={(text) => setSelectedDriver({...selectedDriver, name: text})}
                           placeholder="Nombre del repartidor"
+                          placeholderTextColor={theme.textSecondary}
                         />
                       </View>
                       
                       <View style={{ width: '100%', marginBottom: 15 }}>
-                        <ThemedText style={{ marginBottom: 5, fontWeight: '600' }}>Email:</ThemedText>
+                        <ThemedText style={{ marginBottom: 5, fontWeight: '600', color: theme.text }}>Email:</ThemedText>
                         <TextInput
-                          style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, fontSize: 16 }}
+                          style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, fontSize: 16, color: theme.text, backgroundColor: theme.backgroundSecondary }}
                           value={selectedDriver.email || ''}
                           onChangeText={(text) => setSelectedDriver({...selectedDriver, email: text})}
                           placeholder="Email"
+                          placeholderTextColor={theme.textSecondary}
                           keyboardType="email-address"
                         />
                       </View>
                       
                       <View style={{ width: '100%', marginBottom: 15 }}>
-                        <ThemedText style={{ marginBottom: 5, fontWeight: '600' }}>Teléfono:</ThemedText>
+                        <ThemedText style={{ marginBottom: 5, fontWeight: '600', color: theme.text }}>Teléfono:</ThemedText>
                         <TextInput
-                          style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, fontSize: 16 }}
+                          style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, fontSize: 16, color: theme.text, backgroundColor: theme.backgroundSecondary }}
                           value={selectedDriver.phone || ''}
                           onChangeText={(text) => setSelectedDriver({...selectedDriver, phone: text})}
                           placeholder="Teléfono"
+                          placeholderTextColor={theme.textSecondary}
                           keyboardType="phone-pad"
                         />
                       </View>
@@ -459,10 +504,10 @@ export default function AdminMenuScreen() {
                     
                     <View style={{ backgroundColor: '#f8f9fa', padding: 15, borderRadius: 10, marginBottom: 20 }}>
                       <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Estadísticas:</ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Entregas totales: <ThemedText style={{ fontWeight: 'bold' }}>{selectedDriver.totalDeliveries || 0}</ThemedText></ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Rating: <ThemedText style={{ fontWeight: 'bold' }}>{selectedDriver.rating?.toFixed(1) || 'N/A'}</ThemedText></ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Strikes: <ThemedText style={{ fontWeight: 'bold', color: selectedDriver.strikes > 0 ? '#EF4444' : '#10B981' }}>{selectedDriver.strikes || 0}</ThemedText></ThemedText>
-                      <ThemedText>Estado: <ThemedText style={{ fontWeight: 'bold', color: selectedDriver.isOnline ? '#10B981' : '#6B7280' }}>{selectedDriver.isOnline ? 'En Línea' : 'Desconectado'}</ThemedText></ThemedText>
+                      <ThemedText style={{ marginBottom: 5, color: theme.text }}>Entregas totales: <ThemedText style={{ fontWeight: 'bold', color: theme.text }}>{selectedDriver.totalDeliveries || 0}</ThemedText></ThemedText>
+                      <ThemedText style={{ marginBottom: 5, color: theme.text }}>Rating: <ThemedText style={{ fontWeight: 'bold', color: theme.text }}>{selectedDriver.rating?.toFixed(1) || 'N/A'}</ThemedText></ThemedText>
+                      <ThemedText style={{ marginBottom: 5, color: theme.text }}>Strikes: <ThemedText style={{ fontWeight: 'bold', color: selectedDriver.strikes > 0 ? '#EF4444' : '#10B981' }}>{selectedDriver.strikes || 0}</ThemedText></ThemedText>
+                      <ThemedText style={{ color: theme.text }}>Estado: <ThemedText style={{ fontWeight: 'bold', color: selectedDriver.isOnline ? '#10B981' : '#6B7280' }}>{selectedDriver.isOnline ? 'En Línea' : 'Desconectado'}</ThemedText></ThemedText>
                     </View>
                     
                     <ThemedText style={{ fontWeight: 'bold', marginBottom: 15, fontSize: 16 }}>Estado del Repartidor:</ThemedText>
@@ -535,26 +580,15 @@ export default function AdminMenuScreen() {
           <View style={{ flex: 1 }}>
             <FinanceTab transactions={transactions} onTransactionPress={handleTransactionPress} />
             {transactionModalVisible && selectedTransaction && (
-              <View style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 999999
-              }}>
-                <View style={{
-                  backgroundColor: 'white',
-                  borderRadius: 15,
-                  padding: 25,
-                  width: '90%',
-                  maxWidth: 500,
-                  maxHeight: '85%'
-                }}>
+              <Pressable style={styles.modalOverlay} onPress={() => setTransactionModalVisible(false)}>
+                <Pressable
+                  style={[styles.modalCard, { backgroundColor: theme.card }]}
+                  onPress={(e) => e.stopPropagation()}
+                >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <ThemedText type="h3">Detalles de Transacción</ThemedText>
-                    <Pressable onPress={() => setTransactionModalVisible(false)}>
-                      <ThemedText style={{ fontSize: 24, color: '#666' }}>✕</ThemedText>
+                    <ThemedText type="h3" style={{ color: theme.text }}>Detalles de Transacción</ThemedText>
+                    <Pressable onPress={() => setTransactionModalVisible(false)} hitSlop={12}>
+                      <Feather name="x" size={24} color={theme.text} />
                     </Pressable>
                   </View>
                   
@@ -637,26 +671,15 @@ export default function AdminMenuScreen() {
           <View style={{ flex: 1 }}>
             <BusinessesTab businesses={businesses} onBusinessPress={handleBusinessPress} />
             {businessModalVisible && selectedBusiness && (
-              <View style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 999999
-              }}>
-                <View style={{
-                  backgroundColor: 'white',
-                  borderRadius: 15,
-                  padding: 25,
-                  width: '90%',
-                  maxWidth: 500,
-                  maxHeight: '85%'
-                }}>
+              <Pressable style={styles.modalOverlay} onPress={() => setBusinessModalVisible(false)}>
+                <Pressable
+                  style={[styles.modalCard, { backgroundColor: theme.card }]}
+                  onPress={(e) => e.stopPropagation()}
+                >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <ThemedText type="h3">Detalles del Negocio</ThemedText>
-                    <Pressable onPress={() => setBusinessModalVisible(false)}>
-                      <ThemedText style={{ fontSize: 24, color: '#666' }}>✕</ThemedText>
+                    <ThemedText type="h3" style={{ color: theme.text }}>Detalles del Negocio</ThemedText>
+                    <Pressable onPress={() => setBusinessModalVisible(false)} hitSlop={12}>
+                      <Feather name="x" size={24} color={theme.text} />
                     </Pressable>
                   </View>
                   
@@ -795,7 +818,7 @@ export default function AdminMenuScreen() {
                 zIndex: 999999
               }}>
                 <View style={{
-                  backgroundColor: 'white',
+                  backgroundColor: theme.card,
                   borderRadius: 15,
                   padding: 25,
                   width: '90%',
@@ -912,107 +935,142 @@ export default function AdminMenuScreen() {
           <View style={{ flex: 1 }}>
             <OrdersTab orders={orders} onOrderPress={handleOrderPress} />
             {orderModalVisible && selectedOrder && (
-              <View style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 999999
-              }}>
-                <View style={{
-                  backgroundColor: 'white',
-                  borderRadius: 15,
-                  padding: 25,
-                  width: '90%',
-                  maxWidth: 500,
-                  maxHeight: '85%'
-                }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <ThemedText type="h3">Detalles del Pedido</ThemedText>
-                    <Pressable onPress={() => setOrderModalVisible(false)}>
-                      <ThemedText style={{ fontSize: 24, color: '#666' }}>✕</ThemedText>
+              <Pressable
+                style={styles.modalOverlay}
+                onPress={() => setOrderModalVisible(false)}
+              >
+                <Pressable
+                  style={[styles.modalCard, { backgroundColor: theme.card }]}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <View style={styles.modalHeaderRow}>
+                    <ThemedText type="h3" style={{ color: theme.text }}>
+                      Detalles del Pedido
+                    </ThemedText>
+                    <Pressable onPress={() => setOrderModalVisible(false)} style={styles.closeButton} hitSlop={12}>
+                      <Feather name="x" size={22} color={theme.text} />
                     </Pressable>
                   </View>
-                  
+
                   <ScrollView showsVerticalScrollIndicator={false}>
-                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                      <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: '#FF8C00', justifyContent: 'center', alignItems: 'center', marginBottom: 15 }}>
-                        <ThemedText style={{ color: 'white', fontSize: 24, fontWeight: 'bold' }}>
+                    <View style={styles.modalHero}>
+                      <View style={[styles.modalAvatar, { backgroundColor: NemyColors.warning }]}>
+                        <ThemedText style={{ color: "white", fontSize: 24, fontWeight: "bold" }}>
                           #
                         </ThemedText>
                       </View>
-                      <ThemedText type="h2" style={{ marginBottom: 5 }}>#{selectedOrder.id.slice(0, 8)}</ThemedText>
-                      <ThemedText style={{ color: '#666', marginBottom: 3 }}>🏦 {selectedOrder.businessName}</ThemedText>
-                      <ThemedText style={{ color: '#666', marginBottom: 3 }}>👤 {selectedOrder.customerName}</ThemedText>
-                      <ThemedText style={{ color: '#666' }}>💰 ${(selectedOrder.total / 100).toFixed(2)}</ThemedText>
+                      <ThemedText type="h2" style={{ marginBottom: 5, color: theme.text }}>
+                        #{selectedOrder.id.slice(0, 8)}
+                      </ThemedText>
+                      <ThemedText style={{ color: theme.textSecondary, marginBottom: 3 }}>
+                        🏦 {selectedOrder.businessName}
+                      </ThemedText>
+                      <ThemedText style={{ color: theme.textSecondary, marginBottom: 3 }}>
+                        👤 {selectedOrder.customerName}
+                      </ThemedText>
+                      <ThemedText style={{ color: theme.textSecondary }}>
+                        💰 ${(selectedOrder.total / 100).toFixed(2)}
+                      </ThemedText>
                     </View>
-                    
-                    <ThemedText style={{ fontWeight: 'bold', marginBottom: 15, fontSize: 16 }}>Estado del Pedido:</ThemedText>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 25 }}>
+
+                    <ThemedText style={{ fontWeight: "bold", marginBottom: 15, fontSize: 16, color: theme.text }}>
+                      Estado del Pedido:
+                    </ThemedText>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 25 }}>
                       {[
-                        { key: 'pending', label: 'Pendiente', color: '#F59E0B' },
-                        { key: 'confirmed', label: 'Confirmado', color: '#3B82F6' },
-                        { key: 'preparing', label: 'Preparando', color: '#8B5CF6' },
-                        { key: 'ready', label: 'Listo', color: '#06B6D4' },
-                        { key: 'on_the_way', label: 'En Camino', color: '#10B981' },
-                        { key: 'delivered', label: 'Entregado', color: '#059669' },
-                        { key: 'cancelled', label: 'Cancelado', color: '#EF4444' }
+                        { key: "pending", label: "Pendiente", color: "#F59E0B" },
+                        { key: "confirmed", label: "Confirmado", color: "#3B82F6" },
+                        { key: "preparing", label: "Preparando", color: "#8B5CF6" },
+                        { key: "ready", label: "Listo", color: "#06B6D4" },
+                        { key: "on_the_way", label: "En Camino", color: "#10B981" },
+                        { key: "delivered", label: "Entregado", color: "#059669" },
+                        { key: "cancelled", label: "Cancelado", color: "#EF4444" },
                       ].map((status) => (
                         <Pressable
                           key={status.key}
-                          onPress={() => setSelectedOrder({...selectedOrder, status: status.key})}
+                          onPress={() => setSelectedOrder({ ...selectedOrder, status: status.key })}
                           style={{
                             paddingVertical: 8,
                             paddingHorizontal: 15,
                             borderRadius: 20,
-                            backgroundColor: selectedOrder.status === status.key ? status.color : '#f5f5f5',
+                            backgroundColor:
+                              selectedOrder.status === status.key ? status.color : theme.backgroundSecondary,
                             borderWidth: 1,
-                            borderColor: selectedOrder.status === status.key ? status.color : '#ddd',
+                            borderColor: selectedOrder.status === status.key ? status.color : theme.border,
                             minWidth: 80,
-                            alignItems: 'center'
+                            alignItems: "center",
                           }}
                         >
-                          <ThemedText style={{ 
-                            color: selectedOrder.status === status.key ? 'white' : '#333',
-                            fontWeight: selectedOrder.status === status.key ? 'bold' : 'normal',
-                            fontSize: 12
-                          }}>
+                          <ThemedText
+                            style={{
+                              color: selectedOrder.status === status.key ? "white" : theme.text,
+                              fontWeight: selectedOrder.status === status.key ? "bold" : "normal",
+                              fontSize: 12,
+                            }}
+                          >
                             {status.label}
                           </ThemedText>
                         </Pressable>
                       ))}
                     </View>
-                    
-                    <View style={{ backgroundColor: '#f8f9fa', padding: 15, borderRadius: 10, marginBottom: 20 }}>
-                      <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Información del pedido:</ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Método de pago: <ThemedText style={{ fontWeight: 'bold' }}>{selectedOrder.paymentMethod === 'card' ? 'Tarjeta' : 'Efectivo'}</ThemedText></ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Dirección: <ThemedText style={{ fontWeight: 'bold' }}>{selectedOrder.deliveryAddress}</ThemedText></ThemedText>
-                      <ThemedText>Creado: <ThemedText style={{ fontWeight: 'bold' }}>{new Date(selectedOrder.createdAt).toLocaleString('es-MX')}</ThemedText></ThemedText>
-                      {selectedOrder.notes && (
-                        <ThemedText style={{ marginTop: 5 }}>Notas: <ThemedText style={{ fontWeight: 'bold' }}>{selectedOrder.notes}</ThemedText></ThemedText>
-                      )}
+
+                    <View
+                      style={{
+                        backgroundColor: theme.backgroundSecondary,
+                        padding: 15,
+                        borderRadius: 10,
+                        marginBottom: 20,
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                      }}
+                    >
+                      <ThemedText style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 8 }}>
+                        Información del pedido:
+                      </ThemedText>
+                      <ThemedText style={{ marginBottom: 5, color: theme.text }}>
+                        Método de pago: <ThemedText style={{ fontWeight: "bold", color: theme.text }}>
+                          {selectedOrder.paymentMethod === "card" ? "Tarjeta" : "Efectivo"}
+                        </ThemedText>
+                      </ThemedText>
+                      <ThemedText style={{ marginBottom: 5, color: theme.text }}>
+                        Dirección: <ThemedText style={{ fontWeight: "bold", color: theme.text }}>
+                          {selectedOrder.deliveryAddress}
+                        </ThemedText>
+                      </ThemedText>
+                      <ThemedText style={{ color: theme.text }}>
+                        Creado: <ThemedText style={{ fontWeight: "bold", color: theme.text }}>
+                          {new Date(selectedOrder.createdAt).toLocaleString("es-MX")}
+                        </ThemedText>
+                      </ThemedText>
+                      {selectedOrder.notes ? (
+                        <ThemedText style={{ marginTop: 5, color: theme.text }}>
+                          Notas: <ThemedText style={{ fontWeight: "bold", color: theme.text }}>
+                            {selectedOrder.notes}
+                          </ThemedText>
+                        </ThemedText>
+                      ) : null}
                     </View>
                   </ScrollView>
-                  
-                  <Pressable 
-                    style={{ 
-                      padding: 16, 
-                      backgroundColor: '#FF8C00', 
-                      borderRadius: 10, 
-                      alignItems: 'center',
-                      marginTop: 10
+
+                  <Pressable
+                    style={{
+                      padding: 16,
+                      backgroundColor: NemyColors.primary,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      marginTop: 10,
                     }}
                     onPress={() => {
-                      // Aquí iría la lógica para actualizar el estado del pedido
-                      showToast('Estado del pedido actualizado', 'success');
+                      showToast("Estado del pedido actualizado", "success");
                       setOrderModalVisible(false);
                     }}
                   >
-                    <ThemedText style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Actualizar Estado</ThemedText>
+                    <ThemedText style={{ color: "white", fontWeight: "bold", fontSize: 16 }}>
+                      Actualizar Estado
+                    </ThemedText>
                   </Pressable>
-                </View>
-              </View>
+                </Pressable>
+              </Pressable>
             )}
           </View>
         );
@@ -1031,7 +1089,7 @@ export default function AdminMenuScreen() {
                 zIndex: 999999
               }}>
                 <View style={{
-                  backgroundColor: 'white',
+                  backgroundColor: theme.card,
                   borderRadius: 15,
                   padding: 25,
                   width: '90%',
@@ -1175,7 +1233,7 @@ export default function AdminMenuScreen() {
                 zIndex: 999999
               }}>
                 <View style={{
-                  backgroundColor: 'white',
+                  backgroundColor: theme.card,
                   borderRadius: 15,
                   padding: 25,
                   width: '90%',
@@ -1613,34 +1671,33 @@ export default function AdminMenuScreen() {
 
       {/* Order Overlay */}
       {orderModalVisible && (
-        <View style={{
-          position: 'absolute',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <View style={{
-            backgroundColor: 'white',
-            padding: 20,
-            borderRadius: 10,
-            width: '90%',
-            maxHeight: '80%'
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
-              <ThemedText type="h3">Detalles del Pedido</ThemedText>
-              <Pressable onPress={() => setOrderModalVisible(false)}>
-                <ThemedText style={{ fontSize: 20, color: '#666' }}>✕</ThemedText>
+        <Pressable style={styles.modalOverlay} onPress={() => setOrderModalVisible(false)}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: theme.card }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeaderRow}>
+              <ThemedText type="h3" style={{ color: theme.text }}>
+                Detalles del Pedido
+              </ThemedText>
+              <Pressable onPress={() => setOrderModalVisible(false)} style={styles.closeButton} hitSlop={12}>
+                <Feather name="x" size={22} color={theme.text} />
               </Pressable>
             </View>
             {selectedOrder && (
               <View>
-                <ThemedText type="h2" style={{ marginBottom: 10 }}>#{selectedOrder.id.slice(0, 8)}</ThemedText>
-                <ThemedText style={{ marginBottom: 5 }}>🏪 {selectedOrder.businessName}</ThemedText>
-                <ThemedText style={{ marginBottom: 5 }}>👤 {selectedOrder.customerName}</ThemedText>
-                <ThemedText style={{ marginBottom: 5 }}>💰 ${(selectedOrder.total / 100).toFixed(2)}</ThemedText>
-                <ThemedText style={{ marginBottom: 15 }}>📋 {selectedOrder.status}</ThemedText>
+                <ThemedText type="h2" style={{ marginBottom: 10, color: theme.text }}>
+                  #{selectedOrder.id.slice(0, 8)}
+                </ThemedText>
+                <ThemedText style={{ marginBottom: 5, color: theme.textSecondary }}>
+                  🏪 {selectedOrder.businessName}
+                </ThemedText>
+                <ThemedText style={{ marginBottom: 5, color: theme.textSecondary }}>
+                  👤 {selectedOrder.customerName}
+                </ThemedText>
+                <ThemedText style={{ marginBottom: 15, color: theme.textSecondary }}>
+                  💰 ${(selectedOrder.total / 100).toFixed(2)} | {selectedOrder.status}
+                </ThemedText>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Pressable 
                     style={{ flex: 1, padding: 12, backgroundColor: '#10b981', borderRadius: 8, alignItems: 'center' }}
@@ -1657,8 +1714,8 @@ export default function AdminMenuScreen() {
                 </View>
               </View>
             )}
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       )}
     </ThemedView>
   );
@@ -1724,15 +1781,43 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing["4xl"],
   },
   modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    height: "85%",
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: Spacing.lg,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 540,
+    maxHeight: "85%",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  closeButton: {
+    padding: Spacing.xs,
+  },
+  modalHero: {
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  modalAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
   },
   modalHeader: {
     flexDirection: "row",

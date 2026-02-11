@@ -80,18 +80,18 @@ export class FinancialSecurityAudit {
       // For now, we assume the unified service is being used correctly
       const rates = await financialService.getCommissionRates();
       
-      if (rates.platform === 0.15 && rates.business === 0.70 && rates.driver === 0.15) {
-        // These are the default rates, check if they're from settings or hardcoded
+      if (rates.platform === 0.15 && rates.business === 1 && rates.driver === 1) {
+        // These are the defaults; verify they came from system_settings and not hardcoded
         const settings = await db.select().from(systemSettings).where(eq(systemSettings.category, 'commissions'));
         
         if (settings.length === 0) {
           vulnerabilities.push({
             severity: 'HIGH',
             category: 'Configuration',
-            description: 'Commission rates appear to be hardcoded instead of configurable',
+            description: 'Commission model appears hardcoded (15% markup / 100% producto / 100% delivery)',
             impact: 'Cannot adjust rates without code changes'
           });
-          recommendations.push('Ensure all commission rates are stored in system_settings table');
+          recommendations.push('Ensure commission settings exist in system_settings table');
         }
       }
     } catch (error: any) {
@@ -108,26 +108,36 @@ export class FinancialSecurityAudit {
   private static async validateCommissionIntegrity(vulnerabilities: any[], recommendations: string[]) {
     try {
       const rates = await financialService.getCommissionRates();
-      const total = rates.platform + rates.business + rates.driver;
-      
-      if (Math.abs(total - 1.0) > 0.001) {
+      const { platform, business, driver } = rates;
+
+      if (platform < 0 || platform > 0.30) {
         vulnerabilities.push({
           severity: 'CRITICAL',
           category: 'Financial Logic',
-          description: `Commission rates don't sum to 100%: ${(total * 100).toFixed(2)}%`,
-          impact: 'Money can be lost or created in the system'
+          description: `Platform markup fuera de rango esperado (0%-30% sobre productos): ${(platform * 100).toFixed(2)}%`,
+          impact: 'Risk of overcharging or undercharging customers/businesses'
         });
-        recommendations.push('Fix commission rates to sum exactly to 100%');
+        recommendations.push('Mantener platform_commission_rate entre 0 y 0.30 (15% recomendado)');
       }
-      
-      if (rates.platform < 0 || rates.business < 0 || rates.driver < 0) {
+
+      if (business < 1) {
         vulnerabilities.push({
           severity: 'CRITICAL',
           category: 'Financial Logic',
-          description: 'Negative commission rates detected',
-          impact: 'Can cause money to flow in wrong direction'
+          description: `Business share menor a 100% del precio base (${(business * 100).toFixed(2)}%)`,
+          impact: 'Business would earn less than the product base price'
         });
-        recommendations.push('Ensure all commission rates are positive');
+        recommendations.push('Configurar business_commission_rate en 1.0 (100% del precio base)');
+      }
+
+      if (driver < 1) {
+        vulnerabilities.push({
+          severity: 'HIGH',
+          category: 'Financial Logic',
+          description: `Driver delivery share menor a 100% (${(driver * 100).toFixed(2)}%)`,
+          impact: 'Drivers would not receive the full delivery fee'
+        });
+        recommendations.push('Configurar driver_commission_rate en 1.0 (100% del delivery fee)');
       }
       
     } catch (error: any) {

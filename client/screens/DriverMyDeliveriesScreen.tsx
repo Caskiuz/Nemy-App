@@ -47,13 +47,14 @@ export default function DriverMyDeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [pickupOrderId, setPickupOrderId] = useState<string | null>(null);
+  const [actionOrderId, setActionOrderId] = useState<string | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -107,6 +108,13 @@ export default function DriverMyDeliveriesScreen() {
 
   const updateStatus = async (orderId: string, status: string) => {
     console.log('updateStatus called:', orderId, status);
+    const previousOrders = orders;
+    setActionOrderId(orderId);
+    setOrders((prev: any[]) =>
+      prev.map((order) =>
+        order.id === orderId ? { ...order, status } : order,
+      ),
+    );
     try {
       let endpoint;
       let method = 'POST';
@@ -139,7 +147,9 @@ export default function DriverMyDeliveriesScreen() {
     } catch (error) {
       console.error("Error updating status:", error);
       Alert.alert("Error", "No se pudo actualizar el estado");
+      setOrders(previousOrders);
     }
+    setActionOrderId(null);
   };
 
   const handlePickedUp = (orderId: string) => {
@@ -167,18 +177,28 @@ export default function DriverMyDeliveriesScreen() {
 
   const confirmDelivery = async () => {
     if (pendingOrderId) {
+      const previousOrders = orders;
       const location = await gpsService.getLocationForDelivery();
       const body = location ? { latitude: location.latitude, longitude: location.longitude } : {};
       
+      setActionOrderId(pendingOrderId);
+      setOrders((prev: any[]) =>
+        prev.map((order) =>
+          order.id === pendingOrderId ? { ...order, status: "delivered" } : order,
+        ),
+      );
+
       try {
         await apiRequest('POST', `/api/orders/${pendingOrderId}/complete-delivery`, body);
         loadOrders();
       } catch (error) {
         console.error('Error confirming delivery:', error);
+        setOrders(previousOrders);
       }
     }
     setShowConfirmModal(false);
     setPendingOrderId(null);
+    setActionOrderId(null);
   };
 
   const cancelDelivery = () => {
@@ -207,7 +227,7 @@ export default function DriverMyDeliveriesScreen() {
     return Number.isFinite(num) ? num : null;
   };
 
-  const getOrderCoordinates = (order: any) => {
+  const getOrderCoordinates = (order: any): { lat: number | null; lng: number | null } => {
     const lat = [
       order.deliveryLatitude,
       order.deliveryLat,
@@ -215,7 +235,7 @@ export default function DriverMyDeliveriesScreen() {
       order.delivery_latitude,
     ]
       .map(parseCoordinate)
-      .find((value) => value !== null);
+      .find((value) => value !== null) ?? null;
 
     const lng = [
       order.deliveryLongitude,
@@ -224,7 +244,7 @@ export default function DriverMyDeliveriesScreen() {
       order.delivery_longitude,
     ]
       .map(parseCoordinate)
-      .find((value) => value !== null);
+      .find((value) => value !== null) ?? null;
 
     return { lat, lng };
   };
@@ -279,15 +299,15 @@ export default function DriverMyDeliveriesScreen() {
       [
         {
           text: "Google Maps",
-          onPress: () => openGoogleMaps(parseFloat(lat), parseFloat(lng), address),
+          onPress: () => openGoogleMaps(lat, lng, address),
         },
         {
           text: "Waze",
-          onPress: () => openWaze(parseFloat(lat), parseFloat(lng)),
+          onPress: () => openWaze(lat, lng),
         },
         ...(Platform.OS === "ios" ? [{
           text: "Apple Maps",
-          onPress: () => openAppleMaps(parseFloat(lat), parseFloat(lng), address),
+          onPress: () => openAppleMaps(lat, lng, address),
         }] : []),
         { text: "Cancelar", style: "cancel" as const },
       ]
@@ -379,6 +399,7 @@ export default function DriverMyDeliveriesScreen() {
           <SmartOrderButton
             orderStatus={item.status}
             userRole="delivery_driver"
+            loading={actionOrderId === item.id}
             onPress={(canProceed, buttonInfo) => {
               if (canProceed) {
                 // Ejecutar la acción real según el estado

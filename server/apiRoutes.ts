@@ -40,75 +40,103 @@ import {
 } from "./systemSettingsService";
 import supportRoutes from "./supportRoutes";
 import adminRoutes from "./routes/adminRoutes";
+import { addChatMessage, getChatMessages } from "./chatService";
 
 const router = express.Router();
+
+async function ensureOrderAccess(orderId: string, userId: string, role: string) {
+  const { orders, businesses } = await import("@shared/schema-mysql");
+  const { db } = await import("./db");
+  const { eq } = await import("drizzle-orm");
+
+  const [order] = await db
+    .select({
+      id: orders.id,
+      userId: orders.userId,
+      deliveryPersonId: orders.deliveryPersonId,
+      businessId: orders.businessId,
+    })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+
+  if (!order) {
+    return { status: 404, error: "Order not found" } as const;
+  }
+
+  if (role === "admin" || role === "super_admin") {
+    return { order } as const;
+  }
+
+  if (order.userId === userId || order.deliveryPersonId === userId) {
+    return { order } as const;
+  }
+
+  if (order.businessId) {
+    const [business] = await db
+      .select({ ownerId: businesses.ownerId })
+      .from(businesses)
+      .where(eq(businesses.id, order.businessId))
+      .limit(1);
+
+    if (business?.ownerId === userId) {
+      return { order } as const;
+    }
+  }
+
+  return { status: 403, error: "You do not have permission to access this order" } as const;
+}
 
 // ============================================
 // PUBLIC ROUTES (No authentication required)
 // ============================================
 
-// Connect routes - DIRECT IMPLEMENTATION
+// Connect routes - Live Stripe (no mock)
 router.get("/connect/status", authenticateToken, async (req, res) => {
   try {
     console.log('🔗 GET /api/connect/status called for user:', req.user?.id);
-    
-    // Por ahora, devolver un estado mock para que funcione
-    res.json({
-      hasAccount: false,
-      onboardingComplete: false,
-      canReceivePayments: false,
-      chargesEnabled: false,
-      payoutsEnabled: false,
-      detailsSubmitted: false,
-      requirements: null,
-    });
+    const { getConnectStatus } = await import("./stripeConnectService");
+    const result = await getConnectStatus(req.user!.id);
+    res.json(result);
   } catch (error: any) {
     console.error('Connect status error:', error);
-    res.status(500).json({ error: 'Failed to get account status' });
+    res.status(500).json({ error: error.message || 'Failed to get account status' });
   }
 });
 
 router.post("/connect/onboard", authenticateToken, async (req, res) => {
   try {
     console.log('🔗 POST /api/connect/onboard called for user:', req.user?.id);
-    
-    // Mock response para que funcione
-    res.json({
-      success: true,
-      accountId: 'mock_account_id',
-      onboardingUrl: 'https://connect.stripe.com/setup/mock',
-    });
+    const { startOnboarding } = await import("./stripeConnectService");
+    const { accountId, onboardingUrl } = await startOnboarding(req.user!.id, req.body.businessId);
+    res.json({ success: true, accountId, onboardingUrl });
   } catch (error: any) {
     console.error('Connect onboarding error:', error);
-    res.status(500).json({ error: 'Failed to start onboarding' });
+    res.status(500).json({ error: error.message || 'Failed to start onboarding' });
   }
 });
 
 router.post("/connect/refresh-onboarding", authenticateToken, async (req, res) => {
   try {
     console.log('🔗 POST /api/connect/refresh-onboarding called for user:', req.user?.id);
-    
-    res.json({
-      success: true,
-      onboardingUrl: 'https://connect.stripe.com/setup/mock-refresh',
-    });
+    const { refreshOnboarding } = await import("./stripeConnectService");
+    const { onboardingUrl } = await refreshOnboarding(req.body.accountId, req.body.businessId);
+    res.json({ success: true, onboardingUrl });
   } catch (error: any) {
     console.error('Refresh onboarding error:', error);
-    res.status(500).json({ error: 'Failed to refresh onboarding' });
+    res.status(500).json({ error: error.message || 'Failed to refresh onboarding' });
   }
 });
 
 router.post("/connect/dashboard", authenticateToken, async (req, res) => {
   try {
     console.log('🔗 POST /api/connect/dashboard called for user:', req.user?.id);
-    
-    res.json({
-      success: true,
-      dashboardUrl: 'https://dashboard.stripe.com/mock',
-    });
+    const { getDashboardLink } = await import("./stripeConnectService");
+    const { dashboardUrl } = await getDashboardLink(req.body.accountId);
+    res.json({ success: true, dashboardUrl });
   } catch (error: any) {
     console.error('Dashboard link error:', error);
-    res.status(500).json({ error: 'Failed to create dashboard link' });
+    res.status(500).json({ error: error.message || 'Failed to create dashboard link' });
   }
 });
 
@@ -239,12 +267,13 @@ router.get("/businesses/featured", async (req, res) => {
   try {
     const { businesses } = await import("@shared/schema-mysql");
     const { db } = await import("./db");
-    const { eq } = await import("drizzle-orm");
+    const { eq, and } = await import("drizzle-orm");
     
+    // Solo negocios destacados y activos
     const featuredBusinesses = await db
       .select()
       .from(businesses)
-      .where(eq(businesses.isFeatured, 1))
+      .where(and(eq(businesses.isFeatured, 1), eq(businesses.isActive, 1)))
       .limit(10);
     
     res.json({ success: true, businesses: featuredBusinesses });
@@ -355,13 +384,20 @@ router.get("/businesses", async (req, res) => {
     const { db } = await import("./db");
     
     console.log('📍 GET /api/businesses called');
-    const allBusinesses = await db.select().from(businesses);
-    console.log('✅ Found businesses:', allBusinesses.length);
+    const { eq } = await import("drizzle-orm");
+    // Solo negocios activos; deduplicar por id para evitar repetidos en catálogos
+    const rows = await db
+      .select()
+      .from(businesses)
+      .where(eq(businesses.isActive, 1));
+
+    const uniqueBusinesses = Array.from(new Map(rows.map(b => [b.id, b])).values());
+    console.log('✅ Found active businesses (unique):', uniqueBusinesses.length);
     
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.json({ success: true, businesses: allBusinesses });
+    res.json({ success: true, businesses: uniqueBusinesses });
   } catch (error: any) {
     console.error('❌ Error in /api/businesses:', error);
     res.status(500).json({ error: error.message });
@@ -380,8 +416,8 @@ router.get("/businesses/:id", async (req, res) => {
       .from(businesses)
       .where(eq(businesses.id, req.params.id))
       .limit(1);
-      
-    if (!business[0]) {
+    
+    if (!business[0] || business[0].isActive !== 1) {
       return res.status(404).json({ error: "Business not found" });
     }
     
@@ -389,6 +425,10 @@ router.get("/businesses/:id", async (req, res) => {
       .select()
       .from(products)
       .where(eq(products.businessId, req.params.id));
+
+    const availableProducts = businessProducts.filter(
+      (p: any) => p.isAvailable === 1 || p.isAvailable === true,
+    );
     
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -397,7 +437,7 @@ router.get("/businesses/:id", async (req, res) => {
       success: true, 
       business: {
         ...business[0],
-        products: businessProducts
+        products: availableProducts
       }
     });
   } catch (error: any) {
@@ -570,15 +610,15 @@ router.post("/auth/send-code", async (req, res) => {
     const { db } = await import("./db");
     const { eq, or, like } = await import("drizzle-orm");
 
-    // Normalize phone - handle different formats
-    const phoneDigits = phone.replace(/[^\d]/g, '');
-    const normalizedPhone = phoneDigits.startsWith('52') ? `+${phoneDigits}` : 
-                           phoneDigits.length === 10 ? `+52${phoneDigits}` :
-                           phone.startsWith('+') ? phone : `+52${phoneDigits}`;
+    // Normalize phone - preserve international format
+    const normalizedPhone = phone.startsWith('+') ? phone.replace(/[\s-()]/g, '') : 
+                           phone.replace(/[^\d]/g, '').length === 10 ? `+52${phone.replace(/[^\d]/g, '')}` :
+                           `+${phone.replace(/[^\d]/g, '')}`;
+    const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
 
-    console.log('📱 Phone normalization:', { original: phone, digits: phoneDigits, normalized: normalizedPhone });
+    console.log('📱 Phone normalization:', { original: phone, normalized: normalizedPhone });
 
-    // Check if user exists with multiple phone format variations
+    // Check if user exists
     let user = await db
       .select()
       .from(users)
@@ -586,8 +626,6 @@ router.post("/auth/send-code", async (req, res) => {
         or(
           eq(users.phone, normalizedPhone),
           eq(users.phone, phone),
-          eq(users.phone, `+52 ${phoneDigits.slice(-10, -7)} ${phoneDigits.slice(-7, -4)} ${phoneDigits.slice(-4)}`),
-          eq(users.phone, `+52${phoneDigits.slice(-10)}`),
           like(users.phone, `%${phoneDigits.slice(-10)}`)
         )
       )
@@ -626,6 +664,7 @@ router.post("/auth/send-code", async (req, res) => {
           from: process.env.TWILIO_PHONE_NUMBER,
           to: normalizedPhone
         });
+        console.log(`✅ SMS sent to ${normalizedPhone}`);
       } catch (twilioError) {
         console.error("Twilio error:", twilioError);
         // Continue anyway for development
@@ -657,8 +696,10 @@ router.post("/auth/phone-signup", async (req, res) => {
     const { db } = await import("./db");
     const { eq, or, like } = await import("drizzle-orm");
 
-    // Normalize phone
-    const normalizedPhone = phone.replace(/[\s-()]/g, '');
+    // Normalize phone - preserve international format
+    const normalizedPhone = phone.startsWith('+') ? phone.replace(/[\s-()]/g, '') : 
+                           phone.replace(/[^\d]/g, '').length === 10 ? `+52${phone.replace(/[^\d]/g, '')}` :
+                           `+${phone.replace(/[^\d]/g, '')}`;
     const phoneDigits = normalizedPhone.replace(/[^\d]/g, '');
 
     // Check if user already exists
@@ -681,16 +722,13 @@ router.post("/auth/phone-signup", async (req, res) => {
       });
     }
 
-    // Validate role - only customer, business_owner, delivery_driver allowed for signup
+    // Validate role
     const validRoles = ['customer', 'business_owner', 'delivery_driver'];
     const userRole = validRoles.includes(role) ? role : 'customer';
 
-    // No approval required for new accounts
-    const requiresApproval = false;
-
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     console.log(`🔐 Verification code for ${normalizedPhone}: ${code}`);
 
@@ -715,45 +753,29 @@ router.post("/auth/phone-signup", async (req, res) => {
         .limit(1);
 
       if (createdUser?.id) {
-        const [existingDriver] = await db
-          .select({ id: deliveryDrivers.id })
-          .from(deliveryDrivers)
-          .where(eq(deliveryDrivers.userId, createdUser.id))
-          .limit(1);
+        await db.insert(deliveryDrivers).values({
+          userId: createdUser.id,
+          vehicleType: "bike",
+          vehiclePlate: null,
+          isAvailable: false,
+          totalDeliveries: 0,
+          rating: 0,
+          totalRatings: 0,
+          strikes: 0,
+          isBlocked: false,
+        });
 
-        if (!existingDriver) {
-          await db.insert(deliveryDrivers).values({
-            userId: createdUser.id,
-            vehicleType: "bike",
-            vehiclePlate: null,
-            isAvailable: false,
-            totalDeliveries: 0,
-            rating: 0,
-            totalRatings: 0,
-            strikes: 0,
-            isBlocked: false,
-          });
-        }
-
-        const [existingWallet] = await db
-          .select({ id: wallets.id })
-          .from(wallets)
-          .where(eq(wallets.userId, createdUser.id))
-          .limit(1);
-
-        if (!existingWallet) {
-          await db.insert(wallets).values({
-            userId: createdUser.id,
-            balance: 0,
-            pendingBalance: 0,
-            totalEarned: 0,
-            totalWithdrawn: 0,
-          });
-        }
+        await db.insert(wallets).values({
+          userId: createdUser.id,
+          balance: 0,
+          pendingBalance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+        });
       }
     }
 
-    // Send SMS via Twilio (if configured)
+    // Send SMS via Twilio
     if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
       try {
         const twilio = await import("twilio");
@@ -763,6 +785,7 @@ router.post("/auth/phone-signup", async (req, res) => {
           from: process.env.TWILIO_PHONE_NUMBER,
           to: normalizedPhone,
         });
+        console.log(`✅ SMS sent to ${normalizedPhone}`);
       } catch (twilioError) {
         console.error("Twilio error:", twilioError);
       }
@@ -775,8 +798,9 @@ router.post("/auth/phone-signup", async (req, res) => {
     res.json({ 
       success: true, 
       requiresVerification: true,
-      requiresApproval,
-      message: "Usuario registrado. Verifica tu teléfono."
+      requiresApproval: false,
+      message: "Usuario registrado. Verifica tu teléfono.",
+      ...(process.env.NODE_ENV === "development" && { devCode: code })
     });
   } catch (error: any) {
     console.error("Signup error:", error);
@@ -2397,7 +2421,8 @@ router.put(
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
       const { validateStateTransition, validateRoleCanChangeToState } = await import("./orderStateValidation");
-      const { status } = req.body;
+      const { calculateDistance } = await import("./utils/distance");
+      const { status, latitude, longitude, lat, lng } = req.body;
 
       console.log(`🟢 Business changing order ${req.params.id} to status: ${status}`);
 
@@ -3164,6 +3189,40 @@ router.post(
         return res.status(404).json({ error: "Order not found" });
       }
 
+      // Si se intenta marcar entregado, validar proximidad GPS (radio 100m)
+      if (status === "delivered") {
+        const driverLat = typeof latitude === "number" ? latitude : lat;
+        const driverLng = typeof longitude === "number" ? longitude : lng;
+        const hasDriverCoords = typeof driverLat === "number" && typeof driverLng === "number";
+
+        if (!hasDriverCoords) {
+          return res.status(400).json({ error: "Ubicación requerida para marcar entregado" });
+        }
+
+        const deliveryLat = order.deliveryLatitude ?? order.deliveryLat ?? order.latitude;
+        const deliveryLng = order.deliveryLongitude ?? order.deliveryLng ?? order.longitude;
+        const hasDeliveryCoords = typeof deliveryLat === "number" && typeof deliveryLng === "number";
+
+        if (!hasDeliveryCoords) {
+          return res.status(400).json({ error: "Pedido sin coordenadas de entrega" });
+        }
+
+        const distanceKm = calculateDistance(
+          Number(driverLat),
+          Number(driverLng),
+          Number(deliveryLat),
+          Number(deliveryLng),
+        );
+
+        const maxDistanceMeters = 100;
+        if (distanceKm * 1000 > maxDistanceMeters) {
+          return res.status(400).json({
+            error: "Debes estar cerca del destino para marcar entregado",
+            distanceMeters: Math.round(distanceKm * 1000),
+          });
+        }
+      }
+
       if (order.status !== "pending") {
         return res.status(400).json({ error: "Solo se pueden cancelar pedidos pendientes" });
       }
@@ -3188,6 +3247,92 @@ router.post(
       res.json({ success: true, message: "Order confirmed to business" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Order chat (customer/driver/business/admin)
+router.get(
+  "/orders/:id/chat",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const access = await ensureOrderAccess(
+        req.params.id,
+        req.user!.id,
+        req.user!.role,
+      );
+
+      if ("status" in access) {
+        return res.status(access.status).json({ error: access.error });
+      }
+
+      const messages = getChatMessages(req.params.id).map((msg) => ({
+        id: msg.id,
+        orderId: msg.orderId,
+        senderId: msg.senderId,
+        receiverId: msg.receiverId,
+        message: msg.message,
+        createdAt: msg.timestamp,
+        isRead: false,
+      }));
+
+      return res.json(messages);
+    } catch (error: any) {
+      console.error("Error fetching order chat:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.post(
+  "/orders/:id/chat",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const access = await ensureOrderAccess(
+        req.params.id,
+        req.user!.id,
+        req.user!.role,
+      );
+
+      if ("status" in access) {
+        return res.status(access.status).json({ error: access.error });
+      }
+
+      const { message, receiverId } = req.body;
+
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      if (!receiverId) {
+        return res.status(400).json({ error: "receiverId is required" });
+      }
+
+      const chatMessage = addChatMessage(
+        req.params.id,
+        req.user!.id,
+        receiverId,
+        message,
+        req.user!.name || "Usuario",
+      );
+
+      return res.json({
+        success: true,
+        message: {
+          id: chatMessage.id,
+          orderId: chatMessage.orderId,
+          senderId: chatMessage.senderId,
+          receiverId: chatMessage.receiverId,
+          message: chatMessage.message,
+          createdAt: chatMessage.timestamp,
+          isRead: false,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error sending order chat message:", error);
+      return res.status(500).json({ error: error.message });
     }
   },
 );
@@ -3716,11 +3861,13 @@ router.put(
 
             const businessOwnerId = business?.ownerId || order.businessId;
 
-            // Si es tarjeta, distribuir comisiones normalmente
-            const { NewCommissionService } = await import("./newCommissionService");
-            const commissions = NewCommissionService.calculateCommissions(
-              order.subtotal || 0, 
-              order.deliveryFee || 0
+            // Si es tarjeta, distribuir comisiones con el modelo unificado (15% markup productos, 100% delivery)
+            const { financialService } = await import("./unifiedFinancialService");
+            const commissions = await financialService.calculateCommissions(
+              order.total || 0,
+              order.deliveryFee || 0,
+              order.productosBase || order.subtotal,
+              order.nemyCommission || undefined
             );
 
             console.log(`💳 Card payment - distributing commissions`);

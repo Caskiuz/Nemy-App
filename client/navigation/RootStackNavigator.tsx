@@ -60,7 +60,13 @@ export type RootStackParamList = {
     businessName: string;
   };
   Cart: undefined;
-  Checkout: undefined;
+  Checkout: {
+    orderId?: string;
+    subtotalWithMarkup?: number;
+    calculatedDeliveryFee?: number;
+    addressRefreshToken?: number;
+    selectedAddressId?: string;
+  } | undefined;
   OrderTracking: { orderId: string };
   Carnival: undefined;
   Markets: undefined;
@@ -86,7 +92,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Addresses: undefined;
   SavedAddresses: undefined;
-  AddAddress: undefined;
+  AddAddress: { address?: any; fromCheckout?: boolean } | undefined;
   AddBankAccount: undefined;
   LocationPicker: { onLocationSelected?: (coords: any, address: string) => void };
   SupportChat: undefined;

@@ -133,7 +133,9 @@ export async function validateOrderCompletion(
   next: NextFunction
 ) {
   try {
-    const orderId = req.params.id || req.params.orderId;
+    const paramId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const paramOrderId = Array.isArray(req.params.orderId) ? req.params.orderId[0] : req.params.orderId;
+    const orderId = paramId || paramOrderId;
 
     const validation = await FinancialIntegrity.reconcileOrder(orderId);
 
@@ -164,7 +166,7 @@ export async function calculateCommissions(
   next: NextFunction
 ) {
   try {
-    const { total } = req.body;
+    const { total, deliveryFee = 0, productosBase, nemyCommission } = req.body;
 
     if (!total) {
       return res.status(400).json({
@@ -172,7 +174,12 @@ export async function calculateCommissions(
       });
     }
 
-    const commissions = await financialService.calculateCommissions(total);
+    const commissions = await financialService.calculateCommissions(
+      total,
+      deliveryFee || 0,
+      productosBase || undefined,
+      nemyCommission || undefined
+    );
 
     // Agregar comisiones al body para uso posterior
     req.body.platformFee = commissions.platform;

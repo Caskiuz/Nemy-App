@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -17,10 +17,11 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { apiRequest } from "@/lib/query-client";
@@ -125,6 +126,7 @@ export default function OrderChatScreen() {
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const navigation = useNavigation<OrderChatNavigationProp>();
   const route = useRoute<OrderChatRouteProp>();
   const queryClient = useQueryClient();
@@ -132,6 +134,7 @@ export default function OrderChatScreen() {
 
   const { orderId, receiverId, receiverName } = route.params || {};
   const [messageText, setMessageText] = useState("");
+  const [orderMeta, setOrderMeta] = useState<any | null>(null);
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
@@ -139,32 +142,98 @@ export default function OrderChatScreen() {
     });
   }, [navigation, receiverName]);
 
-  const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
+  const { data: messages = [] } = useQuery<ChatMessage[]>({
     queryKey: ["/api/orders", orderId, "chat"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/orders/${orderId}/chat`);
+      const data = await response.json();
+      return data || [];
+    },
     refetchInterval: 3000,
     enabled: !!orderId,
   });
+
+  useEffect(() => {
+    const fetchOrderMeta = async () => {
+      if (!orderId) return;
+      try {
+        const res = await apiRequest("GET", `/api/orders/${orderId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOrderMeta(data?.order || data);
+        }
+      } catch (err) {
+        console.error("No se pudo cargar detalle del pedido para chat", err);
+      }
+    };
+    fetchOrderMeta();
+  }, [orderId]);
+
+  const resolvedReceiverId = useMemo(() => {
+    if (receiverId) return receiverId;
+    if (!orderMeta || !user) return undefined;
+    if (user.role === "delivery_driver") {
+      return orderMeta.userId || orderMeta.customerId;
+    }
+    if (user.role === "business_owner") {
+      return orderMeta.userId || orderMeta.customerId;
+    }
+    return orderMeta.deliveryPersonId || orderMeta.businessId || orderMeta.userId || orderMeta.customerId;
+  }, [receiverId, orderMeta, user]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
       const response = await apiRequest("POST", `/api/orders/${orderId}/chat`, {
         senderId: user?.id,
-        receiverId,
+        receiverId: resolvedReceiverId,
         message,
       });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData?.error || "No se pudo enviar el mensaje");
+      }
       return response.json();
     },
+    onMutate: async (message: string) => {
+      if (!user?.id) return;
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        orderId,
+        senderId: user.id,
+        receiverId: resolvedReceiverId || "",
+        message,
+        createdAt: new Date().toISOString(),
+        isRead: false,
+      };
+
+      await queryClient.cancelQueries({ queryKey: ["/api/orders", orderId, "chat"] });
+      const previous = queryClient.getQueryData<ChatMessage[]>(["/api/orders", orderId, "chat"]) || [];
+      queryClient.setQueryData<ChatMessage[]>(["/api/orders", orderId, "chat"], [...previous, optimisticMessage]);
+      setMessageText("");
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["/api/orders", orderId, "chat"], context.previous);
+      }
+      showToast((error as Error)?.message || "No se pudo enviar el mensaje", "error");
+    },
     onSuccess: () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["/api/orders", orderId, "chat"],
       });
-      setMessageText("");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     },
   });
 
   const handleSend = () => {
     if (!messageText.trim()) return;
+    if (!resolvedReceiverId) {
+      showToast("No se pudo determinar el destinatario", "error");
+      return;
+    }
     sendMessageMutation.mutate(messageText.trim());
   };
 
@@ -172,13 +241,23 @@ export default function OrderChatScreen() {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
+  const showReceiverHint = !resolvedReceiverId;
+
   return (
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior="padding"
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={headerHeight}
       >
+        {showReceiverHint ? (
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm }}>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              Cargando destinatario del chat... abre desde el pedido con repartidor asignado.
+            </ThemedText>
+          </View>
+        ) : null}
+
         <FlatList
           ref={flatListRef}
           data={sortedMessages}
@@ -208,6 +287,11 @@ export default function OrderChatScreen() {
               Shadows.sm,
             ]}
           >
+            {showReceiverHint ? (
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }}>
+                No encontramos destinatario aún. Abre el chat desde un pedido con repartidor asignado.
+              </ThemedText>
+            ) : null}
             <TextInput
               style={[styles.input, { color: theme.text }]}
               placeholder="Escribe un mensaje..."
@@ -219,7 +303,7 @@ export default function OrderChatScreen() {
             />
             <Pressable
               onPress={handleSend}
-              disabled={!messageText.trim() || sendMessageMutation.isPending}
+              disabled={!messageText.trim() || sendMessageMutation.isPending || !resolvedReceiverId}
               style={[
                 styles.sendButton,
                 {

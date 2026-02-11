@@ -141,11 +141,12 @@ router.get("/:id", authenticateToken, validateCustomerOrderOwnership, async (req
     const { orders } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq } = await import("drizzle-orm");
+    const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     const [order] = await db
       .select()
       .from(orders)
-      .where(eq(orders.id, req.params.id))
+      .where(eq(orders.id, orderId))
       .limit(1);
 
     if (!order) {
@@ -164,6 +165,7 @@ router.post("/:id/assign-driver", authenticateToken, async (req, res) => {
     const { orders, users } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq, and } = await import("drizzle-orm");
+    const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     const availableDrivers = await db
       .select()
@@ -171,7 +173,7 @@ router.post("/:id/assign-driver", authenticateToken, async (req, res) => {
       .where(
         and(
           eq(users.role, "delivery_driver"),
-          eq(users.isActive, 1)
+          eq(users.isActive, true)
         )
       )
       .limit(10);
@@ -188,7 +190,7 @@ router.post("/:id/assign-driver", authenticateToken, async (req, res) => {
         deliveryPersonId: driver.id,
         status: "picked_up",
       })
-      .where(eq(orders.id, req.params.id));
+      .where(eq(orders.id, orderId));
 
     res.json({
       success: true,
@@ -209,8 +211,9 @@ router.post("/:id/cancel-regret", authenticateToken, validateCustomerOrderOwners
     const { orders } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq } = await import("drizzle-orm");
+    const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-    const [order] = await db.select().from(orders).where(eq(orders.id, req.params.id)).limit(1);
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
@@ -220,7 +223,7 @@ router.post("/:id/cancel-regret", authenticateToken, validateCustomerOrderOwners
       return res.status(400).json({ error: "Solo se pueden cancelar pedidos pendientes" });
     }
 
-    await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, req.params.id));
+    await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, orderId));
 
     res.json({ success: true, message: "Pedido cancelado" });
   } catch (error: any) {
@@ -234,14 +237,15 @@ router.post("/:id/confirm", authenticateToken, validateCustomerOrderOwnership, a
     const { orders } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     const { eq } = await import("drizzle-orm");
+    const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-    const [order] = await db.select().from(orders).where(eq(orders.id, req.params.id)).limit(1);
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    await db.update(orders).set({ status: "confirmed" }).where(eq(orders.id, req.params.id));
+    await db.update(orders).set({ status: "confirmed" }).where(eq(orders.id, orderId));
 
     res.json({ success: true, message: "Pedido confirmado" });
   } catch (error: any) {
@@ -261,22 +265,58 @@ router.post(
       const { orders, wallets, transactions, businesses } = await import("@shared/schema-mysql");
       const { db } = await import("../db");
       const { eq } = await import("drizzle-orm");
+      const { calculateDistance } = await import("../utils/distance");
+      const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
       const [order] = await db
         .select()
         .from(orders)
-        .where(eq(orders.id, req.params.id))
+        .where(eq(orders.id, orderId))
         .limit(1);
 
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
 
+      // Enforce proximity check (100m) before allowing delivery completion
+      const driverLat = req.body.latitude ?? req.body.lat;
+      const driverLng = req.body.longitude ?? req.body.lng;
+      const hasDriverCoords =
+        typeof driverLat === "number" && typeof driverLng === "number";
+
+      if (!hasDriverCoords) {
+        return res.status(400).json({ error: "Ubicación requerida para marcar entregado" });
+      }
+
+      const deliveryLat = order.deliveryLatitude ?? order.deliveryLat ?? order.latitude;
+      const deliveryLng = order.deliveryLongitude ?? order.deliveryLng ?? order.longitude;
+      const hasDeliveryCoords =
+        typeof deliveryLat === "number" && typeof deliveryLng === "number";
+
+      if (!hasDeliveryCoords) {
+        return res.status(400).json({ error: "Pedido sin coordenadas de entrega" });
+      }
+
+      const distanceKm = calculateDistance(
+        Number(driverLat),
+        Number(driverLng),
+        Number(deliveryLat),
+        Number(deliveryLng),
+      );
+
+      const maxDistanceMeters = 100;
+      if (distanceKm * 1000 > maxDistanceMeters) {
+        return res.status(400).json({
+          error: "Debes estar cerca del destino para marcar entregado",
+          distanceMeters: Math.round(distanceKm * 1000),
+        });
+      }
+
       // Mark as delivered
       await db
         .update(orders)
         .set({ status: "delivered", deliveredAt: new Date() })
-        .where(eq(orders.id, req.params.id));
+        .where(eq(orders.id, orderId));
 
       // Calculate commissions using centralized service
       const { financialService } = await import("../unifiedFinancialService");
@@ -295,7 +335,7 @@ router.post(
           businessEarnings: commissions.business,
           deliveryEarnings: commissions.driver,
         })
-        .where(eq(orders.id, req.params.id));
+        .where(eq(orders.id, orderId));
 
       const [business] = await db
         .select({ ownerId: businesses.ownerId })

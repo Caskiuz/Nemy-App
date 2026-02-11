@@ -57,7 +57,7 @@ export function useTheme() {
     themeMode === "system" ? (systemColorScheme ?? "light") : themeMode;
 
   const isDark = effectiveScheme === "dark";
-  const themeData = Colors[effectiveScheme];
+  const themeData = Colors[effectiveScheme] ?? Colors.light; // Fallback to light to avoid undefined theme
 
   return {
     theme: themeData,

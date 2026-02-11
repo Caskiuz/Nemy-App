@@ -145,9 +145,9 @@ NEMY-APP/
 ## 💳 Sistema de Pagos
 
 ### Comisiones
-- Plataforma NEMY: 15%
-- Negocio: 70%
-- Repartidor: 15%
+- Plataforma NEMY: 15% de markup sobre productos
+- Negocio: 100% del precio base de productos
+- Repartidor: 100% de la tarifa de entrega
 
 ### Flujo de Pago
 1. Cliente realiza pedido

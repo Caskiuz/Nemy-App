@@ -10,8 +10,10 @@ import {
   AuthorizationError,
 } from "./errors";
 import { logger } from "./logger";
+import { calculateDistance } from "./utils/distance";
 
 const router = Router();
+const DELIVERY_RADIUS_KM = 0.2; // 200 metros
 
 router.post(
   "/register",
@@ -509,6 +511,34 @@ router.post(
 
     if (order.status !== "picked_up" && order.status !== "on_the_way" && order.status !== "in_transit") {
       throw new ValidationError("Order must be picked up or on the way first");
+    }
+
+    if (latitude === undefined || longitude === undefined) {
+      throw new ValidationError("Se requiere la ubicación GPS para finalizar la entrega");
+    }
+
+    const deliveryLat = order.deliveryLatitude ?? (order as any).deliveryLat ?? (order as any).latitude;
+    const deliveryLng = order.deliveryLongitude ?? (order as any).deliveryLng ?? (order as any).longitude;
+
+    if (!deliveryLat || !deliveryLng) {
+      throw new ValidationError("No hay coordenadas de entrega registradas para validar la entrega");
+    }
+
+    const driverLat = Number(latitude);
+    const driverLng = Number(longitude);
+    const deliveryLatNum = Number(deliveryLat);
+    const deliveryLngNum = Number(deliveryLng);
+
+    if ([driverLat, driverLng, deliveryLatNum, deliveryLngNum].some((value) => Number.isNaN(value))) {
+      throw new ValidationError("Coordenadas inválidas para validar la entrega");
+    }
+
+    const distanceKm = calculateDistance(driverLat, driverLng, deliveryLatNum, deliveryLngNum);
+    if (distanceKm > DELIVERY_RADIUS_KM) {
+      return res.status(400).json({
+        error: `Debes estar dentro de ${Math.round(DELIVERY_RADIUS_KM * 1000)}m del punto de entrega para finalizar`,
+        distanceKm,
+      });
     }
 
     // Mark as delivered

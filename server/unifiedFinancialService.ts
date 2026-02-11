@@ -40,19 +40,24 @@ export class UnifiedFinancialService {
         .where(eq(systemSettings.category, "commissions"));
 
       const platformRate = parseFloat(
-        settings.find(s => s.key === "platform_commission_rate")?.value || "0.15"
+        settings.find((s) => s.key === "platform_commission_rate")?.value || "0.15"
       );
       const businessRate = parseFloat(
-        settings.find(s => s.key === "business_commission_rate")?.value || "0.70"
+        settings.find((s) => s.key === "business_commission_rate")?.value || "1.00"
       );
       const driverRate = parseFloat(
-        settings.find(s => s.key === "driver_commission_rate")?.value || "0.15"
+        settings.find((s) => s.key === "driver_commission_rate")?.value || "1.00"
       );
 
-      // CRITICAL: Validate rates sum to 1.0 (100%)
-      const total = platformRate + businessRate + driverRate;
-      if (Math.abs(total - 1.0) > 0.001) {
-        throw new Error(`Commission rates must sum to 100%. Current: ${(total * 100).toFixed(2)}%`);
+      // Validate ranges for the new model: 15% markup sobre productos, 100% del producto al negocio, 100% del delivery al driver
+      if (platformRate < 0 || platformRate > 1) {
+        throw new Error(`Platform commission (markup) must be between 0% and 100% of products. Current: ${(platformRate * 100).toFixed(2)}%`);
+      }
+      if (businessRate <= 0 || businessRate > 1) {
+        throw new Error(`Business share must be between 0 and 1 (representa % del precio base de productos). Current: ${businessRate}`);
+      }
+      if (driverRate <= 0 || driverRate > 1) {
+        throw new Error(`Driver share must be between 0 and 1 (representa % de la tarifa de entrega). Current: ${driverRate}`);
       }
 
       this.cachedRates = {
@@ -69,8 +74,7 @@ export class UnifiedFinancialService {
     }
   }
 
-  // Calculate commissions - CORRECT LOGIC
-  // NEMY: 15% of subtotal, Business: 100% of subtotal, Driver: 100% of delivery_fee
+  // Calculate commissions - Modelo: 100% producto al negocio, 15% del producto a NEMY, 100% delivery fee al driver
   async calculateCommissions(
     totalAmount: number,
     deliveryFee: number = 0,
@@ -82,27 +86,41 @@ export class UnifiedFinancialService {
     driver: number;
     total: number;
   }> {
+    const safeTotal = Math.max(0, totalAmount || 0);
     const safeDeliveryFee = Math.max(0, deliveryFee || 0);
-    let baseSubtotal = productosBase;
 
-    if (!baseSubtotal || baseSubtotal <= 0) {
-      if (nemyCommission && nemyCommission > 0) {
-        baseSubtotal = Math.max(0, totalAmount - safeDeliveryFee - nemyCommission);
-      } else {
-        const grossSubtotal = Math.max(0, totalAmount - safeDeliveryFee);
-        baseSubtotal = Math.round(grossSubtotal / 1.15);
-      }
+    // Si nos dan productosBase o nemyCommission, respetarlos para backwards compatibility
+    let productBase = productosBase && productosBase > 0
+      ? productosBase
+      : safeTotal - safeDeliveryFee;
+
+    // Si el total ya incluye comisión NEMY, removerla para aislar el producto
+    if (!productosBase || productosBase <= 0) {
+      const baseWithoutDelivery = safeTotal - safeDeliveryFee;
+      productBase = baseWithoutDelivery > 0 ? Math.round(baseWithoutDelivery / 1.15) : 0;
     }
 
-    const platformAmount = nemyCommission ?? Math.round(baseSubtotal * 0.15);
-    const businessAmount = baseSubtotal;
+    const platformAmount = nemyCommission && nemyCommission > 0
+      ? nemyCommission
+      : Math.round(productBase * 0.15);
+
+    const businessAmount = productBase;
     const driverAmount = safeDeliveryFee;
+
+    // Ajustar pequeños desfaces de redondeo para que la suma sea el total original
+    let distributedTotal = platformAmount + businessAmount + driverAmount;
+    if (distributedTotal !== safeTotal) {
+      const delta = safeTotal - distributedTotal;
+      // Ajustar al negocio para mantener driver y plataforma intactos
+      distributedTotal += delta;
+      productBase += delta;
+    }
 
     return {
       platform: platformAmount,
-      business: businessAmount,
+      business: productBase,
       driver: driverAmount,
-      total: platformAmount + businessAmount + driverAmount,
+      total: platformAmount + productBase + driverAmount,
     };
   }
 

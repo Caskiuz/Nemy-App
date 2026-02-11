@@ -510,8 +510,43 @@ export default function DeliveryDashboardScreen() {
     updateStatusMutation.mutate({ orderId, status: "picked_up" });
   };
 
-  const handleDeliver = (orderId: string) => {
-    updateStatusMutation.mutate({ orderId, status: "delivered" });
+  const handleDeliver = async (orderId: string) => {
+    try {
+      // Get current location before marking as delivered
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Se requiere permiso de ubicación para confirmar entrega', 'error');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      // Send location with delivery confirmation
+      const response = await apiRequest(
+        'POST',
+        `/api/orders/${orderId}/complete-delivery`,
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+      );
+
+      const data = await response.json();
+      
+      if (data.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showToast('Pedido entregado correctamente', 'success');
+        queryClient.invalidateQueries({ queryKey: ['/api/delivery/orders'] });
+      } else {
+        showToast(data.error || 'Error al confirmar entrega', 'error');
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Error al confirmar entrega';
+      showToast(errorMessage, 'error');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   const handleAcceptOrder = (orderId: string) => {

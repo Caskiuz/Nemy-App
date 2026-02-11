@@ -65,6 +65,7 @@ export default function HomeScreen() {
   const { theme, isDark } = useTheme();
   const { user } = useAuth();
   const { settings } = useApp();
+  const showCarnivalBanner = false; // Carnaval terminado - mantener oculto
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -413,8 +414,8 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* Carnival Banner */}
-        {settings.carnivalEnabled ? (
+        {/* Carnival Banner (disabled) */}
+        {showCarnivalBanner && settings.carnivalEnabled ? (
           <Animated.View entering={FadeInDown.delay(200).springify()}>
             <Pressable
               onPress={() => {
@@ -695,6 +696,54 @@ export default function HomeScreen() {
             {/* Markets Section - Prominent Button */}
             <Animated.View
               entering={FadeInDown.delay(300).springify()}
+              style={styles.section}
+            >
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  // Navegar a lista completa de negocios
+                  navigation.navigate("BusinessList");
+                }}
+                style={({ pressed }) => [
+                  styles.marketsBanner,
+                  {
+                    backgroundColor: NemyColors.primary,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
+                  Shadows.md,
+                ]}
+              >
+                <LinearGradient
+                  colors={[NemyColors.primary, "#E65100", "#D84315"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.marketsGradient}
+                >
+                  <View style={styles.marketsContent}>
+                    <View style={styles.marketsIconContainer}>
+                      <Feather name="compass" size={32} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.marketsTextContainer}>
+                      <ThemedText type="h3" style={styles.marketsTitle}>
+                        Explorar Negocios
+                      </ThemedText>
+                      <View style={styles.marketsCTA}>
+                        <ThemedText type="small" style={styles.marketsSubtitle}>
+                          Ver todos los restaurantes y mercados
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.marketsArrow}>
+                      <Feather name="chevron-right" size={24} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+
+            {/* Markets Section - Original */}
+            <Animated.View
+              entering={FadeInDown.delay(350).springify()}
               style={styles.section}
             >
               <Pressable

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ThemedText } from './ThemedText';
 import { useTheme } from '@/hooks/useTheme';
@@ -65,6 +65,7 @@ interface SmartOrderButtonProps {
   onPress?: (canProceed: boolean, buttonInfo: any) => void;
   showStatusInfo?: boolean;
   disabled?: boolean;
+  loading?: boolean;
 }
 
 export const SmartOrderButton: React.FC<SmartOrderButtonProps> = ({
@@ -72,7 +73,8 @@ export const SmartOrderButton: React.FC<SmartOrderButtonProps> = ({
   userRole = 'delivery_driver',
   onPress,
   showStatusInfo = true,
-  disabled = false
+  disabled = false,
+  loading = false,
 }) => {
   const { theme } = useTheme();
   const buttonInfo = getButtonInfo(orderStatus);
@@ -91,7 +93,7 @@ export const SmartOrderButton: React.FC<SmartOrderButtonProps> = ({
   const themeColor = getThemeColor(buttonInfo.color);
 
   const handlePress = () => {
-    if (disabled) return;
+    if (disabled || loading) return;
     
     console.log('SmartOrderButton pressed:', orderStatus, 'canProceed:', buttonInfo.canProceed);
     
@@ -163,21 +165,25 @@ export const SmartOrderButton: React.FC<SmartOrderButtonProps> = ({
       {/* Botón inteligente */}
       <Pressable
         onPress={handlePress}
-        disabled={disabled}
+        disabled={disabled || loading}
         style={[
           styles.actionButton,
           { 
-            backgroundColor: (buttonInfo.disabled || disabled) ? theme.textSecondary : themeColor,
-            opacity: (buttonInfo.disabled || disabled) ? 0.6 : 1
+            backgroundColor: (buttonInfo.disabled || disabled || loading) ? theme.textSecondary : themeColor,
+            opacity: (buttonInfo.disabled || disabled || loading) ? 0.6 : 1
           },
         ]}
       >
-        <Feather name={buttonInfo.icon as any} size={18} color="#FFF" />
+        {loading ? (
+          <ActivityIndicator size="small" color="#FFF" />
+        ) : (
+          <Feather name={buttonInfo.icon as any} size={18} color="#FFF" />
+        )}
         <ThemedText
           type="body"
           style={{ color: "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}
         >
-          {getActionButtonText(orderStatus)}
+          {loading ? "Actualizando..." : getActionButtonText(orderStatus)}
         </ThemedText>
       </Pressable>
     </View>

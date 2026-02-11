@@ -16,12 +16,22 @@ export class FinancialCalculator {
   }
 
   // Calculate commission distribution
-  static async calculateCommissions(total: number): Promise<{
+  static async calculateCommissions(
+    total: number,
+    deliveryFee: number = 0,
+    productosBase?: number,
+    nemyCommission?: number
+  ): Promise<{
     platform: number;
     business: number;
     driver: number;
   }> {
-    const result = await financialService.calculateCommissions(total);
+    const result = await financialService.calculateCommissions(
+      total,
+      deliveryFee,
+      productosBase,
+      nemyCommission
+    );
     return {
       platform: result.platform,
       business: result.business,

@@ -37,7 +37,7 @@ Por favor, describe tu consulta con más detalle.`;
 INFORMACIÓN CLAVE:
 - NEMY significa "vivir" en náhuatl
 - Conectamos negocios locales, clientes y repartidores
-- Comisiones: 15% plataforma, 70% negocio, 15% repartidor
+- Comisiones: 15% del producto para NEMY, 100% del producto para el negocio, 100% del delivery para el repartidor
 - Pagos con tarjeta (Stripe) o efectivo
 - Autenticación solo por teléfono con SMS
 - Zona de cobertura: Autlán y alrededores

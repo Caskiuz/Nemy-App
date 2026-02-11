@@ -22,6 +22,7 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Notifications from "expo-notifications";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
@@ -119,6 +120,7 @@ export default function ProfileScreen() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<Notifications.PermissionStatus>("undetermined");
 
   const approvalStatus =
     user?.role === "business_owner" || user?.role === "delivery_driver"
@@ -334,6 +336,23 @@ export default function ProfileScreen() {
     await logout();
   };
 
+  useEffect(() => {
+    if (showNotificationsModal) {
+      syncNotificationStatus();
+    }
+  }, [showNotificationsModal]);
+
+  const syncNotificationStatus = async () => {
+    try {
+      const permissions = await Notifications.getPermissionsAsync();
+      setNotificationStatus(permissions.status);
+      return permissions.status;
+    } catch (error) {
+      console.error("Error consultando permisos de notificaciones", error);
+      return notificationStatus;
+    }
+  };
+
   const handleThemeSelect = async (mode: ThemeMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await setThemeMode(mode);
@@ -342,7 +361,25 @@ export default function ProfileScreen() {
 
   const handleNotificationsToggle = async (value: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await updateSettings({ notificationsEnabled: value });
+    if (value) {
+      const currentStatus = await syncNotificationStatus();
+      let finalStatus = currentStatus;
+      if (currentStatus !== "granted") {
+        const requested = await Notifications.requestPermissionsAsync();
+        finalStatus = requested.status;
+        setNotificationStatus(finalStatus);
+      }
+
+      if (finalStatus !== "granted") {
+        showToast("Activa permisos de notificación en ajustes del sistema", "error");
+        return;
+      }
+      await updateSettings({ notificationsEnabled: true });
+      showToast("Notificaciones activadas", "success");
+    } else {
+      await updateSettings({ notificationsEnabled: false });
+      showToast("Notificaciones desactivadas", "info");
+    }
   };
 
   const getRoleLabel = () => {
@@ -858,8 +895,14 @@ export default function ProfileScreen() {
               type="body"
               style={[styles.modalMessage, { color: theme.textSecondary }]}
             >
-              Recibe alertas sobre tus pedidos y promociones especiales
+              Recibe alertas sobre tus pedidos y promociones especiales. Si el permiso está bloqueado, debes activarlo en la configuración del sistema.
             </ThemedText>
+            <View style={[styles.strikeInfoCard, { backgroundColor: theme.backgroundSecondary, marginBottom: Spacing.md }]}>
+              <Feather name="info" size={16} color={theme.textSecondary} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.sm, flex: 1 }}>
+                Estado del permiso: {notificationStatus === "granted" ? "Permitido" : notificationStatus === "denied" ? "Bloqueado" : "Sin solicitar"}
+              </ThemedText>
+            </View>
             <View style={styles.switchRow}>
               <ThemedText type="body" style={{ color: theme.text }}>
                 Activar notificaciones
@@ -876,6 +919,16 @@ export default function ProfileScreen() {
                 }
               />
             </View>
+            {notificationStatus === "denied" ? (
+              <Pressable
+                style={[styles.modalButtonFull, { backgroundColor: theme.backgroundSecondary, borderWidth: 1, borderColor: theme.border, marginTop: Spacing.sm }]}
+                onPress={() => Linking.openSettings()}
+              >
+                <ThemedText type="body" style={{ color: theme.text }}>
+                  Abrir ajustes del sistema
+                </ThemedText>
+              </Pressable>
+            ) : null}
             <Pressable
               style={[
                 styles.modalButtonFull,
