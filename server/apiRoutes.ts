@@ -389,7 +389,7 @@ router.get("/businesses", async (req, res) => {
     const rows = await db
       .select()
       .from(businesses)
-      .where(eq(businesses.isActive, 1));
+      .where(eq(businesses.isActive, true));
 
     const uniqueBusinesses = Array.from(new Map(rows.map(b => [b.id, b])).values());
     console.log('✅ Found active businesses (unique):', uniqueBusinesses.length);
@@ -417,7 +417,11 @@ router.get("/businesses/:id", async (req, res) => {
       .where(eq(businesses.id, req.params.id))
       .limit(1);
     
-    if (!business[0] || business[0].isActive !== 1) {
+    if (!business[0]) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+    
+    if (!business[0].isActive) {
       return res.status(404).json({ error: "Business not found" });
     }
     

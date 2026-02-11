@@ -44,8 +44,8 @@ export default function CheckoutScreen({ route }: any) {
   const { user } = useAuth();
   const { showToast } = useToast();
   
-  // Usar subtotal base (sin comision) que viene del carrito
-  const subtotal = route?.params?.subtotalWithMarkup || cartSubtotal;
+  // Usar subtotal del carrito directamente
+  const subtotal = cartSubtotal;
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
@@ -333,18 +333,19 @@ export default function CheckoutScreen({ route }: any) {
       // Calcular valores para backend (subtotal es precio base)
       const productosBase = Math.round(subtotal * 100);
       const nemyCommission = Math.round(subtotal * 0.15 * 100);
+      const totalAmount = Math.round(total * 100);
       
       const orderResponse = await apiRequest("POST", "/api/orders", {
         businessId: cart.businessId,
         businessName: cart.businessName,
-        businessImage: business?.profileImage || "",
+        businessImage: business?.image || business?.profileImage || "",
         items: JSON.stringify(cart.items),
         status: "pending",
-        productosBase: productosBase,  // Para contabilidad
-        nemyCommission: nemyCommission, // Para contabilidad
-        subtotal: Math.round(subtotal * 100),   // Precio base de productos
+        productosBase: productosBase,
+        nemyCommission: nemyCommission,
+        subtotal: productosBase,
         deliveryFee: Math.round(deliveryFee * 100),
-        total: Math.round(total * 100),
+        total: totalAmount,
         paymentMethod,
         deliveryAddressId: selectedAddress.id,
         deliveryAddress: `${selectedAddress.street}, ${selectedAddress.city}`,

@@ -1,16 +1,24 @@
 // API Configuration for NEMY Frontend
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 // DEVELOPMENT: Set to true to disable GPS tracking and use fixed location from DB
 const DISABLE_GPS_IN_DEV = true;
 
 // Get API base URL dynamically at runtime
 export const getApiBaseUrl = (): string => {
-  // Check for environment variable first (production)
+  // PRODUCTION: Check expo config first (from app.config.js)
+  const expoBackendUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL;
+  if (expoBackendUrl && !__DEV__) {
+    console.log('✅ Using EXPO_PUBLIC_BACKEND_URL from config:', expoBackendUrl);
+    return expoBackendUrl;
+  }
+
+  // Check for environment variable (development)
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (envBackendUrl) {
     const trimmed = envBackendUrl.trim();
-    console.log('Using EXPO_PUBLIC_BACKEND_URL:', trimmed);
+    console.log('Using EXPO_PUBLIC_BACKEND_URL from env:', trimmed);
     return trimmed;
   }
 
@@ -26,6 +34,7 @@ export const getApiBaseUrl = (): string => {
   }
 
   // Production fallback
+  console.log('⚠️ Using fallback URL: https://nemy-app.replit.app');
   return "https://nemy-app.replit.app";
 };
 

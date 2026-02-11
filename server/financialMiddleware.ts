@@ -25,20 +25,22 @@ export async function validateOrderFinancials(
       });
     }
 
-    // Validar total
+    // Validar total: subtotal (base) + comision (15%) + deliveryFee - descuento
     const baseSubtotal = productosBase ?? subtotal;
     const platformCommission =
       typeof nemyCommission === "number" && nemyCommission > 0
         ? nemyCommission
         : Math.round(baseSubtotal * 0.15);
     const discount = couponDiscount || 0;
-    const calculatedTotal = baseSubtotal + deliveryFee + platformCommission - discount;
-    if (calculatedTotal !== total) {
+    const calculatedTotal = baseSubtotal + platformCommission + deliveryFee - discount;
+    
+    // Permitir diferencia de 1 centavo por redondeo
+    if (Math.abs(calculatedTotal - total) > 1) {
       return res.status(400).json({
         error: "Total inválido",
         expected: calculatedTotal,
         received: total,
-        breakdown: { subtotal: baseSubtotal, deliveryFee, platformCommission, discount },
+        breakdown: { baseSubtotal, platformCommission, deliveryFee, discount },
       });
     }
 

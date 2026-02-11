@@ -110,9 +110,7 @@ export default function CartScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Pasar el subtotal SIN markup al checkout
     navigation.navigate("Checkout", { 
-      subtotalWithMarkup: productosBase, // Sin markup
       calculatedDeliveryFee: deliveryFee 
     } as any);
   };
