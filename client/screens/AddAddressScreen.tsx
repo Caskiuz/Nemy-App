@@ -26,6 +26,7 @@ export default function AddAddressScreen() {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const topPadding = Math.max(headerHeight, insets.top + 56) + Spacing.md;
   const existingAddress = (route.params as any)?.address as Partial<Address> | undefined;
   const fromCheckout = Boolean((route.params as Partial<RouteParams> | undefined)?.fromCheckout);
   const { user } = useAuth();
@@ -161,7 +162,7 @@ export default function AddAddressScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: insets.bottom + 120 }}
+      contentContainerStyle={{ paddingTop: topPadding, paddingBottom: insets.bottom + 120 }}
     >
       <View style={styles.form}>
         {error && (

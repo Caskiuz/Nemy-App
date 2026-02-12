@@ -411,7 +411,7 @@ export default function ProfileScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.md,
+            paddingTop: Math.max(headerHeight, insets.top + 56) + Spacing.md,
             paddingBottom: Spacing.xl + Math.max(tabBarHeight, insets.bottom + 64),
           },
         ]}
