@@ -4,7 +4,6 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '@/lib/query-client';
 import { isInCoverageArea, AUTLAN_CENTER } from '@/utils/coverage';
@@ -25,8 +24,7 @@ export default function AddAddressScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
-  const topPadding = Math.max(headerHeight, insets.top + 56) + Spacing.md;
+  const topPadding = Spacing.md;
   const existingAddress = (route.params as any)?.address as Partial<Address> | undefined;
   const fromCheckout = Boolean((route.params as Partial<RouteParams> | undefined)?.fromCheckout);
   const { user } = useAuth();
