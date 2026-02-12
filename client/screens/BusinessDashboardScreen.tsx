@@ -260,7 +260,7 @@ export default function BusinessDashboardScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={[theme.gradientStart, theme.gradientEnd]} style={styles.container}>
+      <LinearGradient colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']} style={styles.container}>
         <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
           <ActivityIndicator size="large" color={NemyColors.primary} />
           <ThemedText style={{ marginTop: Spacing.md }}>Cargando dashboard...</ThemedText>
@@ -270,7 +270,7 @@ export default function BusinessDashboardScreen() {
   }
 
   return (
-    <LinearGradient colors={[theme.gradientStart, theme.gradientEnd]} style={styles.container}>
+    <LinearGradient colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']} style={styles.container}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.md, paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}

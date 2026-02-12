@@ -132,7 +132,7 @@ export default function BecomeDriverScreen() {
 
   return (
     <LinearGradient
-      colors={[theme.gradientStart, theme.gradientEnd]}
+      colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
       style={styles.container}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>

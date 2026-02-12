@@ -57,13 +57,13 @@ export function useTheme() {
     themeMode === "system" ? (systemColorScheme ?? "light") : themeMode;
 
   const isDark = effectiveScheme === "dark";
-  const themeData = Colors[effectiveScheme] ?? Colors.light; // Fallback to light to avoid undefined theme
+  const themeData = isDark ? darkTheme : lightTheme;
 
-  // Ensure gradients always have values
+  // Ensure gradients always have values (critical for Android LinearGradient)
   const safeTheme = {
     ...themeData,
-    gradientStart: themeData.gradientStart || '#FFFFFF',
-    gradientEnd: themeData.gradientEnd || '#F5F5F5',
+    gradientStart: themeData?.gradientStart ?? (isDark ? '#121212' : '#FFFFFF'),
+    gradientEnd: themeData?.gradientEnd ?? (isDark ? '#1E1E1E' : '#F5F5F5'),
   };
 
   return {

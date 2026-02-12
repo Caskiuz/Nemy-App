@@ -224,7 +224,7 @@ export default function OrdersScreen() {
   if (!isLoading && orders.length === 0) {
     return (
       <LinearGradient
-        colors={[theme.gradientStart, theme.gradientEnd]}
+        colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
         style={styles.container}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -234,7 +234,7 @@ export default function OrdersScreen() {
           title="Sin pedidos aún"
           description="Tus pedidos aparecerán aquí"
           actionLabel="Explorar negocios"
-          onAction={() => navigation.navigate("Main")}
+          onAction={() => navigation.navigate("BusinessList")}
         />
       </LinearGradient>
     );
@@ -242,7 +242,7 @@ export default function OrdersScreen() {
 
   return (
     <LinearGradient
-      colors={[theme.gradientStart, theme.gradientEnd]}
+      colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}

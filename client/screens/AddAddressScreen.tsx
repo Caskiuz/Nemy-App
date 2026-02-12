@@ -154,7 +154,7 @@ export default function AddAddressScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
       <View style={styles.form}>
         {error && (
           <View style={styles.errorBox}>
@@ -169,18 +169,7 @@ export default function AddAddressScreen() {
             <Text style={styles.successText}>{success}</Text>
           </View>
         )}
-        <Text style={styles.label}>Etiqueta *</Text>
-        <TextInput
-          style={styles.input}
-          value={label}
-          onChangeText={setLabel}
-          placeholder="Casa, Trabajo, etc."
-          onBlur={() => setTouched(true)}
-        />
-        {touched && !label.trim() && (
-          <Text style={styles.fieldHint}>Necesitamos una etiqueta para identificar la dirección</Text>
-        )}
-
+        
         <Text style={styles.label}>Calle y número *</Text>
         <TextInput
           style={styles.input}
@@ -225,6 +214,18 @@ export default function AddAddressScreen() {
               </Text>
             </View>
           </View>
+        )}
+
+        <Text style={styles.label}>Etiqueta *</Text>
+        <TextInput
+          style={styles.input}
+          value={label}
+          onChangeText={setLabel}
+          placeholder="Casa, Trabajo, etc."
+          onBlur={() => setTouched(true)}
+        />
+        {touched && !label.trim() && (
+          <Text style={styles.fieldHint}>Necesitamos una etiqueta para identificar la dirección</Text>
         )}
 
         {Platform.OS !== 'web' ? (

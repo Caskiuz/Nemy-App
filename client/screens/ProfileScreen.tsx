@@ -401,7 +401,7 @@ export default function ProfileScreen() {
 
   return (
     <LinearGradient
-      colors={[theme.gradientStart, theme.gradientEnd]}
+      colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -411,11 +411,10 @@ export default function ProfileScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(headerHeight, insets.top + 44) + Spacing.md,
-            paddingBottom: tabBarHeight + Spacing.xl,
+            paddingTop: Spacing.md,
+            paddingBottom: Spacing.xl,
           },
         ]}
-        scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -458,7 +457,7 @@ export default function ProfileScreen() {
             {user?.name || "Usuario"}
           </ThemedText>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>
-            {user?.phone || "Sin teléfono"}
+            {user?.phone ? user.phone.replace(/^(\+52)+/, '+52') : "Sin teléfono"}
           </ThemedText>
           <Badge
             text={getRoleLabel()}

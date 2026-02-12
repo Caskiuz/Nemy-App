@@ -158,7 +158,7 @@ export default function EditProfileScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.lg,
+            paddingTop: Spacing.lg,
             paddingBottom: insets.bottom + Spacing.xl,
           },
         ]}

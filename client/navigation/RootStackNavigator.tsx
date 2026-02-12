@@ -15,6 +15,7 @@ import CheckoutScreen from "@/screens/CheckoutScreen";
 import OrderTrackingScreen from "@/screens/OrderTrackingScreen";
 import CarnivalScreen from "@/screens/CarnivalScreen";
 import MarketsScreen from "@/screens/MarketsScreen";
+import BusinessListScreen from "@/screens/BusinessListScreen";
 import PaymentMethodsScreen from "@/screens/PaymentMethodsScreen";
 import SupportScreen from "@/screens/SupportScreen";
 import ReviewScreen from "@/screens/ReviewScreen";
@@ -70,6 +71,7 @@ export type RootStackParamList = {
   OrderTracking: { orderId: string };
   Carnival: undefined;
   Markets: undefined;
+  BusinessList: undefined;
   PaymentMethods: undefined;
   Support: undefined;
   Review: {
@@ -171,6 +173,11 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="Markets"
             component={MarketsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="BusinessList"
+            component={BusinessListScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen

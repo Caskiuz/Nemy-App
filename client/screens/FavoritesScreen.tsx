@@ -210,7 +210,7 @@ export default function FavoritesScreen() {
   if (favorites.length === 0 && !isLoading) {
     return (
       <LinearGradient
-        colors={[theme.gradientStart, theme.gradientEnd]}
+        colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
         style={[
           styles.container,
           {
@@ -232,7 +232,7 @@ export default function FavoritesScreen() {
 
   return (
     <LinearGradient
-      colors={[theme.gradientStart, theme.gradientEnd]}
+      colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}

@@ -189,7 +189,7 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient
-      colors={[theme.gradientStart, theme.gradientEnd]}
+      colors={[theme.gradientStart || '#FFFFFF', theme.gradientEnd || '#F5F5F5']}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -701,7 +701,6 @@ export default function HomeScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  // Navegar a lista completa de negocios
                   navigation.navigate("BusinessList");
                 }}
                 style={({ pressed }) => [
