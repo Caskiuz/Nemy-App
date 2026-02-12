@@ -3,6 +3,8 @@ import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert,
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '@/lib/query-client';
 import { isInCoverageArea, AUTLAN_CENTER } from '@/utils/coverage';
@@ -10,6 +12,7 @@ import { checkDuplicateAddress, suggestSimilarAddresses, Address } from '@/utils
 import { useDebounce, usePerformanceMonitor } from '@/hooks/usePerformance';
 import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { Spacing } from '@/constants/theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddAddress'>;
 
@@ -21,6 +24,8 @@ type RouteParams = {
 export default function AddAddressScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const existingAddress = (route.params as any)?.address as Partial<Address> | undefined;
   const fromCheckout = Boolean((route.params as Partial<RouteParams> | undefined)?.fromCheckout);
   const { user } = useAuth();
@@ -154,7 +159,10 @@ export default function AddAddressScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: insets.bottom + 120 }}
+    >
       <View style={styles.form}>
         {error && (
           <View style={styles.errorBox}>
