@@ -1473,7 +1473,8 @@ router.post(
       fs.writeFileSync(filepath, buffer);
 
       // Update user with new profile image URL
-      const imageUrl = `/uploads/profiles/${filename}`;
+      const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const imageUrl = `${backendUrl}/uploads/profiles/${filename}`;
       await db
         .update(users)
         .set({ profileImage: imageUrl })
@@ -2733,7 +2734,8 @@ router.post(
       // Save image
       fs.writeFileSync(filepath, buffer);
 
-      const imageUrl = `/uploads/products/${filename}`;
+      const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const imageUrl = `${backendUrl}/uploads/products/${filename}`;
       res.json({ success: true, imageUrl });
     } catch (error: any) {
       console.error("Error uploading product image:", error);
@@ -2774,7 +2776,8 @@ router.post(
 
       fs.writeFileSync(filepath, buffer);
 
-      const imageUrl = `/uploads/businesses/${filename}`;
+      const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const imageUrl = `${backendUrl}/uploads/businesses/${filename}`;
       res.json({ success: true, imageUrl });
     } catch (error: any) {
       console.error("Error uploading business image:", error);
