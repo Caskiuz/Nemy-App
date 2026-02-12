@@ -2929,18 +2929,98 @@ router.get(
   requireRole("business_owner"),
   async (req, res) => {
     try {
-      // Mock business hours for now
-      const hours = [
-        { day: "Lunes", isOpen: true, openTime: "08:00", closeTime: "22:00" },
-        { day: "Martes", isOpen: true, openTime: "08:00", closeTime: "22:00" },
-        { day: "Miércoles", isOpen: true, openTime: "08:00", closeTime: "22:00" },
-        { day: "Jueves", isOpen: true, openTime: "08:00", closeTime: "22:00" },
-        { day: "Viernes", isOpen: true, openTime: "08:00", closeTime: "23:00" },
-        { day: "Sábado", isOpen: true, openTime: "09:00", closeTime: "23:00" },
-        { day: "Domingo", isOpen: false, openTime: "09:00", closeTime: "21:00" },
-      ];
-      
+      const { businesses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.ownerId, req.user!.id))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({ error: "Negocio no encontrado" });
+      }
+
+      const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      let hoursData = {};
+
+      if (business.openingHours) {
+        try {
+          hoursData = JSON.parse(business.openingHours);
+        } catch {
+          hoursData = {};
+        }
+      }
+
+      const hours = dayNames.map((day, index) => {
+        const dayData = hoursData[index] || { isOpen: true, openTime: "09:00", closeTime: "18:00" };
+        return {
+          day,
+          isOpen: dayData.isOpen,
+          openTime: dayData.openTime,
+          closeTime: dayData.closeTime,
+        };
+      });
+
       res.json({ success: true, hours });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Update business hours
+router.put(
+  "/business/hours",
+  authenticateToken,
+  requireRole("business_owner"),
+  async (req, res) => {
+    try {
+      const { businesses } = await import("@shared/schema-mysql");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const { BusinessHoursService } = await import("./businessHoursService");
+
+      const { hours } = req.body;
+
+      if (!hours || !Array.isArray(hours)) {
+        return res.status(400).json({ error: "Horarios inválidos" });
+      }
+
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.ownerId, req.user!.id))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({ error: "Negocio no encontrado" });
+      }
+
+      const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const hoursObject = {};
+
+      hours.forEach((hour) => {
+        const dayIndex = dayNames.indexOf(hour.day);
+        if (dayIndex !== -1) {
+          hoursObject[dayIndex] = {
+            isOpen: hour.isOpen,
+            openTime: hour.openTime,
+            closeTime: hour.closeTime,
+          };
+        }
+      });
+
+      await db
+        .update(businesses)
+        .set({ openingHours: JSON.stringify(hoursObject) })
+        .where(eq(businesses.id, business.id));
+
+      await BusinessHoursService.updateAllBusinessStatuses();
+
+      res.json({ success: true, message: "Horarios actualizados" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -470,10 +470,17 @@ export default function BusinessDashboardScreen() {
           <View style={[styles.actionsRow, { marginTop: Spacing.sm }]}>
             <Pressable
               style={[styles.actionButton, { backgroundColor: theme.card }]}
+              onPress={() => navigation.navigate("BusinessHours" as any)}
+            >
+              <Feather name="clock" size={24} color="#FF9800" />
+              <ThemedText type="small" style={{ marginTop: Spacing.xs, textAlign: 'center' }}>Horarios</ThemedText>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: theme.card }]}
               onPress={() => navigation.navigate("BusinessProfile" as any)}
             >
               <Feather name="settings" size={24} color={NemyColors.primary} />
-              <ThemedText type="small" style={{ marginTop: Spacing.xs }}>Ajustes</ThemedText>
+              <ThemedText type="small" style={{ marginTop: Spacing.xs, textAlign: 'center' }}>Ajustes</ThemedText>
             </Pressable>
           </View>
         </View>

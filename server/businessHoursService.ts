@@ -17,12 +17,20 @@ export class BusinessHoursService {
       const hours = JSON.parse(business.openingHours);
       const now = new Date();
       const dayOfWeek = now.getDay();
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
       const todayHours = hours[dayOfWeek];
       if (!todayHours || !todayHours.isOpen) return false;
 
-      return currentTime >= todayHours.openTime && currentTime <= todayHours.closeTime;
+      // Parse open and close times
+      const [openHour, openMinute] = todayHours.openTime.split(':').map(Number);
+      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
+      const openTimeInMinutes = openHour * 60 + openMinute;
+      const closeTimeInMinutes = closeHour * 60 + closeMinute;
+
+      return currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes <= closeTimeInMinutes;
     } catch {
       return true;
     }
