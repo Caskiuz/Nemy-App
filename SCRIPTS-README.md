@@ -22,8 +22,8 @@ sync-build-fast.bat
 1. Obtiene últimos cambios de GitHub
 2. Sincroniza solo archivos modificados a C:\NEMY (rápido)
 3. Instala dependencias
-4. Construye APK
-5. Abre carpeta con el APK
+4. Construye APK con `cd android && gradlew assembleRelease`
+5. Abre carpeta con el APK en `android\app\build\outputs\apk\release\`
 
 **Cuándo usar:** Cada vez que quieras hacer un build con los últimos cambios
 

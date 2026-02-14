@@ -269,7 +269,7 @@ export default function OrderChatScreen() {
           ListEmptyComponent={EmptyState}
           contentContainerStyle={[
             styles.messagesList,
-            { paddingTop: headerHeight + Spacing.md },
+            { paddingTop: Spacing.md },
           ]}
           showsVerticalScrollIndicator={false}
         />

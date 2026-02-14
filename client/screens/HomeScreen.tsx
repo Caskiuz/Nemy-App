@@ -8,7 +8,6 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import {
   useBottomTabBarHeight,
   BottomTabNavigationProp,
@@ -59,7 +58,6 @@ const filters = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { theme, isDark } = useTheme();
@@ -96,7 +94,7 @@ export default function HomeScreen() {
         deliveryTime: b.delivery_time || '30-45 min',
         deliveryFee: (b.delivery_fee || 2500) / 100, // Convertir de centavos a pesos
         minimumOrder: (b.min_order || 5000) / 100, // Convertir de centavos a pesos
-        isOpen: b.is_open || false,
+        isOpen: b.isOpen ?? b.is_open ?? false,
         openingHours: [],
         address: b.address || 'Autlán, Jalisco',
         phone: b.phone || '',
@@ -199,7 +197,7 @@ export default function HomeScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.md,
+            paddingTop: Spacing.md,
             paddingBottom: tabBarHeight + Spacing["4xl"] + Spacing.xl,
           },
         ]}

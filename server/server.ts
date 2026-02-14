@@ -89,11 +89,6 @@ import favoritesRoutes from './favoritesRoutes';
 console.log('🔧 Registering favorites routes at /api/favorites');
 app.use('/api/favorites', favoritesRoutes);
 
-// Business hours routes
-import businessHoursRoutes from './businessHoursRoutes';
-console.log('🔧 Registering business hours routes at /api/business-hours');
-app.use('/api/business-hours', businessHoursRoutes);
-
 // Stripe Connect routes
 import connectRoutes from './connectRoutes';
 console.log('🔧 Registering Stripe Connect routes at /api/stripe/connect');

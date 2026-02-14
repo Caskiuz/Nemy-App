@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -16,11 +15,32 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
+
+function resolveProfileImageUrl(profileImage: string): string {
+  const apiBase = getApiUrl().replace(/\/+$/, "");
+
+  if (/^https?:\/\//i.test(profileImage)) {
+    try {
+      const source = new URL(profileImage);
+      if (source.hostname === "localhost" || source.hostname === "127.0.0.1") {
+        const target = new URL(apiBase);
+        source.protocol = target.protocol;
+        source.host = target.host;
+        return source.toString();
+      }
+    } catch {
+      return profileImage;
+    }
+
+    return profileImage;
+  }
+
+  return `${apiBase}${profileImage.startsWith("/") ? "" : "/"}${profileImage}`;
+}
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { user, updateUser } = useAuth();
@@ -183,7 +203,7 @@ export default function EditProfileScreen() {
                 <ActivityIndicator size="large" color={NemyColors.primary} />
               ) : user?.profileImage ? (
                 <Image
-                  source={{ uri: user.profileImage }}
+                  source={{ uri: resolveProfileImageUrl(user.profileImage) }}
                   style={styles.avatarImage}
                   contentFit="cover"
                 />

@@ -10,7 +10,6 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -159,7 +158,6 @@ function TypingIndicator() {
 
 export default function SupportChatScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -274,7 +272,7 @@ export default function SupportChatScreen() {
           ListHeaderComponent={isLoading ? <TypingIndicator /> : null}
           contentContainerStyle={[
             styles.messagesList,
-            { paddingTop: headerHeight + Spacing.md },
+            { paddingTop: Spacing.md },
           ]}
           showsVerticalScrollIndicator={false}
         />

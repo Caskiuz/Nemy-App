@@ -35,20 +35,33 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-echo [5/5] Construyendo APK para Android...
-call npm run build:android
+echo [5/6] Construyendo APK para Android con Gradle...
+cd android
+call gradlew assembleRelease
 if %errorlevel% neq 0 (
+    cd ..
     echo ERROR: Fallo al construir APK
     pause
     exit /b 1
 )
+cd ..
+echo.
+
+echo [6/6] Reinstalando APK en dispositivo...
+%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe install -r C:\NEMY\android\app\build\outputs\apk\release\app-release.apk
+if %errorlevel% neq 0 (
+    echo ADVERTENCIA: No se pudo instalar el APK (verifica que el dispositivo este conectado)
+) else (
+    echo APK instalado exitosamente
+    timeout /t 2 /nobreak >nul
+    echo Reiniciando app...
+    %LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe shell am force-stop com.nemyapp
+    %LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe shell am start -n com.nemyapp/.MainActivity
+)
 echo.
 
 echo ========================================
-echo Build completado exitosamente!
-echo APK: C:\NEMY\dist\
+echo Proceso completado!
+echo APK: C:\NEMY\android\app\build\outputs\apk\release\app-release.apk
 echo ========================================
-echo.
-echo Presiona cualquier tecla para abrir la carpeta del APK...
-pause >nul
-explorer C:\NEMY\dist
+pause

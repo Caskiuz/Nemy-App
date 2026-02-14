@@ -9,7 +9,6 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -40,7 +39,7 @@ interface Address {
 
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
+  const contentTopPadding = Spacing.lg;
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -276,7 +275,7 @@ export default function AddressesScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + Spacing.lg,
+            paddingTop: contentTopPadding,
             paddingBottom: insets.bottom + Spacing.xl + 80,
           },
         ]}

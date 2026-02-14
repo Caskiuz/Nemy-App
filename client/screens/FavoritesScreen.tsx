@@ -7,8 +7,6 @@ import {
   RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -119,8 +117,6 @@ function FavoriteCard({
 }
 
 export default function FavoritesScreen() {
-  const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -214,7 +210,7 @@ export default function FavoritesScreen() {
         style={[
           styles.container,
           {
-            paddingTop: headerHeight,
+            paddingTop: Spacing.md,
             paddingBottom: tabBarHeight,
           },
         ]}
@@ -250,7 +246,7 @@ export default function FavoritesScreen() {
         contentContainerStyle={[
           styles.list,
           {
-            paddingTop: headerHeight + Spacing.md,
+            paddingTop: Spacing.md,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}

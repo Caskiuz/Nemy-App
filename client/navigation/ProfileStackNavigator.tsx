@@ -8,7 +8,6 @@ import LocationPickerScreen from "@/screens/LocationPickerScreen";
 import PaymentMethodsScreen from "@/screens/PaymentMethodsScreen";
 import TermsScreen from "@/screens/TermsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
-import { ThemeToggleButton } from "@/components/ThemeToggleButton";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type ProfileStackParamList = {
@@ -35,7 +34,6 @@ export default function ProfileStackNavigator() {
         component={ProfileScreen}
         options={{
           headerTitle: "Mi Perfil",
-          headerRight: () => <ThemeToggleButton />,
         }}
       />
       <Stack.Screen

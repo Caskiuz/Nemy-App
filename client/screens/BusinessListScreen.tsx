@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -41,7 +40,6 @@ const FILTERS = [
 
 export default function BusinessListScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const navigation = useNavigation<BusinessListScreenNavigationProp>();
   const { theme } = useTheme();
 
@@ -70,7 +68,7 @@ export default function BusinessListScreen() {
         deliveryTime: b.delivery_time || "30-45 min",
         deliveryFee: (b.delivery_fee || 2500) / 100,
         minimumOrder: (b.min_order || 5000) / 100,
-        isOpen: b.is_open || false,
+        isOpen: b.isOpen ?? b.is_open ?? false,
         openingHours: [],
         address: b.address || "Autlán, Jalisco",
         phone: b.phone || "",

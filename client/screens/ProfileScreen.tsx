@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -100,9 +99,30 @@ const themeOptions: { value: ThemeMode; label: string }[] = [
   { value: "dark", label: "Oscuro" },
 ];
 
+function resolveProfileImageUrl(profileImage: string): string {
+  const apiBase = getApiUrl().replace(/\/+$/, "");
+
+  if (/^https?:\/\//i.test(profileImage)) {
+    try {
+      const source = new URL(profileImage);
+      if (source.hostname === "localhost" || source.hostname === "127.0.0.1") {
+        const target = new URL(apiBase);
+        source.protocol = target.protocol;
+        source.host = target.host;
+        return source.toString();
+      }
+    } catch {
+      return profileImage;
+    }
+
+    return profileImage;
+  }
+
+  return `${apiBase}${profileImage.startsWith("/") ? "" : "/"}${profileImage}`;
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { theme, themeMode, setThemeMode } = useTheme();
@@ -157,9 +177,7 @@ export default function ProfileScreen() {
           if (data.user.profileImage) {
             const version = Date.now();
             setProfileImageVersion(version);
-            const baseUrl = data.user.profileImage.startsWith("http")
-              ? data.user.profileImage
-              : `${getApiUrl()}${data.user.profileImage}`;
+            const baseUrl = resolveProfileImageUrl(data.user.profileImage);
             setProfileImage(`${baseUrl}?v=${version}`);
             await updateUser({ profileImage: data.user.profileImage });
           }
@@ -177,9 +195,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (user?.profileImage) {
       const version = profileImageVersion || Date.now();
-      const baseUrl = user.profileImage.startsWith("http")
-        ? user.profileImage
-        : `${getApiUrl()}${user.profileImage}`;
+      const baseUrl = resolveProfileImageUrl(user.profileImage);
       setProfileImage(`${baseUrl}?v=${version}`);
     }
   }, [user?.profileImage]);
@@ -262,7 +278,7 @@ export default function ProfileScreen() {
       if (data.success && data.profileImage) {
         const version = Date.now();
         setProfileImageVersion(version);
-        const fullUrl = `${getApiUrl()}${data.profileImage}?v=${version}`;
+        const fullUrl = `${resolveProfileImageUrl(data.profileImage)}?v=${version}`;
         setProfileImage(fullUrl);
         await updateUser({ profileImage: data.profileImage });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

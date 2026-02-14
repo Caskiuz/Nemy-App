@@ -56,18 +56,23 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-echo [6/6] Construyendo APK para Android...
-call npm run build:android
+echo [6/6] Construyendo APK para Android con Gradle...
+cd android
+call gradlew assembleRelease
 if %errorlevel% neq 0 (
+    cd ..
     echo ERROR: Fallo al construir APK
     pause
     exit /b 1
 )
+cd ..
 echo.
 
 echo ========================================
 echo Build completado exitosamente!
-echo El APK esta en: C:\NEMY\dist\
+echo APK: C:\NEMY\android\app\build\outputs\apk\release\app-release.apk
 echo ========================================
 echo.
-pause
+echo Presiona cualquier tecla para abrir la carpeta del APK...
+pause >nul
+explorer C:\NEMY\android\app\build\outputs\apk\release

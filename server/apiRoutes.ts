@@ -1460,7 +1460,7 @@ router.post(
         .where(eq(users.id, req.user!.id));
 
       if (currentUser?.profileImage) {
-        const oldFilename = currentUser.profileImage.split("/").pop();
+        const oldFilename = currentUser.profileImage.split("?")[0].split("/").pop();
         if (oldFilename) {
           const oldPath = path.join(uploadDir, oldFilename);
           if (fs.existsSync(oldPath)) {
@@ -1472,9 +1472,8 @@ router.post(
       // Save new image
       fs.writeFileSync(filepath, buffer);
 
-      // Update user with new profile image URL
-      const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
-      const imageUrl = `${backendUrl}/uploads/profiles/${filename}`;
+      // Store relative path so it works across environments (Replit/local)
+      const imageUrl = `/uploads/profiles/${filename}`;
       await db
         .update(users)
         .set({ profileImage: imageUrl })
