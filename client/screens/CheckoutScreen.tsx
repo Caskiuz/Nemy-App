@@ -50,7 +50,6 @@ export default function CheckoutScreen({ route }: any) {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
   const [isLoading, setIsLoading] = useState(false);
   const [isPaymentReady, setIsPaymentReady] = useState(false);
   const [stripeModule, setStripeModule] = useState<any>(null);
@@ -64,10 +63,6 @@ export default function CheckoutScreen({ route }: any) {
     Record<string, SubstitutionOption>
   >({});
   const [showItemSubstitutions, setShowItemSubstitutions] = useState(false);
-
-  // Pago en efectivo
-  const [cashPaymentAmount, setCashPaymentAmount] = useState("");
-  const [cashError, setCashError] = useState("");
 
   // Cupón
   const [couponCode, setCouponCode] = useState("");
@@ -164,20 +159,6 @@ export default function CheckoutScreen({ route }: any) {
     setEstimatedTime(time);
   };
 
-  // Calcular cambio para efectivo
-  const cashAmountNumber = parseFloat(cashPaymentAmount) || 0;
-  const changeAmount = cashAmountNumber - total;
-  // Para efectivo no bloqueamos el botón por monto: si es menor, se ajusta al total en el momento de crear pedido
-  const isCashAmountValid = paymentMethod === "cash" ? true : true;
-
-  // Si se elige efectivo y no hay monto, prellenar con el total para no bloquear el flujo
-  useEffect(() => {
-    if (paymentMethod === "cash" && !cashPaymentAmount) {
-      setCashPaymentAmount(total.toFixed(2));
-      setCashError("");
-    }
-  }, [paymentMethod, total, cashPaymentAmount]);
-
   useEffect(() => {
     if (Platform.OS !== "web" && !isExpoGo) {
       loadStripeModule();
@@ -195,7 +176,6 @@ export default function CheckoutScreen({ route }: any) {
 
   useEffect(() => {
     if (
-      paymentMethod === "card" &&
       cart &&
       user &&
       stripeModule &&
@@ -203,7 +183,7 @@ export default function CheckoutScreen({ route }: any) {
     ) {
       initializePaymentSheet();
     }
-  }, [paymentMethod, cart, user, stripeModule]);
+  }, [cart, user, stripeModule]);
 
   const initializePaymentSheet = async () => {
     if (!cart || !user || !stripeModule) return;
@@ -287,18 +267,16 @@ export default function CheckoutScreen({ route }: any) {
       return;
     }
 
-    // Ajustar monto de efectivo si el usuario ingresó menos que el total
-    let effectiveCashAmount = cashAmountNumber;
-    if (paymentMethod === "cash" && cashAmountNumber < total) {
-      effectiveCashAmount = total;
-      setCashPaymentAmount(total.toFixed(2));
+    if (Platform.OS === "web") {
+      showToast("Los pagos solo están disponibles en la app móvil", "error");
+      return;
     }
 
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      if (paymentMethod === "card" && Platform.OS !== "web" && stripeModule) {
+      if (Platform.OS !== "web" && stripeModule) {
         // Si la hoja no está lista, intenta re-prepararla antes de presentar
         if (!isPaymentReady) {
           await initializePaymentSheet();
@@ -346,7 +324,7 @@ export default function CheckoutScreen({ route }: any) {
         subtotal: productosBase,
         deliveryFee: Math.round(deliveryFee * 100),
         total: totalAmount,
-        paymentMethod,
+        paymentMethod: "card",
         deliveryAddressId: selectedAddress.id,
         deliveryAddress: `${selectedAddress.street}, ${selectedAddress.city}`,
         deliveryLatitude: selectedAddress.latitude,
@@ -356,10 +334,6 @@ export default function CheckoutScreen({ route }: any) {
           Object.keys(finalItemSubstitutions).length > 0
             ? JSON.stringify(finalItemSubstitutions)
             : null,
-        cashPaymentAmount:
-          paymentMethod === "cash" ? Math.round(effectiveCashAmount * 100) : null,
-        cashChangeAmount:
-          paymentMethod === "cash" ? Math.round((effectiveCashAmount - total) * 100) : null,
         couponCode: appliedCoupon ? couponCode.toUpperCase() : null,
         couponDiscount: appliedCoupon ? Math.round(couponDiscount * 100) : null,
       });
@@ -401,10 +375,7 @@ export default function CheckoutScreen({ route }: any) {
   }
 
   const isWeb = Platform.OS === "web";
-  const canPlaceOrder =
-    paymentMethod === "cash"
-      ? isCashAmountValid // No Stripe needed for cash
-      : isWeb || !!stripeModule;
+  const canPlaceOrder = isWeb ? false : !!stripeModule;
 
   // Helper para obtener el icono y texto de sustitución
   const getSubstitutionInfo = (option: SubstitutionOption) => {
@@ -723,24 +694,14 @@ export default function CheckoutScreen({ route }: any) {
               Método de pago
             </ThemedText>
           </View>
-          <Pressable
-            onPress={() => {
-              Haptics.selectionAsync();
-              setPaymentMethod("card");
-              setIsPaymentReady(false);
-            }}
+          <View
             style={[
               styles.paymentOption,
               {
                 backgroundColor: theme.backgroundSecondary,
-                borderColor:
-                  paymentMethod === "card" ? NemyColors.primary : "transparent",
+                borderColor: NemyColors.primary,
               },
             ]}
-            accessibilityLabel="Pago con tarjeta"
-            accessibilityHint={paymentMethod === "card" ? 'Método seleccionado' : 'Toca para pagar con tarjeta'}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: paymentMethod === "card" }}
           >
             <View style={styles.paymentContent}>
               <Feather name="credit-card" size={24} color={theme.text} />
@@ -748,148 +709,13 @@ export default function CheckoutScreen({ route }: any) {
                 <ThemedText type="body" style={{ fontWeight: "600" }}>
                   Tarjeta
                 </ThemedText>
-                <ThemedText
-                  type="caption"
-                  style={{ color: theme.textSecondary }}
-                >
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
                   {isWeb ? "Pago simulado en web" : "Visa, Mastercard, etc."}
                 </ThemedText>
               </View>
             </View>
-            {paymentMethod === "card" ? (
-              <Feather
-                name="check-circle"
-                size={20}
-                color={NemyColors.primary}
-              />
-            ) : null}
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              Haptics.selectionAsync();
-              setPaymentMethod("cash");
-              if (!cashPaymentAmount) {
-                setCashPaymentAmount(total.toFixed(2));
-              }
-              setCashError("");
-            }}
-            style={[
-              styles.paymentOption,
-              {
-                backgroundColor: theme.backgroundSecondary,
-                borderColor:
-                  paymentMethod === "cash"
-                    ? NemyColors.primary
-                    : "transparent",
-              },
-            ]}
-            accessibilityLabel="Pago en efectivo"
-            accessibilityHint={paymentMethod === "cash" ? 'Método seleccionado' : 'Toca para pagar en efectivo'}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: paymentMethod === "cash" }}
-          >
-            <View style={styles.paymentContent}>
-              <Feather name="dollar-sign" size={24} color={theme.text} />
-              <View style={styles.paymentText}>
-                <ThemedText type="body" style={{ fontWeight: "600" }}>
-                  Efectivo
-                </ThemedText>
-                <ThemedText
-                  type="caption"
-                  style={{ color: theme.textSecondary }}
-                >
-                  Paga al recibir
-                </ThemedText>
-              </View>
-            </View>
-            {paymentMethod === "cash" ? (
-              <Feather
-                name="check-circle"
-                size={20}
-                color={NemyColors.primary}
-              />
-            ) : null}
-          </Pressable>
-
-          {/* Input de efectivo */}
-          {paymentMethod === "cash" ? (
-            <View
-              style={[
-                styles.cashSection,
-                { backgroundColor: theme.backgroundSecondary },
-              ]}
-            >
-              <ThemedText
-                type="body"
-                style={{ fontWeight: "600", marginBottom: Spacing.sm }}
-              >
-                ¿Con cuánto vas a pagar?
-              </ThemedText>
-              <View style={styles.cashInputContainer}>
-                <ThemedText type="h3" style={{ color: theme.textSecondary }}>
-                  $
-                </ThemedText>
-                <TextInput
-                  style={[
-                    styles.cashInput,
-                    {
-                      color: theme.text,
-                      borderColor: cashError ? NemyColors.error : theme.border,
-                    },
-                  ]}
-                  value={cashPaymentAmount}
-                  onChangeText={(text) => {
-                    setCashPaymentAmount(text.replace(/[^0-9.]/g, ""));
-                    setCashError("");
-                  }}
-                  placeholder="0.00"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="decimal-pad"
-                  testID="input-cash-amount"
-                  accessibilityLabel="Monto en efectivo"
-                  accessibilityHint="Ingresa con cuánto dinero vas a pagar"
-                />
-              </View>
-              {cashAmountNumber > 0 && cashAmountNumber >= total ? (
-                <View
-                  style={[
-                    styles.changeBox,
-                    { backgroundColor: NemyColors.success + "20" },
-                  ]}
-                >
-                  <Feather name="info" size={16} color={NemyColors.success} />
-                  <ThemedText
-                    type="body"
-                    style={{
-                      color: NemyColors.success,
-                      marginLeft: Spacing.sm,
-                    }}
-                  >
-                    El repartidor te dará ${changeAmount.toFixed(2)} de cambio
-                  </ThemedText>
-                </View>
-              ) : cashAmountNumber > 0 ? (
-                <View
-                  style={[
-                    styles.changeBox,
-                    { backgroundColor: NemyColors.error + "20" },
-                  ]}
-                >
-                  <Feather
-                    name="alert-circle"
-                    size={16}
-                    color={NemyColors.error}
-                  />
-                  <ThemedText
-                    type="small"
-                    style={{ color: NemyColors.error, marginLeft: Spacing.sm }}
-                  >
-                    El monto debe ser al menos ${total.toFixed(2)}
-                  </ThemedText>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
+            <Feather name="check-circle" size={20} color={NemyColors.primary} />
+          </View>
         </View>
 
         {/* Sección de cupón */}
@@ -1169,7 +995,9 @@ export default function CheckoutScreen({ route }: any) {
         >
           {isLoading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : paymentMethod === "card" && !isWeb && !isPaymentReady ? (
+          ) : isWeb ? (
+            "Solo disponible en app móvil"
+          ) : !isPaymentReady ? (
             "Preparando pago..."
           ) : (
             "Confirmar pedido"
@@ -1285,33 +1113,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     marginTop: Spacing.sm,
     marginBottom: Spacing.lg,
-  },
-  // Estilos para efectivo
-  cashSection: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
-  },
-  cashInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  cashInput: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  changeBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.md,
   },
   // Estilos para sustituciones
   substitutionOptions: {

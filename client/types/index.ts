@@ -42,7 +42,6 @@ export interface Business {
   address: string;
   phone: string;
   categories: string[];
-  acceptsCash: boolean;
   featured: boolean;
 }
 
@@ -76,13 +75,18 @@ export interface Cart {
 
 export type OrderStatus =
   | "pending"
+  | "accepted"
   | "confirmed"
   | "preparing"
   | "ready"
+  | "assigned_driver"
   | "picked_up"
   | "on_the_way"
+  | "in_transit"
+  | "arriving"
   | "delivered"
-  | "cancelled";
+  | "cancelled"
+  | "refunded";
 
 export interface Order {
   id: string;
@@ -97,7 +101,7 @@ export interface Order {
   nemyCommission?: number;
   deliveryFee: number;
   total: number;
-  paymentMethod: "card" | "cash";
+  paymentMethod: "card";
   deliveryAddress: string;
   deliveryPersonId?: string;
   deliveryPersonName?: string;

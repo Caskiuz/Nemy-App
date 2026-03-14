@@ -1,7 +1,7 @@
 import React from "react";
-import { BottomTabBarButtonProps, createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
@@ -33,22 +33,7 @@ export default function MainTabNavigator() {
   const isBusiness = user?.role === "business_owner";
   const isDelivery = user?.role === "delivery_driver";
 
-  const TabBarOrdersButton = ({ children, onPress, ...rest }: BottomTabBarButtonProps) => {
-    // Strip ref to avoid Pressable ref type mismatch
-    const { ref: _ref, ...pressableProps } = rest as BottomTabBarButtonProps & { ref?: unknown };
-    return (
-      <Pressable
-        {...pressableProps}
-        onPress={(event) => {
-          onPress?.(event);
-        }}
-      >
-        {children}
-      </Pressable>
-    );
-  };
-
-  const tabBarHeight = Platform.select({
+const tabBarHeight = Platform.select({
     ios: 56 + insets.bottom,
     android: 64 + Math.max(insets.bottom, 8),
     default: 64,
@@ -94,31 +79,10 @@ export default function MainTabNavigator() {
       <Tab.Screen
         name="OrdersTab"
         component={OrdersStackNavigator}
-        options={({ navigation }) => ({
+        options={{
           title: "Pedidos",
           tabBarIcon: ({ color, size }) => (
             <Feather name="shopping-bag" size={size} color={color} />
-          ),
-          tabBarButton: ({ onPress, ...props }) => (
-            <TabBarOrdersButton
-              {...props}
-              accessibilityRole="button"
-              onPress={(event) => {
-                onPress?.(event);
-                // Siempre vuelve a la lista de pedidos para evitar estados atascados
-                navigation.navigate("OrdersTab");
-              }}
-            />
-          ),
-        })}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStackNavigator}
-        options={{
-          title: "Perfil",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size} color={color} />
           ),
         }}
       />
@@ -158,6 +122,16 @@ export default function MainTabNavigator() {
           }}
         />
       ) : null}
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileStackNavigator}
+        options={{
+          title: "Perfil",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="user" size={size} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 }

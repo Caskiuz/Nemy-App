@@ -18,9 +18,6 @@ import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
-import { OrderStatusBar } from "@/components/OrderStatusBar";
-import { Badge } from "@/components/Badge";
-import { CountdownTimer } from "@/components/CountdownTimer";
 import { OrderProgressBar } from "@/components/OrderProgressBar";
 import { CollapsibleMap } from "@/components/CollapsibleMap";
 import { useTheme } from "@/hooks/useTheme";
@@ -414,8 +411,6 @@ export default function OrderTrackingScreen() {
               </View>
             ) : null}
           </View>
-
-          <OrderStatusBar status={order.status} />
         </View>
 
         {/* Mapa funcional en APK */}
@@ -571,20 +566,9 @@ export default function OrderTrackingScreen() {
             </View>
           </View>
           <View style={styles.paymentRow}>
-            <Feather
-              name={
-                order.paymentMethod === "card" ? "credit-card" : "dollar-sign"
-              }
-              size={16}
-              color={theme.textSecondary}
-            />
-            <ThemedText
-              type="caption"
-              style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}
-            >
-              {order.paymentMethod === "card"
-                ? "Pagado con tarjeta"
-                : "Pago en efectivo"}
+            <Feather name="credit-card" size={16} color={theme.textSecondary} />
+            <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+              Pagado con tarjeta
             </ThemedText>
           </View>
         </View>

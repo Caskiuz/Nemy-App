@@ -452,6 +452,7 @@ export default function ProfileScreen() {
                   : require("../../assets/images/avatar-placeholder.png")
               }
               style={[styles.avatar, isUploadingImage && { opacity: 0.5 }]}
+              onError={() => setProfileImage(null)}
               contentFit="cover"
             />
             {isUploadingImage ? (

@@ -75,7 +75,6 @@ export default function BusinessDetailScreen() {
             address: data.business.address || 'Autlán, Jalisco',
             phone: data.business.phone || '',
             categories: data.business.categories ? data.business.categories.split(',') : [],
-            acceptsCash: true,
             featured: data.business.isFeatured || false,
           };
           

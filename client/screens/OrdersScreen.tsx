@@ -17,7 +17,7 @@ import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { Badge } from "@/components/Badge";
 import { EmptyState } from "@/components/EmptyState";
-import { OrderStatusBar } from "@/components/OrderStatusBar";
+import { OrderProgressBar } from "@/components/OrderProgressBar";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
 import { Order, OrderStatus } from "@/types";
@@ -29,13 +29,18 @@ type OrdersScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "Pendiente",
+  accepted: "Aceptado",
   confirmed: "Confirmado",
   preparing: "Preparando",
   ready: "Listo",
+  assigned_driver: "Repartidor asignado",
   picked_up: "Recogido",
   on_the_way: "En camino",
+  in_transit: "En tránsito",
+  arriving: "Llegando",
   delivered: "Entregado",
   cancelled: "Cancelado",
+  refunded: "Reembolsado",
 };
 
 const STATUS_VARIANTS: Record<
@@ -43,13 +48,18 @@ const STATUS_VARIANTS: Record<
   "primary" | "secondary" | "success" | "warning" | "error"
 > = {
   pending: "warning",
+  accepted: "primary",
   confirmed: "primary",
   preparing: "primary",
   ready: "success",
+  assigned_driver: "primary",
   picked_up: "primary",
   on_the_way: "primary",
+  in_transit: "primary",
+  arriving: "primary",
   delivered: "success",
   cancelled: "error",
+  refunded: "secondary",
 };
 
 export default function OrdersScreen() {
@@ -156,7 +166,7 @@ export default function OrdersScreen() {
 
         {isActive ? (
           <View style={styles.statusSection}>
-            <OrderStatusBar status={item.status} />
+            <OrderProgressBar status={item.status} />
           </View>
         ) : null}
 

@@ -9,17 +9,31 @@ interface OrderProgressBarProps {
 }
 
 const statusSteps = [
-  { key: 'pending', label: 'Pendiente', icon: 'clock' },
-  { key: 'accepted', label: 'Aceptado', icon: 'check-circle' },
-  { key: 'preparing', label: 'Preparando', icon: 'package' },
-  { key: 'ready', label: 'Listo', icon: 'check' },
-  { key: 'picked_up', label: 'Recogido', icon: 'truck' },
-  { key: 'arriving', label: 'Llegando', icon: 'navigation' },
-  { key: 'delivered', label: 'Entregado', icon: 'check-circle' },
+  { key: 'pending',         label: 'Pendiente',  icon: 'clock' },
+  { key: 'accepted',        label: 'Aceptado',   icon: 'check-circle' },
+  { key: 'preparing',       label: 'Preparando', icon: 'package' },
+  { key: 'ready',           label: 'Listo',      icon: 'check' },
+  { key: 'assigned_driver', label: 'Asignado',   icon: 'user' },
+  { key: 'picked_up',       label: 'Recogido',   icon: 'truck' },
+  { key: 'in_transit',      label: 'En camino',  icon: 'navigation' },
+  { key: 'arriving',        label: 'Llegando',   icon: 'map-pin' },
+  { key: 'delivered',       label: 'Entregado',  icon: 'check-circle' },
 ];
 
+// Mapea statuses que no están en el flujo principal al índice más cercano
+const STATUS_INDEX_OVERRIDE: Record<string, number> = {
+  on_the_way: 6, // mismo que in_transit
+  confirmed:  1, // mismo que accepted
+  cancelled:  -1,
+  refunded:   -1,
+};
+
 export function OrderProgressBar({ status }: OrderProgressBarProps) {
-  const currentStepIndex = statusSteps.findIndex(s => s.key === status);
+  const resolvedIndex =
+    STATUS_INDEX_OVERRIDE[status] !== undefined
+      ? STATUS_INDEX_OVERRIDE[status]
+      : statusSteps.findIndex(s => s.key === status);
+  const currentStepIndex = resolvedIndex;
   const progress = currentStepIndex >= 0 ? ((currentStepIndex + 1) / statusSteps.length) * 100 : 0;
   
   const progressAnim = useRef(new Animated.Value(0)).current;

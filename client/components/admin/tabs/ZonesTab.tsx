@@ -71,10 +71,10 @@ export const ZonesTab: React.FC<ZonesTabProps> = ({ theme, showToast, onSelectZo
               </View>
             </View>
             <View style={styles.zoneDetails}>
-              <Text key="desc" style={{ color: theme.textSecondary, fontSize: 14 }}>{zone.description || 'Sin descripción'}</Text>
-              <Text key="fee" style={{ color: theme.textSecondary, fontSize: 14 }}>Tarifa: ${isNaN(zone.deliveryFee) ? '0.00' : (zone.deliveryFee / 100).toFixed(2)}</Text>
-              <Text key="time" style={{ color: theme.textSecondary, fontSize: 14 }}>Tiempo máximo: {isNaN(zone.maxDeliveryTime) ? '0' : zone.maxDeliveryTime} min</Text>
-              <Text key="radius" style={{ color: theme.textSecondary, fontSize: 14 }}>Radio: {isNaN(zone.radiusKm) ? '0' : zone.radiusKm} km</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 14 }}>{zone.description || 'Sin descripción'}</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 14 }}>Tarifa: ${isNaN(zone.deliveryFee) ? '0.00' : (zone.deliveryFee / 100).toFixed(2)}</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 14 }}>Tiempo máximo: {isNaN(zone.maxDeliveryTime) ? '0' : zone.maxDeliveryTime} min</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 14 }}>Radio: {isNaN(zone.radiusKm) ? '0' : zone.radiusKm} km</Text>
             </View>
           </Pressable>
         ))}
