@@ -9,23 +9,24 @@ interface OrderProgressBarProps {
 }
 
 const statusSteps = [
-  { key: 'pending',         label: 'Pendiente',  icon: 'clock' },
-  { key: 'accepted',        label: 'Aceptado',   icon: 'check-circle' },
-  { key: 'preparing',       label: 'Preparando', icon: 'package' },
-  { key: 'ready',           label: 'Listo',      icon: 'check' },
-  { key: 'assigned_driver', label: 'Asignado',   icon: 'user' },
-  { key: 'picked_up',       label: 'Recogido',   icon: 'truck' },
-  { key: 'in_transit',      label: 'En camino',  icon: 'navigation' },
-  { key: 'arriving',        label: 'Llegando',   icon: 'map-pin' },
-  { key: 'delivered',       label: 'Entregado',  icon: 'check-circle' },
+  { key: 'pending',    label: 'Pendiente',  icon: 'clock' },
+  { key: 'accepted',   label: 'Aceptado',   icon: 'check-circle' },
+  { key: 'preparing',  label: 'Preparando', icon: 'package' },
+  { key: 'on_the_way', label: 'En camino',  icon: 'truck' },
+  { key: 'delivered',  label: 'Entregado',  icon: 'check-circle' },
 ];
 
-// Mapea statuses que no están en el flujo principal al índice más cercano
+// Mapea statuses antiguos al nuevo sistema
 const STATUS_INDEX_OVERRIDE: Record<string, number> = {
-  on_the_way: 6, // mismo que in_transit
-  confirmed:  1, // mismo que accepted
-  cancelled:  -1,
-  refunded:   -1,
+  ready: 2,           // ready -> preparing
+  assigned: 2,        // assigned -> preparing  
+  assigned_driver: 2, // assigned_driver -> preparing
+  picked_up: 3,       // picked_up -> on_the_way
+  in_transit: 3,      // in_transit -> on_the_way
+  arriving: 3,        // arriving -> on_the_way
+  confirmed: 1,       // confirmed -> accepted
+  cancelled: -1,
+  refunded: -1,
 };
 
 export function OrderProgressBar({ status }: OrderProgressBarProps) {

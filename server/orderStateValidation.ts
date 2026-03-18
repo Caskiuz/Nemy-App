@@ -1,22 +1,21 @@
 // Order State Validation Middleware
 // Valida transiciones de estado y permisos por rol
+// Estados simplificados: pending, accepted, preparing, on_the_way, delivered, cancelled
 
 export const ORDER_STATE_TRANSITIONS = {
   pending: ["accepted", "cancelled"],
   accepted: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-  ready: ["picked_up", "cancelled"],
-  picked_up: ["on_the_way", "cancelled"],
+  preparing: ["cancelled"], // Solo puede cancelar, on_the_way lo cambia el repartidor
   on_the_way: ["delivered", "cancelled"],
   delivered: [],
   cancelled: []
 } as const;
 
 export const ROLE_ALLOWED_STATES = {
-  business_owner: ["accepted", "preparing", "ready", "cancelled"],
-  delivery_driver: ["picked_up", "on_the_way", "delivered"],
-  admin: ["pending", "accepted", "preparing", "ready", "picked_up", "on_the_way", "delivered", "cancelled"],
-  super_admin: ["pending", "accepted", "preparing", "ready", "picked_up", "on_the_way", "delivered", "cancelled"],
+  business_owner: ["accepted", "preparing", "cancelled"],
+  delivery_driver: ["on_the_way", "delivered"],
+  admin: ["pending", "accepted", "preparing", "on_the_way", "delivered", "cancelled"],
+  super_admin: ["pending", "accepted", "preparing", "on_the_way", "delivered", "cancelled"],
   customer: ["cancelled"] // Solo puede cancelar en periodo de arrepentimiento
 } as const;
 

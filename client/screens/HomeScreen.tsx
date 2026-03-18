@@ -6,6 +6,7 @@ import {
   Pressable,
   RefreshControl,
   TextInput,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -49,6 +50,11 @@ type HomeScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "HomeTab">,
   NativeStackNavigationProp<RootStackParamList>
 >;
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const GRID_PADDING = Spacing.lg * 2; // paddingHorizontal del scrollContent
+const GRID_GAP = Spacing.sm;
+const GRID_CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING - GRID_GAP) / 2;
 
 const filters = [
   { id: "rapido", name: "Rapido", icon: "zap" },
@@ -99,7 +105,6 @@ export default function HomeScreen() {
         address: b.address || 'Autlán, Jalisco',
         phone: b.phone || '',
         categories: b.categories ? b.categories.split(',') : [],
-        acceptsCash: true,
         featured: b.is_featured || false,
       }));
       
@@ -168,7 +173,8 @@ export default function HomeScreen() {
             filtered = filtered.filter((b) => b.deliveryFee <= 30);
             break;
           case "popular":
-            filtered = filtered.filter((b) => b.rating >= 4.7);
+            // Mostrar negocios destacados (featured)
+            filtered = filtered.filter((b) => b.featured);
             break;
         }
       }
@@ -179,11 +185,34 @@ export default function HomeScreen() {
   );
 
   const filteredBusinesses = filterBusinesses(businesses);
-  const restaurants = filteredBusinesses.filter((b) => b.type === "restaurant");
-  const markets = filteredBusinesses.filter((b) => b.type === "market");
+  
+  // Ordenar por rating (destacados primero, luego por rating)
+  const sortedBusinesses = [...filteredBusinesses].sort((a, b) => {
+    // Destacados primero
+    if (a.featured && !b.featured) return -1;
+    if (!a.featured && b.featured) return 1;
+    // Luego por rating
+    return b.rating - a.rating;
+  });
+  
+  const restaurants = sortedBusinesses.filter((b) => b.type === "restaurant");
+  const markets = sortedBusinesses.filter((b) => b.type === "market");
   const firstName = user?.name.split(" ")[0] || "Usuario";
 
   const hasActiveFilters = searchQuery.trim() || activeCategory || activeFilter;
+  
+  // Cuando hay filtros activos, mostrar todos los negocios (restaurantes + mercados)
+  const displayBusinesses = hasActiveFilters ? sortedBusinesses : restaurants;
+  
+  console.log('🔍 DEBUG - activeFilter:', activeFilter);
+  console.log('🔍 DEBUG - filteredBusinesses count:', filteredBusinesses.length);
+  if (filteredBusinesses.length > 0) {
+    filteredBusinesses.forEach(b => {
+      console.log(`  - ${b.name}: type=${b.type}, rating=${b.rating}`);
+    });
+  }
+  console.log('🔍 DEBUG - restaurants count:', restaurants.length);
+  console.log('🔍 DEBUG - hasActiveFilters:', hasActiveFilters);
 
   return (
     <LinearGradient
@@ -480,16 +509,14 @@ export default function HomeScreen() {
         ) : null}
 
         {isLoading ? (
-          <>
-            <View style={styles.section}>
-              <ThemedText type="h3" style={styles.sectionTitle}>
-                Restaurantes populares
-              </ThemedText>
-              {[1, 2].map((i) => (
-                <BusinessCardSkeleton key={i} />
-              ))}
-            </View>
-          </>
+          <View style={styles.section}>
+            <ThemedText type="h3" style={styles.sectionTitle}>
+              Cargando restaurantes...
+            </ThemedText>
+            {[1, 2, 3, 4].map((i) => (
+              <BusinessCardSkeleton key={`skeleton-${i}`} />
+            ))}
+          </View>
         ) : hasActiveFilters && filteredBusinesses.length === 0 ? (
           <View style={styles.emptyStateContainer}>
             <View
@@ -537,212 +564,141 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-            {/* Popular Restaurants Section */}
-            {!hasActiveFilters ? (
+            {/* Restaurant Grid - Todos los restaurantes */}
+            {displayBusinesses.length > 0 ? (
               <View style={styles.section}>
                 <ThemedText type="h3" style={styles.sectionTitle}>
-                  Restaurantes populares
+                  {hasActiveFilters ? `Resultados (${displayBusinesses.length})` : "Todos los restaurantes"}
                 </ThemedText>
-                {featuredBusinesses.length > 0 ? (
-                  <Pressable
-                    onPress={() =>
-                      navigation.navigate("BusinessDetail", {
-                        businessId: featuredBusinesses[0].id,
-                      })
-                    }
-                    style={({ pressed }) => [
-                      styles.featuredCard,
-                      {
-                        backgroundColor: theme.card,
-                        opacity: pressed ? 0.9 : 1,
-                      },
-                    ]}
-                  >
-                    <Image
-                      source={{ uri: featuredBusinesses[0].bannerImage }}
-                      style={styles.featuredImage}
-                      contentFit="cover"
-                    />
-                    <View style={styles.popularBadge}>
-                      <ThemedText
-                        type="caption"
-                        style={styles.popularBadgeText}
-                      >
-                        POPULAR
-                      </ThemedText>
-                    </View>
-                    <View style={styles.featuredInfo}>
-                      <ThemedText type="h4">
-                        {featuredBusinesses[0].name}
-                      </ThemedText>
-                      <View style={styles.featuredMeta}>
-                        <View style={styles.metaItem}>
-                          <Feather
-                            name="zap"
-                            size={12}
-                            color={NemyColors.primary}
-                          />
-                          <ThemedText
-                            type="small"
-                            style={{ color: NemyColors.primary, marginLeft: 4 }}
-                          >
-                            Rapido
-                          </ThemedText>
+                <View style={styles.gridContainer}>
+                  {displayBusinesses.map((business, index) => (
+                    <Pressable
+                      key={business.id || `restaurant-${index}`}
+                      onPress={() =>
+                        navigation.navigate("BusinessDetail", {
+                          businessId: business.id,
+                        })
+                      }
+                      style={({ pressed }) => [
+                        styles.gridCard,
+                        {
+                          backgroundColor: theme.card,
+                          opacity: pressed ? 0.9 : 1,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: business.bannerImage }}
+                        style={styles.gridImage}
+                        contentFit="cover"
+                      />
+                      {business.featured && (
+                        <View style={styles.gridFeaturedBadge}>
+                          <Feather name="star" size={10} color="#FFFFFF" />
                         </View>
-                        <View style={styles.metaItem}>
-                          <Feather
-                            name="clock"
-                            size={12}
-                            color={theme.textSecondary}
-                          />
-                          <ThemedText
-                            type="small"
-                            style={{
-                              color: theme.textSecondary,
-                              marginLeft: 4,
-                            }}
-                          >
-                            {featuredBusinesses[0].deliveryTime}
-                          </ThemedText>
-                        </View>
-                        <View style={styles.metaItem}>
-                          <Feather name="star" size={12} color="#FFB800" />
-                          <ThemedText type="small" style={{ marginLeft: 4 }}>
-                            {featuredBusinesses[0].rating}
+                      )}
+                      <View style={styles.gridInfo}>
+                        <ThemedText
+                          type="small"
+                          style={styles.gridName}
+                          numberOfLines={1}
+                        >
+                          {business.name}
+                        </ThemedText>
+                        <View style={styles.gridMeta}>
+                          <View style={styles.ratingSmall}>
+                            <Feather name="star" size={10} color="#FFB800" />
+                            <ThemedText type="caption" style={{ marginLeft: 2 }}>
+                              {business.rating > 0 ? business.rating.toFixed(1) : "Nuevo"}
+                            </ThemedText>
+                          </View>
+                          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                            {business.deliveryTime}
                           </ThemedText>
                         </View>
                       </View>
-                    </View>
-                  </Pressable>
-                ) : null}
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             ) : null}
 
-            {/* Restaurant Grid */}
-            <View style={styles.gridSection}>
-              {restaurants.slice(0, 4).map((business, index) => (
+            {/* Markets Section - Prominent Button - Solo mostrar si NO hay filtros */}
+            {!hasActiveFilters && (
+              <Animated.View
+                entering={FadeInDown.delay(300).springify()}
+                style={styles.section}
+              >
+              <View style={styles.bannerRow}>
                 <Pressable
-                  key={business.id}
-                  onPress={() =>
-                    navigation.navigate("BusinessDetail", {
-                      businessId: business.id,
-                    })
-                  }
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    navigation.navigate("BusinessList");
+                  }}
                   style={({ pressed }) => [
-                    styles.gridCard,
+                    styles.marketsBanner,
+                    styles.bannerHalf,
                     {
-                      backgroundColor: theme.card,
-                      opacity: pressed ? 0.9 : 1,
+                      backgroundColor: NemyColors.primary,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
                     },
+                    Shadows.md,
                   ]}
                 >
-                  <Image
-                    source={{ uri: business.bannerImage }}
-                    style={styles.gridImage}
-                    contentFit="cover"
-                  />
-                  <View style={styles.gridInfo}>
-                    <ThemedText
-                      type="small"
-                      style={styles.gridName}
-                      numberOfLines={1}
-                    >
-                      {business.name}
-                    </ThemedText>
-                    <View style={styles.gridMeta}>
-                      {index === 0 ? (
-                        <View style={styles.economicBadge}>
-                          <Feather
-                            name="dollar-sign"
-                            size={10}
-                            color="#4CAF50"
-                          />
-                          <ThemedText
-                            type="caption"
-                            style={{ color: "#4CAF50", marginLeft: 2 }}
-                          >
-                            ECONOMICO
-                          </ThemedText>
-                        </View>
-                      ) : index === 1 ? (
-                        <View style={styles.popularSmallBadge}>
-                          <ThemedText
-                            type="caption"
-                            style={{ color: NemyColors.primary }}
-                          >
-                            POPULAR
-                          </ThemedText>
-                        </View>
-                      ) : null}
-                      <View style={styles.ratingSmall}>
-                        <ThemedText type="caption">
-                          {business.rating}
-                        </ThemedText>
-                        <Feather
-                          name="star"
-                          size={10}
-                          color="#FFB800"
-                          style={{ marginLeft: 2 }}
-                        />
-                      </View>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Markets Section - Prominent Button */}
-            <Animated.View
-              entering={FadeInDown.delay(300).springify()}
-              style={styles.section}
-            >
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  navigation.navigate("BusinessList");
-                }}
-                style={({ pressed }) => [
-                  styles.marketsBanner,
-                  {
-                    backgroundColor: NemyColors.primary,
-                    transform: [{ scale: pressed ? 0.98 : 1 }],
-                  },
-                  Shadows.md,
-                ]}
-              >
-                <LinearGradient
-                  colors={[NemyColors.primary, "#E65100", "#D84315"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.marketsGradient}
-                >
-                  <View style={styles.marketsContent}>
-                    <View style={styles.marketsIconContainer}>
-                      <Feather name="compass" size={32} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.marketsTextContainer}>
-                      <ThemedText type="h3" style={styles.marketsTitle}>
-                        Explorar Negocios
+                  <LinearGradient
+                    colors={[NemyColors.primary, "#E65100", "#D84315"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.marketsGradient}
+                  >
+                    <View style={[styles.marketsContent, { flexDirection: "column", alignItems: "center" }]}>
+                      <Feather name="compass" size={28} color="#FFFFFF" />
+                      <ThemedText type="small" style={[styles.marketsTitle, { marginTop: Spacing.sm, textAlign: "center" }]}>
+                        Explorar
                       </ThemedText>
-                      <View style={styles.marketsCTA}>
-                        <ThemedText type="small" style={styles.marketsSubtitle}>
-                          Ver todos los restaurantes y mercados
-                        </ThemedText>
-                      </View>
                     </View>
-                    <View style={styles.marketsArrow}>
-                      <Feather name="chevron-right" size={24} color="#FFFFFF" />
-                    </View>
-                  </View>
-                </LinearGradient>
-              </Pressable>
-            </Animated.View>
+                  </LinearGradient>
+                </Pressable>
 
-            {/* Markets Section - Original */}
-            <Animated.View
-              entering={FadeInDown.delay(350).springify()}
-              style={styles.section}
-            >
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    navigation.navigate("BusinessMap");
+                  }}
+                  style={({ pressed }) => [
+                    styles.marketsBanner,
+                    styles.bannerHalf,
+                    {
+                      backgroundColor: "#1565C0",
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    },
+                    Shadows.md,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={["#1E88E5", "#1565C0", "#0D47A1"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.marketsGradient}
+                  >
+                    <View style={[styles.marketsContent, { flexDirection: "column", alignItems: "center" }]}>
+                      <Feather name="map" size={28} color="#FFFFFF" />
+                      <ThemedText type="small" style={[styles.marketsTitle, { marginTop: Spacing.sm, textAlign: "center" }]}>
+                        Ver mapa
+                      </ThemedText>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </Animated.View>
+            )}
+
+            {/* Markets Section - Original - Solo mostrar si NO hay filtros */}
+            {!hasActiveFilters && (
+              <Animated.View
+                entering={FadeInDown.delay(350).springify()}
+                style={styles.section}
+              >
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -784,9 +740,10 @@ export default function HomeScreen() {
                 </LinearGradient>
               </Pressable>
             </Animated.View>
+            )}
 
-            {/* Markets Preview */}
-            {markets.length > 0 ? (
+            {/* Markets Preview - Solo mostrar si NO hay filtros activos */}
+            {!hasActiveFilters && markets.length > 0 ? (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <ThemedText type="h3" style={styles.sectionTitle}>
@@ -798,32 +755,9 @@ export default function HomeScreen() {
                     color={theme.textSecondary}
                   />
                 </View>
-                {markets.slice(0, 2).map((business) => (
+                {markets.map((business, index) => (
                   <BusinessCard
-                    key={business.id}
-                    business={business}
-                    onPress={() =>
-                      navigation.navigate("BusinessDetail", {
-                        businessId: business.id,
-                      })
-                    }
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            {/* Filtered Results Section */}
-            {hasActiveFilters && filteredBusinesses.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <ThemedText type="h3" style={styles.sectionTitle}>
-                    Resultados ({filteredBusinesses.length})
-                  </ThemedText>
-                  <Feather name="filter" size={20} color={NemyColors.primary} />
-                </View>
-                {filteredBusinesses.map((business) => (
-                  <BusinessCard
-                    key={business.id}
+                    key={business.id || `market-${index}`}
                     business={business}
                     onPress={() =>
                       navigation.navigate("BusinessDetail", {
@@ -1051,20 +985,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: GRID_GAP,
+  },
   gridSection: {
     flexDirection: "row",
     flexWrap: "wrap",
     marginBottom: Spacing.xl,
-    gap: Spacing.md,
+    gap: GRID_GAP,
   },
   gridCard: {
-    width: "48%",
+    width: GRID_CARD_WIDTH,
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
   },
   gridImage: {
     width: "100%",
     height: 100,
+  },
+  gridFeaturedBadge: {
+    position: "absolute",
+    top: Spacing.xs,
+    right: Spacing.xs,
+    backgroundColor: NemyColors.primary,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
   gridInfo: {
     padding: Spacing.sm,
@@ -1093,6 +1043,13 @@ const styles = StyleSheet.create({
   marketsBanner: {
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
+  },
+  bannerRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  bannerHalf: {
+    flex: 1,
     padding: Spacing.lg,
   },
   marketsContent: {
@@ -1121,6 +1078,7 @@ const styles = StyleSheet.create({
   marketsGradient: {
     borderRadius: BorderRadius.xl,
     overflow: "hidden",
+    padding: Spacing.lg,
   },
   marketsCTA: {
     flexDirection: "row",

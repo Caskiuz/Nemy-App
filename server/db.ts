@@ -18,8 +18,13 @@ function createConnectionConfig() {
       password: url.password,
       database: url.pathname.slice(1), // Remove leading /
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 3,
+      maxIdle: 3,
+      idleTimeout: 60000,
       queueLimit: 0,
+      connectTimeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
     };
 
     const urlCharset = url.searchParams.get('charset') || undefined;
@@ -45,11 +50,11 @@ function createConnectionConfig() {
         };
         console.log('📜 Using SSL certificate for MySQL connection');
       } else if (url.searchParams.get('ssl-mode') === 'REQUIRED') {
-        // Use default SSL without custom CA
+        // Use default SSL without custom CA - Aiven requires this
         config.ssl = {
-          rejectUnauthorized: false,
+          rejectUnauthorized: true,
         };
-        console.log('🔒 Using SSL without custom CA');
+        console.log('🔒 Using SSL with certificate validation (Aiven)');
       } else {
         // For remote connections, disable SSL verification for self-signed certificates
         config.ssl = {
@@ -125,6 +130,23 @@ if (isTest && useDbStubs) {
   // Create production connection pool
   connection = mysql.createPool(createConnectionConfig());
   db = drizzle(connection);
+
+  // Add connection pool event handlers (commented out to reduce log noise)
+  // connection.on('connection', (conn) => {
+  //   console.log('🔗 New database connection established');
+  // });
+
+  // connection.on('acquire', (conn) => {
+  //   console.log('🔒 Connection acquired from pool');
+  // });
+
+  // connection.on('release', (conn) => {
+  //   console.log('🔓 Connection released back to pool');
+  // });
+
+  // connection.on('enqueue', () => {
+  //   console.log('⏳ Waiting for available connection...');
+  // });
 
   if (!isTest) {
     // Test connection on startup and run migrations

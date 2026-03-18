@@ -117,6 +117,9 @@ export interface Order {
   createdAt: string;
   estimatedDelivery?: string;
   notes?: string;
+  confirmedByCustomer?: boolean;
+  confirmedByCustomerAt?: string;
+  fundsReleased?: boolean;
 }
 
 export interface CarnivalEvent {

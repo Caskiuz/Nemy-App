@@ -6,6 +6,7 @@ import {
   Pressable,
   RefreshControl,
   TextInput,
+  Dimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +25,10 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { apiRequest } from "@/lib/query-client";
 
 type BusinessListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const COLUMN_GAP = Spacing.lg * 2 + Spacing.sm; // paddingHorizontal * 2 + gap between columns
+const CARD_WIDTH = (SCREEN_WIDTH - COLUMN_GAP) / 2;
 
 const TABS = [
   { id: "all", label: "Todos", icon: "grid" },
@@ -73,7 +78,6 @@ export default function BusinessListScreen() {
         address: b.address || "Autlán, Jalisco",
         phone: b.phone || "",
         categories: b.categories ? b.categories.split(",") : [],
-        acceptsCash: true,
         featured: b.is_featured || false,
       }));
 
@@ -162,16 +166,20 @@ export default function BusinessListScreen() {
       <FlatList
         data={results}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <BusinessCard
-            business={item}
-            onPress={() =>
-              navigation.navigate("BusinessDetail", { businessId: item.id })
-            }
-          />
+        renderItem={({ item, index }) => (
+          <View style={[styles.cardWrapper, index % 2 === 0 ? { marginRight: Spacing.sm / 2 } : { marginLeft: Spacing.sm / 2 }]}>
+            <BusinessCard
+              business={item}
+              onPress={() =>
+                navigation.navigate("BusinessDetail", { businessId: item.id })
+              }
+              cardWidth={CARD_WIDTH}
+            />
+          </View>
         )}
+        numColumns={2}
         ListHeaderComponent={
-          <>
+          <View>
             {/* Header */}
             <View style={styles.header}>
               <Pressable
@@ -324,15 +332,15 @@ export default function BusinessListScreen() {
                 </ThemedText>
               </View>
             ) : null}
-          </>
+          </View>
         }
         ListEmptyComponent={
           isLoading ? (
-            <>
+            <View>
               <BusinessCardSkeleton />
               <BusinessCardSkeleton />
               <BusinessCardSkeleton />
-            </>
+            </View>
           ) : (
             <View style={styles.emptyState}>
               <View
@@ -404,6 +412,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
+  },
+  cardWrapper: {
+    flex: 1,
+    marginBottom: Spacing.md,
   },
   header: {
     flexDirection: "row",

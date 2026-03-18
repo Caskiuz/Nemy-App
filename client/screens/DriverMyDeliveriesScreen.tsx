@@ -30,16 +30,11 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const statusLabels: Record<string, string> = {
-  ready: "Listo para recoger",
-  picked_up: "Recogido",
+  preparing: "Preparando",
   on_the_way: "En camino",
-  in_transit: "En camino",
-  arriving: "Llegando (2 min)",
   delivered: "Entregado",
   pending: "Pendiente",
   accepted: "Aceptado",
-  preparing: "Preparando",
-  assigned_driver: "Repartidor asignado",
   cancelled: "Cancelado",
 };
 
@@ -86,7 +81,7 @@ export default function DriverMyDeliveriesScreen() {
 
   useEffect(() => {
     const hasActiveOrders = orders.some((o: any) =>
-      ["ready", "picked_up", "on_the_way", "in_transit"].includes(o.status)
+      ["preparing", "on_the_way"].includes(o.status)
     );
 
     if (hasActiveOrders && !isTracking) {
@@ -122,13 +117,9 @@ export default function DriverMyDeliveriesScreen() {
       // Usar los endpoints correctos según el estado
       switch (status) {
         case 'picked_up':
-          endpoint = `/api/delivery/pickup/${orderId}`;
-          break;
         case 'on_the_way':
-        case 'in_transit':
-          // Para "en camino" usamos el endpoint general de orders
-          endpoint = `/api/delivery/orders/${orderId}/status`;
-          method = 'PUT';
+          // Nuevo endpoint para recoger pedido
+          endpoint = `/api/orders/${orderId}/pickup`;
           break;
         case 'delivered':
           endpoint = `/api/orders/${orderId}/complete-delivery`;
@@ -332,14 +323,12 @@ export default function DriverMyDeliveriesScreen() {
           <Badge
             text={statusLabels[item.status] || item.status}
             variant={
-              item.status === "picked_up"
+              item.status === "preparing"
                 ? "primary"
-                : item.status === "on_the_way" || item.status === "in_transit"
+                : item.status === "on_the_way"
                 ? "warning"
                 : item.status === "delivered"
                 ? "success"
-                : item.status === "ready"
-                ? "primary"
                 : "secondary"
             }
           />
@@ -404,15 +393,11 @@ export default function DriverMyDeliveriesScreen() {
               if (canProceed) {
                 // Ejecutar la acción real según el estado
                 switch (item.status) {
-                  case 'ready':
+                  case 'preparing':
                     console.log('Calling handlePickedUp for order:', item.id);
                     handlePickedUp(item.id);
                     break;
-                  case 'picked_up':
-                    handleOnTheWay(item.id);
-                    break;
                   case 'on_the_way':
-                  case 'in_transit':
                     console.log('Intentando marcar como entregado:', item.id, item.status);
                     handleDelivered(item.id);
                     break;
@@ -439,7 +424,7 @@ export default function DriverMyDeliveriesScreen() {
   };
 
   const activeOrders = orders.filter((o: any) =>
-    ["ready", "picked_up", "on_the_way", "in_transit"].includes(o.status)
+    ["preparing", "on_the_way"].includes(o.status)
   );
   const completedOrders = orders.filter((o: any) => o.status === "delivered");
 

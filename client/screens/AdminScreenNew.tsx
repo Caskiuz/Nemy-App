@@ -439,6 +439,7 @@ export default function AdminMenuScreen() {
             stats={null}
             onOrderPress={handleDashboardOrderPress}
             onDriverPress={handleDashboardDriverPress}
+            navigation={{ navigate: (screen: string) => setActiveTab(screen === "MapView" ? "map" : screen) }}
           />
         );
       case "drivers":
@@ -462,7 +463,7 @@ export default function AdminMenuScreen() {
                     <View style={{ alignItems: 'center', marginBottom: 20 }}>
                       <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginBottom: 15 }}>
                         <ThemedText style={{ color: 'white', fontSize: 28, fontWeight: 'bold' }}>
-                          {selectedDriver.name.charAt(0).toUpperCase()}
+                          {selectedDriver.name?.charAt(0).toUpperCase() || 'D'}
                         </ThemedText>
                       </View>
                       
@@ -576,96 +577,7 @@ export default function AdminMenuScreen() {
           </View>
         );
       case "finance":
-        return (
-          <View style={{ flex: 1 }}>
-            <FinanceTab transactions={transactions} onTransactionPress={handleTransactionPress} />
-            {transactionModalVisible && selectedTransaction && (
-              <Pressable style={styles.modalOverlay} onPress={() => setTransactionModalVisible(false)}>
-                <Pressable
-                  style={[styles.modalCard, { backgroundColor: theme.card }]}
-                  onPress={(e) => e.stopPropagation()}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <ThemedText type="h3" style={{ color: theme.text }}>Detalles de Transacción</ThemedText>
-                    <Pressable onPress={() => setTransactionModalVisible(false)} hitSlop={12}>
-                      <Feather name="x" size={24} color={theme.text} />
-                    </Pressable>
-                  </View>
-                  
-                  <ScrollView showsVerticalScrollIndicator={false}>
-                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                      <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginBottom: 15 }}>
-                        <ThemedText style={{ color: 'white', fontSize: 28, fontWeight: 'bold' }}>
-                          $
-                        </ThemedText>
-                      </View>
-                      <ThemedText type="h2" style={{ marginBottom: 5 }}>#{selectedTransaction.id.slice(0, 8)}</ThemedText>
-                      <ThemedText style={{ color: '#666', marginBottom: 3, fontSize: 18, fontWeight: 'bold', color: '#10B981' }}>
-                        ${(selectedTransaction.amount / 100).toFixed(2)}
-                      </ThemedText>
-                    </View>
-                    
-                    <View style={{ backgroundColor: '#f8f9fa', padding: 15, borderRadius: 10, marginBottom: 20 }}>
-                      <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Información de la transacción:</ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Tipo: <ThemedText style={{ fontWeight: 'bold' }}>{selectedTransaction.type}</ThemedText></ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Descripción: <ThemedText style={{ fontWeight: 'bold' }}>{selectedTransaction.description}</ThemedText></ThemedText>
-                      <ThemedText style={{ marginBottom: 5 }}>Usuario: <ThemedText style={{ fontWeight: 'bold' }}>{selectedTransaction.userName}</ThemedText></ThemedText>
-                      <ThemedText>Fecha: <ThemedText style={{ fontWeight: 'bold' }}>{new Date(selectedTransaction.createdAt).toLocaleString('es-MX')}</ThemedText></ThemedText>
-                    </View>
-                    
-                    <ThemedText style={{ fontWeight: 'bold', marginBottom: 15, fontSize: 16 }}>Estado de la Transacción:</ThemedText>
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 25 }}>
-                      {[
-                        { key: 'completed', label: 'Completada', color: '#10B981' },
-                        { key: 'pending', label: 'Pendiente', color: '#F59E0B' },
-                        { key: 'failed', label: 'Fallida', color: '#EF4444' }
-                      ].map((status) => (
-                        <Pressable
-                          key={status.key}
-                          onPress={() => setSelectedTransaction({...selectedTransaction, status: status.key})}
-                          style={{
-                            paddingVertical: 8,
-                            paddingHorizontal: 15,
-                            borderRadius: 20,
-                            backgroundColor: selectedTransaction.status === status.key ? status.color : '#f5f5f5',
-                            borderWidth: 1,
-                            borderColor: selectedTransaction.status === status.key ? status.color : '#ddd',
-                            flex: 1,
-                            alignItems: 'center'
-                          }}
-                        >
-                          <ThemedText style={{ 
-                            color: selectedTransaction.status === status.key ? 'white' : '#333',
-                            fontWeight: selectedTransaction.status === status.key ? 'bold' : 'normal',
-                            fontSize: 12
-                          }}>
-                            {status.label}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                  
-                  <Pressable 
-                    style={{ 
-                      padding: 16, 
-                      backgroundColor: '#FF8C00', 
-                      borderRadius: 10, 
-                      alignItems: 'center',
-                      marginTop: 10
-                    }}
-                    onPress={() => {
-                      showToast('Transacción actualizada', 'success');
-                      setTransactionModalVisible(false);
-                    }}
-                  >
-                    <ThemedText style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Actualizar Estado</ThemedText>
-                  </Pressable>
-                </Pressable>
-              </Pressable>
-            )}
-          </View>
-        );
+        return <FinanceTab theme={theme} showToast={showToast} />;
       case "businesses":
         return (
           <View style={{ flex: 1 }}>
@@ -687,7 +599,7 @@ export default function AdminMenuScreen() {
                     <View style={{ alignItems: 'center', marginBottom: 20 }}>
                       <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginBottom: 15 }}>
                         <ThemedText style={{ color: 'white', fontSize: 28, fontWeight: 'bold' }}>
-                          {selectedBusiness.name.charAt(0).toUpperCase()}
+                          {selectedBusiness.name?.charAt(0).toUpperCase() || 'B'}
                         </ThemedText>
                       </View>
                       
@@ -836,7 +748,7 @@ export default function AdminMenuScreen() {
                     <View style={{ alignItems: 'center', marginBottom: 20 }}>
                       <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: '#FF8C00', justifyContent: 'center', alignItems: 'center', marginBottom: 15 }}>
                         <ThemedText style={{ color: 'white', fontSize: 28, fontWeight: 'bold' }}>
-                          {selectedUser.name.charAt(0).toUpperCase()}
+                          {selectedUser.name?.charAt(0).toUpperCase() || 'U'}
                         </ThemedText>
                       </View>
                       
@@ -1379,12 +1291,9 @@ export default function AdminMenuScreen() {
       case "delivery-config":
         const DeliveryConfigScreen = require("./DeliveryConfigScreen").default;
         return <DeliveryConfigScreen />;
-      case "finance":
-        return (
-          <View style={{ flex: 1 }}>
-            <FinanceTab transactions={transactions} onTransactionPress={handleTransactionPress} />
-          </View>
-        );
+      case "map":
+        const MapViewScreen = require("./MapViewScreen").default;
+        return <MapViewScreen navigation={{ goBack: handleBack }} />;
       case "products":
       case "productos":
         return (

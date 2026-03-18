@@ -124,19 +124,10 @@ export default function BusinessOrdersScreen() {
     updateOrderStatus(orderId, "preparing");
   };
 
-  const handleMarkReady = async (orderId: string) => {
-    try {
-      await updateOrderStatus(orderId, "ready");
-    } catch (error) {
-      console.error("Error marking ready:", error);
-      Alert.alert("Error", "No se pudo marcar el pedido como listo");
-    }
-  };
-
   const filteredOrders = orders.filter((order: any) => {
     if (filter === "pending") return order.status === "pending";
     if (filter === "active")
-      return ["accepted", "preparing", "ready"].includes(order.status);
+      return ["accepted", "preparing"].includes(order.status);
     return true;
   });
 
@@ -145,8 +136,6 @@ export default function BusinessOrdersScreen() {
       pending: "Pendiente",
       accepted: "Aceptado",
       preparing: "Preparando",
-      ready: "Listo",
-      picked_up: "Recogido",
       on_the_way: "En camino",
       delivered: "Entregado",
       cancelled: "Cancelado",
@@ -181,8 +170,8 @@ export default function BusinessOrdersScreen() {
             variant={
               item.status === "pending"
                 ? "warning"
-                : item.status === "ready"
-                ? "success"
+                : item.status === "preparing"
+                ? "info"
                 : item.status === "cancelled"
                 ? "error"
                 : "primary"
@@ -227,19 +216,17 @@ export default function BusinessOrdersScreen() {
               ${(item.subtotal / 100).toFixed(2)}
             </ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {item.paymentMethod === "cash" ? "💵 Efectivo" : "💳 Tarjeta"}
+              💳 Pagado con Stripe
             </ThemedText>
           </View>
-          {item.paymentMethod === "cash" && item.status === "delivered" && (
-            <View style={{ alignItems: "flex-end" }}>
-              <ThemedText type="small" style={{ color: NemyColors.success, fontWeight: "600" }}>
-                Recibirás: ${(item.subtotal / 100).toFixed(2)}
-              </ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {item.cashSettled ? "✅ Liquidado" : "⏳ Pendiente de liquidación"}
-              </ThemedText>
-            </View>
-          )}
+          <View style={{ alignItems: "flex-end" }}>
+            <ThemedText type="small" style={{ color: NemyColors.success, fontWeight: "600" }}>
+              Recibes: ${(item.subtotal / 100).toFixed(2)}
+            </ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              {item.status === "delivered" ? "✅ Liquidado" : "⏳ Pendiente"}
+            </ThemedText>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -309,36 +296,35 @@ export default function BusinessOrdersScreen() {
           )}
 
           {item.status === "preparing" && (
-            <Pressable
-              onPress={() => handleMarkReady(item.id)}
+            <View
               style={[
                 styles.actionButton,
-                { backgroundColor: NemyColors.success, flex: 1 },
+                { backgroundColor: NemyColors.primary + "20", flex: 1 },
               ]}
             >
-              <Feather name="check-circle" size={18} color="#FFF" />
+              <Feather name="package" size={18} color={NemyColors.primary} />
               <ThemedText
                 type="small"
-                style={{ color: "#FFF", marginLeft: Spacing.xs }}
+                style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}
               >
-                Marcar Listo
+                Esperando Repartidor
               </ThemedText>
-            </Pressable>
+            </View>
           )}
 
-          {item.status === "ready" && (
+          {item.status === "on_the_way" && (
             <View
               style={[
                 styles.actionButton,
                 { backgroundColor: NemyColors.success + "20", flex: 1 },
               ]}
             >
-              <Feather name="package" size={18} color={NemyColors.success} />
+              <Feather name="truck" size={18} color={NemyColors.success} />
               <ThemedText
                 type="small"
                 style={{ color: NemyColors.success, marginLeft: Spacing.xs }}
               >
-                Esperando Repartidor
+                En Camino al Cliente
               </ThemedText>
             </View>
           )}

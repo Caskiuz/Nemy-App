@@ -8,6 +8,7 @@ interface StripeProviderProps {
 }
 
 const isExpoGo = Constants.appOwnership === "expo";
+const isWeb = Platform.OS === "web";
 
 export function StripeProvider({ children }: StripeProviderProps) {
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function StripeProvider({ children }: StripeProviderProps) {
   const [stripeAvailable, setStripeAvailable] = useState(false);
 
   useEffect(() => {
-    if (Platform.OS !== "web" && !isExpoGo) {
+    if (!isWeb && !isExpoGo) {
       loadStripe();
     }
   }, []);
@@ -56,13 +57,8 @@ export function StripeProvider({ children }: StripeProviderProps) {
     }
   };
 
-  if (
-    Platform.OS === "web" ||
-    isExpoGo ||
-    !stripeAvailable ||
-    !publishableKey ||
-    !StripeNativeProvider
-  ) {
+  // En web o Expo Go, solo renderizar children sin Stripe
+  if (isWeb || isExpoGo || !stripeAvailable || !publishableKey || !StripeNativeProvider) {
     return <>{children}</>;
   }
 

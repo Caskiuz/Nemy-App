@@ -217,11 +217,30 @@ export default function BusinessDashboardScreen() {
 
   const toggleBusinessStatus = async () => {
     try {
-      await apiRequest("PUT", "/api/business/settings", { isOpen: !isOpen });
-      setIsOpen(!isOpen);
+      if (!selectedBusiness?.id) {
+        console.error('No business selected');
+        return;
+      }
+      
+      const newStatus = !isOpen;
+      setIsOpen(newStatus); // Actualizar UI inmediatamente
+      
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      const response = await apiRequest("PUT", `/api/business/${selectedBusiness.id}/toggle-status`, {});
+      const data = await response.json();
+      
+      if (data.success) {
+        // Confirmar el estado desde el servidor
+        setIsOpen(data.isOpen);
+      } else {
+        // Revertir si hubo error
+        setIsOpen(!newStatus);
+      }
     } catch (error) {
       console.error("Error toggling status:", error);
+      // Revertir en caso de error
+      setIsOpen(!isOpen);
     }
   };
 
@@ -461,10 +480,10 @@ export default function BusinessDashboardScreen() {
             </Pressable>
             <Pressable
               style={[styles.actionButton, { backgroundColor: theme.card }]}
-              onPress={() => navigation.navigate("CashSettlement" as any)}
+              onPress={() => navigation.navigate("BusinessFinances" as any)}
             >
-              <Feather name="dollar-sign" size={24} color={NemyColors.warning} />
-              <ThemedText type="small" style={{ marginTop: Spacing.xs, textAlign: 'center' }}>Efectivo</ThemedText>
+              <Feather name="dollar-sign" size={24} color="#4CAF50" />
+              <ThemedText type="small" style={{ marginTop: Spacing.xs, textAlign: 'center' }}>Finanzas</ThemedText>
             </Pressable>
           </View>
           <View style={[styles.actionsRow, { marginTop: Spacing.sm }]}>

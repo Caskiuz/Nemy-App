@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -21,6 +22,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { BackButton } from "@/components/BackButton";
 import { useTheme } from "@/hooks/useTheme";
 import { useBusiness, Business } from "@/contexts/BusinessContext";
 import { Spacing, BorderRadius, NemyColors, Shadows } from "@/constants/theme";
@@ -199,10 +201,19 @@ export default function MyBusinessesScreen() {
       backgroundColor: theme.theme.backgroundDefault,
     },
     header: {
+      flexDirection: "row",
+      alignItems: "center",
       paddingTop: insets.top + Spacing.md,
       paddingHorizontal: Spacing.lg,
       paddingBottom: Spacing.md,
       backgroundColor: NemyColors.primary,
+    },
+    backButton: {
+      marginRight: Spacing.md,
+      padding: Spacing.xs,
+    },
+    headerContent: {
+      flex: 1,
     },
     headerTitle: {
       fontSize: 24,
@@ -517,10 +528,13 @@ export default function MyBusinessesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Mis Negocios</ThemedText>
-        <ThemedText style={styles.headerSubtitle}>
-          {businesses.length} {businesses.length === 1 ? "negocio" : "negocios"} registrados
-        </ThemedText>
+        <BackButton />
+        <View style={styles.headerContent}>
+          <ThemedText style={styles.headerTitle}>Mis Negocios</ThemedText>
+          <ThemedText style={styles.headerSubtitle}>
+            {businesses.length} {businesses.length === 1 ? "negocio" : "negocios"} registrados
+          </ThemedText>
+        </View>
       </View>
 
       <ScrollView
@@ -608,13 +622,13 @@ export default function MyBusinessesScreen() {
                       </View>
                       <View style={styles.statItem}>
                         <ThemedText style={styles.statValue}>
-                          {business.stats.todayOrders}
+                          {business.stats.totalOrders}
                         </ThemedText>
-                        <ThemedText style={styles.statLabel}>Hoy</ThemedText>
+                        <ThemedText style={styles.statLabel}>Completadas</ThemedText>
                       </View>
                       <View style={styles.statItem}>
                         <ThemedText style={styles.statValue}>
-                          {formatCurrency(business.stats.todayRevenue)}
+                          {formatCurrency(business.stats.totalRevenue)}
                         </ThemedText>
                         <ThemedText style={styles.statLabel}>Ingresos</ThemedText>
                       </View>

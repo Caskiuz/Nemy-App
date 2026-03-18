@@ -78,17 +78,30 @@ export default function BusinessDetailScreen() {
             featured: data.business.isFeatured || false,
           };
           
-          const adaptedProducts: Product[] = (data.business.products || []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description || '',
-            price: (p.price || 0) / 100,
-            image: p.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
-            category: p.category || 'General',
-            isAvailable: p.isAvailable === true || p.isAvailable === 1,
-            available: p.isAvailable === true || p.isAvailable === 1,
-            businessId: p.businessId,
-          }));
+          const adaptedProducts: Product[] = (data.business.products || []).map((p: any) => {
+            console.log('🔍 Product raw data:', { 
+              name: p.name, 
+              isAvailable: p.isAvailable, 
+              is_available: p.is_available,
+              available: p.available 
+            });
+            
+            // Soportar tanto camelCase como snake_case
+            const isAvailable = p.isAvailable === true || p.isAvailable === 1 || 
+                               p.is_available === true || p.is_available === 1;
+            
+            return {
+              id: p.id,
+              name: p.name,
+              description: p.description || '',
+              price: (p.price || 0) / 100,
+              image: p.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
+              category: p.category || 'General',
+              isAvailable: isAvailable,
+              available: isAvailable,
+              businessId: p.businessId || p.business_id,
+            };
+          });
           
           setBusiness(adaptedBusiness);
           setProducts(adaptedProducts);

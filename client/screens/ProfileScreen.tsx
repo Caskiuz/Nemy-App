@@ -279,7 +279,13 @@ export default function ProfileScreen() {
         const version = Date.now();
         setProfileImageVersion(version);
         const fullUrl = `${resolveProfileImageUrl(data.profileImage)}?v=${version}`;
-        setProfileImage(fullUrl);
+        
+        // Force image cache clear
+        setProfileImage(null);
+        setTimeout(() => {
+          setProfileImage(fullUrl);
+        }, 100);
+        
         await updateUser({ profileImage: data.profileImage });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showToast("Imagen actualizada", "success");
@@ -532,11 +538,23 @@ export default function ProfileScreen() {
               navigation.navigate("SavedAddresses");
             }}
           />
-          <SettingsItem
-            icon="credit-card"
-            label="Métodos de pago"
-            onPress={() => navigation.navigate("PaymentMethods")}
-          />
+          {user?.role === "business_owner" && (
+            <SettingsItem
+              icon="credit-card"
+              label="Configuración de Pagos"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate("BusinessStripeSetup" as any);
+              }}
+            />
+          )}
+          {user?.role === "customer" && (
+            <SettingsItem
+              icon="credit-card"
+              label="Métodos de pago"
+              onPress={() => navigation.navigate("PaymentMethods")}
+            />
+          )}
           {user?.role === "customer" && (
             <SettingsItem
               icon="truck"
@@ -547,16 +565,27 @@ export default function ProfileScreen() {
               }}
             />
           )}
-          {(user?.role === "delivery_driver" || user?.role === "business_owner") && (
+          {user?.role === "delivery_driver" && (
             <SettingsItem
               icon="dollar-sign"
-              label="Mi Billetera"
+              label="Mis Ganancias"
               onPress={() => {
-                if (user?.role === 'delivery_driver') {
-                  navigation.navigate('DriverEarnings' as any);
-                } else {
-                  navigation.navigate("Wallet");
-                }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate('DeliveryEarnings');
+              }}
+            />
+          )}
+          {(user?.role === "admin" || user?.role === "super_admin") && (
+            <SettingsItem
+              icon="trending-up"
+              label="Finanzas"
+              value="Ganancias y comisiones"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate('MainTabs' as any, { screen: 'AdminTab' });
+                setTimeout(() => {
+                  showToast("Selecciona 'Finanzas' en el menú admin", "info");
+                }, 500);
               }}
             />
           )}

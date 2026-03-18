@@ -18,6 +18,7 @@ interface BusinessCardProps {
   business: Business;
   onPress: () => void;
   compact?: boolean;
+  cardWidth?: number;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -26,6 +27,7 @@ export function BusinessCard({
   business,
   onPress,
   compact = false,
+  cardWidth,
 }: BusinessCardProps) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
@@ -85,6 +87,7 @@ export function BusinessCard({
         { backgroundColor: theme.card },
         Shadows.md,
         animatedStyle,
+        cardWidth ? { width: cardWidth } : undefined,
       ]}
     >
       <View style={styles.imageContainer}>
@@ -156,7 +159,7 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: 140,
+    height: 110,
   },
   closedOverlay: {
     ...StyleSheet.absoluteFillObject,

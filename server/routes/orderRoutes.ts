@@ -315,7 +315,11 @@ router.post(
       // Mark as delivered
       await db
         .update(orders)
-        .set({ status: "delivered", deliveredAt: new Date() })
+        .set({ 
+          status: "delivered", 
+          deliveredAt: new Date(),
+          driverArrivedAt: new Date() 
+        })
         .where(eq(orders.id, orderId));
 
       // Calculate commissions using centralized service
@@ -437,6 +441,66 @@ router.post(
       });
     } catch (error: any) {
       console.error("Complete delivery error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// NEW: Driver picks up order from business
+router.post(
+  "/:id/pickup",
+  authenticateToken,
+  requireRole("delivery_driver"),
+  validateDriverOrderOwnership,
+  async (req, res) => {
+    try {
+      const { orders } = await import("@shared/schema-mysql");
+      const { db } = await import("../db");
+      const { eq } = await import("drizzle-orm");
+      const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+      const [order] = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .limit(1);
+
+      if (!order) {
+        return res.status(404).json({ error: "Pedido no encontrado" });
+      }
+
+      // Validar que el pedido está en preparing
+      if (order.status !== "preparing") {
+        return res.status(400).json({ 
+          error: `No puedes recoger este pedido. Estado actual: ${order.status}` 
+        });
+      }
+
+      // Validar que el repartidor está asignado a este pedido
+      if (order.deliveryPersonId !== req.user!.id) {
+        return res.status(403).json({ error: "Este pedido no está asignado a ti" });
+      }
+
+      // Cambiar estado a on_the_way y registrar timestamp
+      await db
+        .update(orders)
+        .set({ 
+          status: "on_the_way",
+          driverPickedUpAt: new Date()
+        })
+        .where(eq(orders.id, orderId));
+
+      res.json({
+        success: true,
+        message: "Pedido recogido. Ahora en camino al cliente.",
+        order: {
+          id: order.id,
+          status: "on_the_way",
+          driverPickedUpAt: new Date()
+        }
+      });
+    } catch (error: any) {
+      console.error("Pickup order error:", error);
       res.status(500).json({ error: error.message });
     }
   }

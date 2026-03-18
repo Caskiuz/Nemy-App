@@ -76,10 +76,19 @@ export default function OrdersScreen() {
     try {
       const response = await apiRequest("GET", "/api/orders");
       const data = await response.json();
-      const apiOrders = data.orders || [];
+      const apiOrders = (data.orders || []).map((row: any) => {
+        const o = row.order ?? row;
+        const b = row.business;
+        return {
+          ...o,
+          businessName: o.businessName || b?.name || "",
+          businessImage: o.businessImage || b?.image || "",
+          items: typeof o.items === "string" ? JSON.parse(o.items) : (o.items ?? []),
+        };
+      });
       setOrders(
         apiOrders.sort(
-          (a, b) =>
+          (a: any, b: any) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         ),
       );

@@ -89,7 +89,7 @@ export default function EditProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const response = await apiRequest("PUT", `/api/users/${user.id}`, {
+      const response = await apiRequest("PUT", "/api/users/profile", {
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
@@ -97,11 +97,11 @@ export default function EditProfileScreen() {
 
       const data = await response.json();
 
-      if (data.user) {
+      if (data.success) {
         await updateUser({
-          name: data.user.name,
-          phone: data.user.phone,
-          email: data.user.email,
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim() || undefined,
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

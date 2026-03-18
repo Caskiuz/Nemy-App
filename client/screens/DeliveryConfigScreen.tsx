@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { apiRequest } from '@/lib/query-client';
+import { useTheme } from '@/hooks/useTheme';
+import { NemyColors } from '@/constants/theme';
 
 export default function DeliveryConfigScreen() {
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState({
@@ -60,78 +63,82 @@ export default function DeliveryConfigScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.loading, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={NemyColors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: NemyColors.primary }]}>
         <Text style={styles.title}>Configuración de Tarifas de Delivery</Text>
         <Text style={styles.subtitle}>Autlán, Jalisco</Text>
       </View>
 
       <View style={styles.form}>
         <View style={styles.field}>
-          <Text style={styles.label}>Tarifa Base (MXN)</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Tarifa Base (MXN)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
             value={config.baseFee}
             onChangeText={(text) => setConfig({ ...config, baseFee: text })}
             keyboardType="numeric"
             placeholder="15"
+            placeholderTextColor={theme.textSecondary}
           />
-          <Text style={styles.help}>Costo mínimo por cualquier entrega</Text>
+          <Text style={[styles.help, { color: theme.textSecondary }]}>Costo mínimo por cualquier entrega</Text>
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Costo por Kilómetro (MXN)</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Costo por Kilómetro (MXN)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
             value={config.perKm}
             onChangeText={(text) => setConfig({ ...config, perKm: text })}
             keyboardType="numeric"
             placeholder="8"
+            placeholderTextColor={theme.textSecondary}
           />
-          <Text style={styles.help}>Se suma por cada km de distancia</Text>
+          <Text style={[styles.help, { color: theme.textSecondary }]}>Se suma por cada km de distancia</Text>
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Tarifa Mínima (MXN)</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Tarifa Mínima (MXN)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
             value={config.minFee}
             onChangeText={(text) => setConfig({ ...config, minFee: text })}
             keyboardType="numeric"
             placeholder="15"
+            placeholderTextColor={theme.textSecondary}
           />
-          <Text style={styles.help}>Mínimo a cobrar</Text>
+          <Text style={[styles.help, { color: theme.textSecondary }]}>Mínimo a cobrar</Text>
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Tarifa Máxima (MXN)</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Tarifa Máxima (MXN)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
             value={config.maxFee}
             onChangeText={(text) => setConfig({ ...config, maxFee: text })}
             keyboardType="numeric"
             placeholder="40"
+            placeholderTextColor={theme.textSecondary}
           />
-          <Text style={styles.help}>Tope máximo (Autlán es pequeño)</Text>
+          <Text style={[styles.help, { color: theme.textSecondary }]}>Tope máximo (Autlán es pequeño)</Text>
         </View>
 
-        <View style={styles.preview}>
-          <Text style={styles.previewTitle}>Vista Previa de Tarifas:</Text>
-          <Text style={styles.previewItem}>• 1 km = ${(parseFloat(config.baseFee) + parseFloat(config.perKm) * 1).toFixed(2)} MXN</Text>
-          <Text style={styles.previewItem}>• 2 km = ${(parseFloat(config.baseFee) + parseFloat(config.perKm) * 2).toFixed(2)} MXN</Text>
-          <Text style={styles.previewItem}>• 3 km = ${Math.min(parseFloat(config.baseFee) + parseFloat(config.perKm) * 3, parseFloat(config.maxFee)).toFixed(2)} MXN</Text>
-          <Text style={styles.previewItem}>• 5+ km = ${config.maxFee} MXN (máximo)</Text>
+        <View style={[styles.preview, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.previewTitle, { color: NemyColors.primary }]}>Vista Previa de Tarifas:</Text>
+          <Text style={[styles.previewItem, { color: theme.text }]}>• 1 km = ${(parseFloat(config.baseFee) + parseFloat(config.perKm) * 1).toFixed(2)} MXN</Text>
+          <Text style={[styles.previewItem, { color: theme.text }]}>• 2 km = ${(parseFloat(config.baseFee) + parseFloat(config.perKm) * 2).toFixed(2)} MXN</Text>
+          <Text style={[styles.previewItem, { color: theme.text }]}>• 3 km = ${Math.min(parseFloat(config.baseFee) + parseFloat(config.perKm) * 3, parseFloat(config.maxFee)).toFixed(2)} MXN</Text>
+          <Text style={[styles.previewItem, { color: theme.text }]}>• 5+ km = ${config.maxFee} MXN (máximo)</Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.button, saving && styles.buttonDisabled]}
+          style={[styles.button, { backgroundColor: NemyColors.primary }, saving && styles.buttonDisabled]}
           onPress={handleSave}
           disabled={saving}
         >
@@ -147,7 +154,6 @@ export default function DeliveryConfigScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   loading: {
     flex: 1,
@@ -155,7 +161,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    backgroundColor: '#007AFF',
     padding: 20,
     paddingTop: 40,
   },
@@ -180,40 +185,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#333',
   },
   input: {
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
   },
   help: {
     fontSize: 12,
-    color: '#666',
     marginTop: 4,
   },
   preview: {
-    backgroundColor: '#e3f2fd',
     padding: 16,
     borderRadius: 8,
     marginBottom: 24,
+    borderWidth: 1,
   },
   previewTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#1976d2',
   },
   previewItem: {
     fontSize: 14,
-    color: '#333',
     marginBottom: 4,
   },
   button: {
-    backgroundColor: '#007AFF',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',

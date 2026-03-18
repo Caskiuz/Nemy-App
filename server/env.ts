@@ -12,28 +12,58 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url("FRONTEND_URL must be a valid URL"),
   BACKEND_URL: z.string().url("BACKEND_URL must be a valid URL"),
 
-  // Stripe (Required)
+  // Stripe (Optional in development)
   STRIPE_SECRET_KEY: z
     .string()
-    .startsWith("sk_", "STRIPE_SECRET_KEY must start with sk_"),
+    .refine(
+      (val) => !val || val.startsWith("sk_"),
+      "STRIPE_SECRET_KEY must start with sk_ or be empty"
+    )
+    .optional()
+    .default(""),
   STRIPE_PUBLISHABLE_KEY: z
     .string()
-    .startsWith("pk_", "STRIPE_PUBLISHABLE_KEY must start with pk_"),
+    .refine(
+      (val) => !val || val.startsWith("pk_"),
+      "STRIPE_PUBLISHABLE_KEY must start with pk_ or be empty"
+    )
+    .optional()
+    .default(""),
   STRIPE_WEBHOOK_SECRET: z
     .string()
-    .startsWith("whsec_", "STRIPE_WEBHOOK_SECRET must start with whsec_"),
+    .refine(
+      (val) => !val || val.startsWith("whsec_"),
+      "STRIPE_WEBHOOK_SECRET must start with whsec_ or be empty"
+    )
+    .optional()
+    .default(""),
 
-  // Twilio (Required)
+  // Twilio (Optional in development)
   TWILIO_ACCOUNT_SID: z
     .string()
-    .startsWith("AC", "TWILIO_ACCOUNT_SID must start with AC"),
-  TWILIO_AUTH_TOKEN: z.string().min(1, "TWILIO_AUTH_TOKEN is required"),
+    .refine(
+      (val) => !val || val.startsWith("AC"),
+      "TWILIO_ACCOUNT_SID must start with AC or be empty"
+    )
+    .optional()
+    .default(""),
+  TWILIO_AUTH_TOKEN: z.string().optional().default(""),
   TWILIO_PHONE_NUMBER: z
     .string()
-    .startsWith("+", "TWILIO_PHONE_NUMBER must start with +"),
+    .refine(
+      (val) => !val || val.startsWith("+"),
+      "TWILIO_PHONE_NUMBER must start with + or be empty"
+    )
+    .optional()
+    .default(""),
   TWILIO_VERIFY_SERVICE_SID: z
     .string()
-    .startsWith("VA", "TWILIO_VERIFY_SERVICE_SID must start with VA"),
+    .refine(
+      (val) => !val || val.startsWith("VA"),
+      "TWILIO_VERIFY_SERVICE_SID must start with VA or be empty"
+    )
+    .optional()
+    .default(""),
 
   // Optional services
   RESEND_API_KEY: z.string().optional(),
@@ -58,14 +88,14 @@ export function validateEnv(): Env {
         console.error(`  - ${err.path.join(".")}: ${err.message}`);
       });
       console.error("\n📋 Required environment variables:");
+      console.error("  DATABASE_URL, FRONTEND_URL, BACKEND_URL");
+      console.error("\n📋 Optional (for production):");
       console.error(
-        "  DATABASE_URL, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY,",
+        "  STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET",
       );
       console.error(
-        "  STRIPE_WEBHOOK_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,",
+        "  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_VERIFY_SERVICE_SID",
       );
-      console.error("  TWILIO_PHONE_NUMBER, TWILIO_VERIFY_SERVICE_SID,");
-      console.error("  FRONTEND_URL, BACKEND_URL");
       process.exit(1);
     }
     throw error;

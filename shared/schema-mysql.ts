@@ -63,7 +63,7 @@ export const orders = mysqlTable("orders", {
   businessName: text("business_name").notNull(),
   businessImage: text("business_image"),
   items: text("items").notNull(),
-  status: text("status").notNull().default("pending"),
+  status: text("status").notNull().default("pending"), // pending, accepted, preparing, on_the_way, delivered, cancelled
   subtotal: int("subtotal").notNull(),
   productosBase: int("productos_base").default(0), // Precio base sin markup NEMY
   nemyCommission: int("nemy_commission").default(0), // 15% markup NEMY
@@ -109,8 +109,17 @@ export const orders = mysqlTable("orders", {
   refundedAt: timestamp("refunded_at"), // Cuando se reembolsó
   driverPaidAt: timestamp("driver_paid_at"), // Cuando se pagó al repartidor
   driverPaymentStatus: text("driver_payment_status").default("pending"), // pending, completed, failed
+  // Confirmación de recepción por cliente
+  confirmedByCustomer: boolean("confirmed_by_customer").default(false), // Si el cliente confirmó recepción
+  confirmedByCustomerAt: timestamp("confirmed_by_customer_at"), // Cuándo confirmó
+  fundsReleased: boolean("funds_released").default(false), // Si ya se liberaron los fondos
+  fundsReleasedAt: timestamp("funds_released_at"), // Cuándo se liberaron
+  businessTransferId: text("business_transfer_id"), // ID de transfer a negocio
+  driverTransferId: text("driver_transfer_id"), // ID de transfer a repartidor
   // Asignación de repartidor
   assignedAt: timestamp("assigned_at"), // Cuando se asignó el repartidor
+  driverPickedUpAt: timestamp("driver_picked_up_at"), // Cuando repartidor recogió el pedido
+  driverArrivedAt: timestamp("driver_arrived_at"), // Cuando repartidor llegó con el cliente
   // Liquidación de efectivo (para pedidos cash)
   cashCollected: boolean("cash_collected").default(false), // Si el repartidor ya cobró el efectivo
   cashSettled: boolean("cash_settled").default(false), // Si ya liquidó con negocio/plataforma

@@ -7,6 +7,7 @@ import {
   Linking,
   Dimensions,
   Platform,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
@@ -295,9 +296,7 @@ export default function OrderTrackingScreen() {
         return { min: 25, max: 40 };
       case "preparing":
         return { min: 15, max: 25 };
-      case "ready":
-        return { min: 10, max: 20 };
-      case "picked_up":
+      case "on_the_way":
         return { min: 5, max: 15 };
       case "delivered":
       case "cancelled":
@@ -348,10 +347,10 @@ export default function OrderTrackingScreen() {
               </View>
               <View style={styles.businessInfo}>
                 <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  {order.status === 'accepted' ? 'Pedido aceptado' : 
+                  {order.status === 'pending' ? 'Esperando confirmación' :
+                   order.status === 'accepted' ? 'Pedido aceptado' : 
                    order.status === 'preparing' ? 'Preparando tu pedido' :
-                   order.status === 'ready' ? 'Listo para recoger' :
-                   order.status === 'picked_up' ? 'En camino' : 'Procesando'}
+                   order.status === 'on_the_way' ? 'En camino' : 'Procesando'}
                 </ThemedText>
                 <ThemedText type="h3" style={{ color: NemyColors.primary }}>
                   {dynamicEta}
@@ -653,6 +652,47 @@ export default function OrderTrackingScreen() {
           </View>
         ) : null}
 
+        {/* Confirm delivery button */}
+        {order.status === "delivered" && !(order as any).confirmedByCustomer ? (
+          <Pressable
+            onPress={async () => {
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                const response = await apiRequest("POST", `/api/stripe/confirm-delivery/${order.id}`);
+                const data = await response.json();
+                if (data.success) {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert(
+                    "¡Entrega confirmada!",
+                    "Los fondos han sido liberados al negocio y repartidor.",
+                    [{ text: "OK", onPress: () => navigation.goBack() }]
+                  );
+                }
+              } catch (error: any) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert("Error", error.message || "No se pudo confirmar la entrega");
+              }
+            }}
+            style={[
+              styles.confirmButton,
+              { backgroundColor: NemyColors.success },
+              Shadows.md,
+            ]}
+          >
+            <Feather name="check-circle" size={20} color="#FFFFFF" />
+            <ThemedText
+              type="body"
+              style={{
+                color: "#FFFFFF",
+                marginLeft: Spacing.sm,
+                fontWeight: "600",
+              }}
+            >
+              Confirmar que recibí mi pedido
+            </ThemedText>
+          </Pressable>
+        ) : null}
+
         {tipSent ? (
           <View
             style={[styles.tipCard, { backgroundColor: "#E8F5E9" }, Shadows.sm]}
@@ -857,6 +897,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+  },
+  confirmButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.lg,
   },
   reportButton: {
     flexDirection: "row",

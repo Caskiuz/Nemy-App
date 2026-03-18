@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/query-client";
 
 interface BusinessHour {
   day: string;
+  dayKey: string;
   isOpen: boolean;
   openTime: string;
   closeTime: string;
@@ -35,7 +36,26 @@ export default function BusinessHoursScreen() {
       const response = await apiRequest("GET", "/api/business/hours");
       const data = await response.json();
       if (data.success) {
-        setHours(data.hours);
+        // Convertir objeto de horarios a array
+        const daysMap: Record<string, string> = {
+          monday: "Lunes",
+          tuesday: "Martes",
+          wednesday: "Miércoles",
+          thursday: "Jueves",
+          friday: "Viernes",
+          saturday: "Sábado",
+          sunday: "Domingo",
+        };
+
+        const hoursArray = Object.entries(data.hours).map(([key, value]: [string, any]) => ({
+          day: daysMap[key] || key,
+          dayKey: key,
+          isOpen: !value.closed,
+          openTime: value.open,
+          closeTime: value.close,
+        }));
+
+        setHours(hoursArray as any);
       }
     } catch (error) {
       console.error("Error loading hours:", error);
@@ -59,7 +79,17 @@ export default function BusinessHoursScreen() {
   const saveHours = async () => {
     setSaving(true);
     try {
-      await apiRequest("PUT", "/api/business/hours", { hours });
+      // Convertir array de vuelta a objeto
+      const hoursObject = hours.reduce((acc: any, hour: any) => {
+        acc[hour.dayKey] = {
+          open: hour.openTime,
+          close: hour.closeTime,
+          closed: !hour.isOpen,
+        };
+        return acc;
+      }, {});
+
+      await apiRequest("PUT", "/api/business/hours", { hours: hoursObject });
       setShowConfirmModal(false);
       setShowSuccessModal(true);
     } catch (error) {

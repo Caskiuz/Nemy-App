@@ -143,7 +143,7 @@ router.get("/dashboard/online-drivers", authenticateToken, requireRole("admin", 
       id: driver.id,
       name: driver.name,
       isOnline: driver.isActive,
-      lastActiveAt: driver.updatedAt,
+      lastActiveAt: driver.createdAt,
       location: {
         latitude: "20.6736",
         longitude: "-104.3647",
@@ -164,23 +164,11 @@ router.get("/users", authenticateToken, requireRole("admin", "super_admin"), asy
     const { users } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
 
-    const allUsers = await db
-      .select({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        phone: users.phone,
-        role: users.role,
-        emailVerified: users.emailVerified,
-        phoneVerified: users.phoneVerified,
-        isActive: users.isActive,
-        createdAt: users.createdAt,
-      })
-      .from(users)
-      .orderBy(users.createdAt);
+    const allUsers = await db.select().from(users);
       
     res.json({ success: true, users: allUsers });
   } catch (error: any) {
+    console.error('Users endpoint error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -202,7 +190,6 @@ router.put("/users/:id", authenticateToken, requireRole("admin", "super_admin"),
         email,
         phone,
         role,
-        updatedAt: new Date()
       })
       .where(eq(users.id, userId));
       
@@ -446,7 +433,6 @@ router.post("/wallets/:walletId/release", authenticateToken, requireRole("admin"
       .set({
         balance: wallet.balance + wallet.pendingBalance,
         pendingBalance: 0,
-        updatedAt: new Date()
       })
       .where(eq(wallets.id, req.params.walletId));
 
@@ -540,6 +526,47 @@ router.get("/settings", authenticateToken, requireRole("admin", "super_admin"), 
     const settings = await db.select().from(systemSettings);
     res.json({ success: true, settings });
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update system settings
+router.put("/settings", authenticateToken, requireRole("admin", "super_admin"), async (req, res) => {
+  try {
+    const { systemSettings } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const { eq } = await import("drizzle-orm");
+
+    const { key, value } = req.body;
+
+    if (!key || value === undefined) {
+      return res.status(400).json({ error: "Key and value are required" });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(systemSettings)
+        .set({ value: String(value), updatedBy: req.user!.id })
+        .where(eq(systemSettings.key, key));
+    } else {
+      await db.insert(systemSettings).values({
+        key,
+        value: String(value),
+        type: typeof value === "number" ? "number" : "string",
+        category: "operations",
+        updatedBy: req.user!.id,
+      });
+    }
+
+    res.json({ success: true, message: "Setting updated successfully" });
+  } catch (error: any) {
+    console.error('Settings update error:', error);
     res.status(500).json({ error: error.message });
   }
 });

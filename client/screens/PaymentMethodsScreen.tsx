@@ -1,622 +1,412 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Alert,
-  Linking,
+  Pressable,
   ActivityIndicator,
   RefreshControl,
+  Alert,
+  Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../contexts/AuthContext';
-import { API_CONFIG } from '../constants/config';
+import { useNavigation } from '@react-navigation/native';
+import { Feather } from '@expo/vector-icons';
 
-interface ConnectStatus {
-  hasAccount: boolean;
-  onboardingComplete: boolean;
-  canReceivePayments: boolean;
-  chargesEnabled?: boolean;
-  payoutsEnabled?: boolean;
-  detailsSubmitted?: boolean;
-  requirements?: any;
-  accountId?: string;
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { Button } from '@/components/Button';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { apiRequest } from '@/lib/query-client';
+import { Spacing, BorderRadius, NemyColors, Shadows } from '@/constants/theme';
+
+interface SavedCard {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  isDefault: boolean;
 }
 
-export default function PaymentMethodsScreen({ navigation }: any) {
-  const { user, token, isAuthenticated } = useAuth();
+interface PaymentHistory {
+  payment: {
+    id: string;
+    amount: number;
+    method: string;
+    status: string;
+    createdAt: string;
+  };
+  order: {
+    id: string;
+    total: number;
+    status: string;
+  };
+}
+
+const isWeb = Platform.OS === 'web';
+
+export default function PaymentMethodsScreen() {
   const insets = useSafeAreaInsets();
-  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
+  const navigation = useNavigation();
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+
+  const [cards, setCards] = useState<SavedCard[]>([]);
+  const [history, setHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [cardToDelete, setCardToDelete] = useState<string | null>(null);
 
-  console.log('🔍 PaymentMethodsScreen - Auth state:', { 
-    hasUser: !!user, 
-    hasToken: !!token, 
-    isAuthenticated,
-    userRole: user?.role 
-  });
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const fetchConnectStatus = async () => {
+  const loadData = async () => {
     try {
-      if (!token) {
-        console.log('❌ No token available for connect status');
-        return;
-      }
-      
-      console.log('🔗 Fetching connect status with token:', token ? 'present' : 'missing');
-      
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setConnectStatus(data);
-      } else {
-        console.error('Connect status error:', response.status, response.statusText);
-        Alert.alert('Error', 'No se pudo obtener el estado de Stripe');
-      }
+      const [cardsRes, historyRes] = await Promise.all([
+        apiRequest('GET', '/api/payments/cards'),
+        apiRequest('GET', '/api/payments/history'),
+      ]);
+      const cardsData = await cardsRes.json();
+      const historyData = await historyRes.json();
+      setCards(cardsData.cards || []);
+      setHistory(historyData.payments || []);
     } catch (error) {
-      console.error('Error fetching Connect status:', error);
-      Alert.alert('Error', 'No se pudo obtener el estado de Stripe');
+      console.error('Error loading payment data:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    if (token) {
-      fetchConnectStatus();
-    } else {
-      console.log('❌ No token available, skipping connect status fetch');
-      setLoading(false);
-    }
-  }, [token]);
-
-  const onRefresh = () => {
+  const handleRefresh = () => {
     setRefreshing(true);
-    fetchConnectStatus();
+    loadData();
   };
 
-  const openExternalUrl = async (rawUrl?: string) => {
-    if (!rawUrl) {
-      Alert.alert('Error', 'No se recibio el enlace de configuracion');
-      return;
-    }
-
-    const normalizedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
-
+  const handleSetDefault = async (cardId: string) => {
     try {
-      await Linking.openURL(normalizedUrl);
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo abrir el enlace de configuracion');
+      await apiRequest('PUT', `/api/payments/cards/${cardId}/default`);
+      showToast('Tarjeta predeterminada actualizada', 'success');
+      await loadData();
+    } catch (error: any) {
+      showToast('Error al actualizar tarjeta', 'error');
     }
   };
 
-  const startOnboarding = async () => {
-    if (!user || !token) {
-      console.log('❌ No user or token available for onboarding');
-      return;
-    }
-
-    console.log('🔗 Starting onboarding with token:', token ? 'present' : 'missing');
-    
-    setOnboardingLoading(true);
+  const confirmDeleteCard = async () => {
+    if (!cardToDelete) return;
     try {
-      const role = user.role;
-      const accountType =
-        role === 'business' ||
-        role === 'business_owner' ||
-        role === 'admin' ||
-        role === 'super_admin'
-          ? 'business'
-          : 'driver';
-      
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/onboard`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accountType,
-          businessId:
-            user.role === 'business' || user.role === 'business_owner' ? user.id : undefined,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        await openExternalUrl(data.onboardingUrl);
-      } else {
-        const error = await response.json();
-        console.error('Onboarding error:', response.status, error);
-        Alert.alert('Error', error.error || 'Error al iniciar configuración');
-      }
-    } catch (error) {
-      console.error('Onboarding error:', error);
-      Alert.alert('Error', 'Error de conexión');
+      await apiRequest('DELETE', `/api/payments/cards/${cardToDelete}`);
+      showToast('Tarjeta eliminada', 'success');
+      await loadData();
+    } catch (error: any) {
+      showToast('Error al eliminar tarjeta', 'error');
     } finally {
-      setOnboardingLoading(false);
+      setShowDeleteModal(false);
+      setCardToDelete(null);
     }
   };
 
-  const refreshOnboarding = async () => {
-    if (!connectStatus?.accountId) {
-      Alert.alert('Error', 'No hay cuenta Stripe para refrescar');
-      return;
-    }
-    setOnboardingLoading(true);
-    try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/refresh-onboarding`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ accountId: connectStatus.accountId })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        await openExternalUrl(data.onboardingUrl);
-      } else {
-        const error = await response.json().catch(() => ({}));
-        Alert.alert('Error', error.error || 'Error al actualizar configuración');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Error de conexión');
-    } finally {
-      setOnboardingLoading(false);
-    }
-  };
-
-  const openDashboard = async () => {
-    if (!connectStatus?.accountId) {
-      Alert.alert('Error', 'No hay cuenta Stripe para abrir dashboard');
-      return;
-    }
-    try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/connect/dashboard`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ accountId: connectStatus.accountId })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        await openExternalUrl(data.dashboardUrl);
-      } else {
-        const error = await response.json().catch(() => ({}));
-        Alert.alert('Error', error.error || 'Error al abrir dashboard');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Error de conexión');
-    }
-  };
-  const getStatusColor = (status: boolean) => {
-    return status ? '#10B981' : '#EF4444';
-  };
-
-  const getStatusText = (status: boolean) => {
-    return status ? 'Configurado' : 'Pendiente';
-  };
-
-  const getAccountTypeText = () => {
-    if (!user) return '';
-    switch (user.role) {
-      case 'business':
-      case 'business_owner':
-      case 'admin':
-      case 'super_admin':
-        return 'Cuenta de Negocio';
-      case 'driver':
-      case 'delivery_driver':
-        return 'Cuenta de Repartidor';
-      default:
-        return 'Cuenta de Usuario';
-    }
+  const getBrandIcon = (brand: string) => {
+    const b = brand.toLowerCase();
+    if (b === 'visa') return 'credit-card';
+    if (b === 'mastercard') return 'credit-card';
+    if (b === 'amex') return 'credit-card';
+    return 'credit-card';
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FF6B35" />
-        <Text style={styles.loadingText}>Cargando información de pagos...</Text>
-      </View>
+      <ThemedView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={NemyColors.primary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            Cargando métodos de pago...
+          </ThemedText>
+        </View>
+      </ThemedView>
     );
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { top: insets.top + 12 }]}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Volver"
-        >
-          <Ionicons name="arrow-back" size={24} color="#FF6B35" />
-        </TouchableOpacity>
-        <Ionicons name="card-outline" size={32} color="#FF6B35" />
-        <Text style={styles.title}>Métodos de Pago</Text>
-        <Text style={styles.subtitle}>{getAccountTypeText()}</Text>
+    <ThemedView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Feather name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
+        <ThemedText type="h3">Métodos de Pago</ThemedText>
+        <View style={{ width: 24 }} />
       </View>
 
-      {/* Mexican Bank Account Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cuenta Bancaria Mexicana</Text>
-        
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="card-outline" size={24} color="#6B7280" />
-            <Text style={styles.cardTitle}>SPEI / CoDi</Text>
-          </View>
-          <Text style={styles.cardDescription}>
-            Agrega tu cuenta bancaria mexicana para recibir transferencias SPEI o pagos CoDi.
-          </Text>
-          <TouchableOpacity 
-            style={styles.secondaryButton}
-            onPress={() => navigation.navigate('AddBankAccount')}
-          >
-            <Ionicons name="add-outline" size={18} color="#FF6B35" />
-            <Text style={styles.secondaryButtonText}>Agregar Cuenta</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Stripe Connect Status */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cuenta Bancaria</Text>
-        
-        {!connectStatus?.hasAccount ? (
-          <View style={styles.card}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.xl }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={NemyColors.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Web notice */}
+        {isWeb && (
+          <View style={[styles.card, { backgroundColor: NemyColors.warning + '15', borderColor: NemyColors.warning + '30', borderWidth: 1 }, Shadows.sm]}>
             <View style={styles.cardHeader}>
-              <Ionicons name="bank-outline" size={24} color="#6B7280" />
-              <Text style={styles.cardTitle}>Configurar Stripe para Retiros</Text>
+              <Feather name="info" size={20} color={NemyColors.warning} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.sm, color: NemyColors.warning }}>
+                Función no disponible en web
+              </ThemedText>
             </View>
-            <Text style={styles.cardDescription}>
-                {user?.role === 'driver' || user?.role === 'delivery_driver'
-                  ? 'Configura Stripe Connect para recibir retiros automaticos por tus entregas.'
-                  : 'Configura Stripe Connect para recibir retiros automaticos de tus ventas.'}
-            </Text>
-            <TouchableOpacity 
-              style={styles.primaryButton}
-              onPress={startOnboarding}
-              disabled={onboardingLoading}
-            >
-              {onboardingLoading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <>
-                  <Ionicons name="add-circle-outline" size={20} color="white" />
-                  <Text style={styles.primaryButtonText}>Configurar Cuenta</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons 
-                name={connectStatus.canReceivePayments ? "checkmark-circle" : "time-outline"} 
-                size={24} 
-                color={getStatusColor(connectStatus.canReceivePayments)} 
-              />
-              <Text style={styles.cardTitle}>Estado de la Cuenta</Text>
-            </View>
-
-            <View style={styles.statusGrid}>
-              <View style={styles.statusItem}>
-                <Text style={styles.statusLabel}>Información Completa</Text>
-                <View style={styles.statusBadge}>
-                  <View style={[
-                    styles.statusDot, 
-                    { backgroundColor: getStatusColor(connectStatus.detailsSubmitted || false) }
-                  ]} />
-                  <Text style={styles.statusValue}>
-                    {getStatusText(connectStatus.detailsSubmitted || false)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.statusItem}>
-                <Text style={styles.statusLabel}>Recibir Pagos</Text>
-                <View style={styles.statusBadge}>
-                  <View style={[
-                    styles.statusDot, 
-                    { backgroundColor: getStatusColor(connectStatus.chargesEnabled || false) }
-                  ]} />
-                  <Text style={styles.statusValue}>
-                    {getStatusText(connectStatus.chargesEnabled || false)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.statusItem}>
-                <Text style={styles.statusLabel}>Retiros</Text>
-                <View style={styles.statusBadge}>
-                  <View style={[
-                    styles.statusDot, 
-                    { backgroundColor: getStatusColor(connectStatus.payoutsEnabled || false) }
-                  ]} />
-                  <Text style={styles.statusValue}>
-                    {getStatusText(connectStatus.payoutsEnabled || false)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.buttonRow}>
-              {!connectStatus.onboardingComplete && (
-                <TouchableOpacity 
-                  style={styles.secondaryButton}
-                  onPress={refreshOnboarding}
-                  disabled={onboardingLoading}
-                >
-                  {onboardingLoading ? (
-                    <ActivityIndicator color="#FF6B35" />
-                  ) : (
-                    <>
-                      <Ionicons name="refresh-outline" size={18} color="#FF6B35" />
-                      <Text style={styles.secondaryButtonText}>Completar</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-
-              {connectStatus.onboardingComplete && (
-                <TouchableOpacity 
-                  style={styles.secondaryButton}
-                  onPress={openDashboard}
-                >
-                  <Ionicons name="open-outline" size={18} color="#FF6B35" />
-                  <Text style={styles.secondaryButtonText}>Ver Dashboard</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {connectStatus.canReceivePayments && (
-              <View style={styles.successBanner}>
-                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                <Text style={styles.successText}>
-                  ¡Tu cuenta está lista para recibir pagos!
-                </Text>
-              </View>
-            )}
+            <ThemedText type="body" style={{ color: NemyColors.warning }}>
+              Para agregar tarjetas, usa la aplicación móvil. Aquí puedes ver tus tarjetas guardadas e historial.
+            </ThemedText>
           </View>
         )}
-      </View>
 
-      {/* Information Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Información</Text>
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={24} color="#3B82F6" />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Pagos Seguros con Stripe</Text>
-            <Text style={styles.infoText}>
-              Utilizamos Stripe para procesar todos los pagos de forma segura. 
-              Tus datos bancarios están protegidos con encriptación de nivel bancario.
-            </Text>
+        {/* Saved cards */}
+        {cards.length > 0 && (
+          <View style={styles.section}>
+            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
+              Tarjetas guardadas
+            </ThemedText>
+            {cards.map((card) => (
+              <View key={card.id} style={[styles.card, { backgroundColor: theme.card }, Shadows.sm]}>
+                <View style={styles.cardRow}>
+                  <View style={styles.cardInfo}>
+                    <Feather name={getBrandIcon(card.brand)} size={24} color={NemyColors.primary} />
+                    <View style={{ marginLeft: Spacing.md }}>
+                      <ThemedText type="body" style={{ fontWeight: '600', textTransform: 'capitalize' }}>
+                        {card.brand} •••• {card.last4}
+                      </ThemedText>
+                      <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                        Vence {card.expMonth}/{card.expYear}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  {card.isDefault && (
+                    <View style={[styles.badge, { backgroundColor: NemyColors.success + '20' }]}>
+                      <ThemedText type="caption" style={{ color: NemyColors.success, fontWeight: '600' }}>
+                        Predeterminada
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+                {!isWeb && (
+                  <View style={styles.cardActions}>
+                    {!card.isDefault && (
+                      <Pressable
+                        style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}
+                        onPress={() => handleSetDefault(card.id)}
+                      >
+                        <Feather name="check" size={16} color={NemyColors.primary} />
+                        <ThemedText type="small" style={{ color: NemyColors.primary, marginLeft: Spacing.xs }}>
+                          Predeterminada
+                        </ThemedText>
+                      </Pressable>
+                    )}
+                    <Pressable
+                      style={[styles.actionButton, { backgroundColor: NemyColors.error + '15' }]}
+                      onPress={() => {
+                        setCardToDelete(card.id);
+                        setShowDeleteModal(true);
+                      }}
+                    >
+                      <Feather name="trash-2" size={16} color={NemyColors.error} />
+                      <ThemedText type="small" style={{ color: NemyColors.error, marginLeft: Spacing.xs }}>
+                        Eliminar
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* No cards message */}
+        {cards.length === 0 && !isWeb && (
+          <View style={[styles.card, { backgroundColor: theme.card }, Shadows.sm]}>
+            <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
+              <Feather name="credit-card" size={48} color={theme.textSecondary} />
+              <ThemedText type="h4" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+                No tienes tarjetas guardadas
+              </ThemedText>
+              <ThemedText type="body" style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: 'center' }}>
+                Agrega una tarjeta durante el checkout para pagos más rápidos
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
+        {/* Payment history */}
+        {history.length > 0 && (
+          <View style={styles.section}>
+            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
+              Historial de pagos
+            </ThemedText>
+            {history.slice(0, 10).map((item) => (
+              <View key={item.payment.id} style={[styles.card, { backgroundColor: theme.card }, Shadows.sm]}>
+                <View style={styles.historyRow}>
+                  <View style={styles.historyInfo}>
+                    <Feather
+                      name={item.payment.method === 'card' ? 'credit-card' : 'dollar-sign'}
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                    <View style={{ marginLeft: Spacing.md, flex: 1 }}>
+                      <ThemedText type="body" style={{ fontWeight: '600' }}>
+                        ${((item.payment.amount || 0) / 100).toFixed(2)}
+                      </ThemedText>
+                      <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                        {new Date(item.payment.createdAt).toLocaleDateString('es-MX', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor:
+                          item.payment.status === 'completed'
+                            ? NemyColors.success + '20'
+                            : NemyColors.warning + '20',
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      type="caption"
+                      style={{
+                        color: item.payment.status === 'completed' ? NemyColors.success : NemyColors.warning,
+                        fontWeight: '600',
+                      }}
+                    >
+                      {item.payment.status === 'completed' ? 'Completado' : 'Pendiente'}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Info banner */}
+        <View style={[styles.infoBanner, { backgroundColor: NemyColors.primary + '10', borderColor: NemyColors.primary + '30' }]}>
+          <Feather name="shield" size={20} color={NemyColors.primary} />
+          <View style={{ flex: 1, marginLeft: Spacing.md }}>
+            <ThemedText type="body" style={{ color: NemyColors.primary, fontWeight: '600' }}>
+              Pagos seguros con Stripe
+            </ThemedText>
+            <ThemedText type="small" style={{ color: NemyColors.primary, marginTop: 4 }}>
+              Tus datos están protegidos con encriptación de nivel bancario.
+            </ThemedText>
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      <ConfirmModal
+        visible={showDeleteModal}
+        title="Eliminar tarjeta"
+        message="¿Estás seguro de eliminar esta tarjeta?"
+        onConfirm={confirmDeleteCard}
+        onCancel={() => {
+          setShowDeleteModal(false);
+          setCardToDelete(null);
+        }}
+        confirmText="Eliminar"
+      />
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  content: {
-    paddingBottom: 24,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   header: {
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    position: 'relative',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   backButton: {
-    position: 'absolute',
-    left: 16,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 22,
+    padding: Spacing.xs,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginTop: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 4,
+  scrollContent: {
+    padding: Spacing.lg,
   },
   section: {
-    margin: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    marginTop: Spacing.lg,
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginLeft: 12,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  statusGrid: {
-    marginVertical: 16,
-  },
-  statusItem: {
+  cardRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
   },
-  statusLabel: {
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
+  cardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  badge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  infoBanner: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  statusValue: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  primaryButton: {
-    backgroundColor: '#FF6B35',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  primaryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
+    alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: '#FF6B35',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    flex: 1,
-  },
-  secondaryButtonText: {
-    color: '#FF6B35',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  successBanner: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  successText: {
-    color: '#065F46',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-    flex: 1,
-  },
-  infoCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  infoContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 18,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginTop: Spacing.lg,
   },
 });

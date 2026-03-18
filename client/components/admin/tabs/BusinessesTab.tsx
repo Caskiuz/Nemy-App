@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-nati
 import * as Haptics from "expo-haptics";
 import { NemyColors } from "../../../constants/theme";
 import { Business } from "../types/admin.types";
+import { useTheme } from "@/hooks/useTheme";
 
 interface BusinessesTabProps {
   businesses: Business[];
@@ -13,31 +14,33 @@ export const BusinessesTab: React.FC<BusinessesTabProps> = ({
   businesses,
   onBusinessPress,
 }) => {
+  const { theme } = useTheme();
+  
   return (
     <ScrollView style={styles.container}>
       {businesses.map((business) => (
         <TouchableOpacity
           key={business.id}
-          style={styles.card}
+          style={[styles.card, { backgroundColor: theme.card }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onBusinessPress(business);
           }}
         >
           <View style={styles.businessHeader}>
-            <Text style={styles.businessName}>{business.name}</Text>
+            <Text style={[styles.businessName, { color: theme.text }]}>{business.name}</Text>
             <View style={[
               styles.statusBadge,
-              { backgroundColor: business.isActive ? '#10B981' : '#EF4444' }
+              { backgroundColor: business.isActive ? NemyColors.success : NemyColors.error }
             ]}>
               <Text style={styles.statusText}>
                 {business.isActive ? 'Activo' : 'Inactivo'}
               </Text>
             </View>
           </View>
-          <Text style={styles.businessType}>{business.type === 'restaurant' ? 'Restaurante' : 'Mercado'}</Text>
-          <Text style={styles.businessAddress}>{business.address || 'Sin dirección'}</Text>
-          <Text style={styles.businessPhone}>{business.phone || 'Sin teléfono'}</Text>
+          <Text style={[styles.businessType, { color: theme.textSecondary }]}>{business.type === 'restaurant' ? 'Restaurante' : 'Mercado'}</Text>
+          <Text style={[styles.businessAddress, { color: theme.textSecondary }]}>{business.address || 'Sin dirección'}</Text>
+          <Text style={[styles.businessPhone, { color: theme.textSecondary }]}>{business.phone || 'Sin teléfono'}</Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -49,7 +52,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -63,7 +65,6 @@ const styles = StyleSheet.create({
   businessName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#000000",
     flex: 1,
   },
   statusBadge: {
@@ -78,16 +79,13 @@ const styles = StyleSheet.create({
   },
   businessType: {
     fontSize: 14,
-    color: "#666666",
     marginBottom: 4,
   },
   businessAddress: {
     fontSize: 12,
-    color: "#666666",
     marginBottom: 4,
   },
   businessPhone: {
     fontSize: 12,
-    color: "#666666",
   },
 });

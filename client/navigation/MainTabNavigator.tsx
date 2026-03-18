@@ -7,9 +7,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import OrdersStackNavigator from "@/navigation/OrdersStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
+import BusinessMapScreen from "@/screens/BusinessMapScreen";
 import AdminScreenNew from "@/screens/AdminScreenNew";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import DeliveryDashboardScreen from "@/screens/DeliveryDashboardScreen";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+
+// Stack wrapper para el tab Mapa (necesita poder navegar a BusinessDetail)
+const MapStack = createNativeStackNavigator();
+function MapStackNavigator() {
+  return (
+    <MapStack.Navigator screenOptions={{ headerShown: false }}>
+      <MapStack.Screen name="BusinessMapMain" component={BusinessMapScreen} />
+    </MapStack.Navigator>
+  );
+}
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { NemyColors, Spacing } from "@/constants/theme";
@@ -17,6 +29,7 @@ import { NemyColors, Spacing } from "@/constants/theme";
 export type MainTabParamList = {
   HomeTab: undefined;
   OrdersTab: undefined;
+  MapTab: undefined;
   ProfileTab: undefined;
   AdminTab: undefined;
   BusinessTab: undefined;
@@ -32,6 +45,7 @@ export default function MainTabNavigator() {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const isBusiness = user?.role === "business_owner";
   const isDelivery = user?.role === "delivery_driver";
+  const isCustomer = !isAdmin && !isBusiness && !isDelivery;
 
 const tabBarHeight = Platform.select({
     ios: 56 + insets.bottom,
@@ -86,6 +100,18 @@ const tabBarHeight = Platform.select({
           ),
         }}
       />
+      {isCustomer ? (
+        <Tab.Screen
+          name="MapTab"
+          component={MapStackNavigator}
+          options={{
+            title: "Mapa",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="map-pin" size={size} color={color} />
+            ),
+          }}
+        />
+      ) : null}
       {isAdmin ? (
         <Tab.Screen
           name="AdminTab"

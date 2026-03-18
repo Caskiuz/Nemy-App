@@ -28,6 +28,7 @@ import BusinessStatsScreen from "@/screens/BusinessStatsScreen";
 import BusinessHoursScreen from "@/screens/BusinessHoursScreen";
 import BusinessCategoriesScreen from "@/screens/BusinessCategoriesScreen";
 import MyBusinessesScreen from "@/screens/MyBusinessesScreen";
+import BusinessStripeSetupScreen from "@/screens/BusinessStripeSetupScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import AddressesScreen from "@/screens/AddressesScreen";
 import SavedAddressesScreen from "@/screens/SavedAddressesScreen";
@@ -37,6 +38,7 @@ import SupportChatScreen from "@/screens/SupportChatScreen";
 import WalletScreen from "@/screens/WalletScreen";
 import ReportIssueScreen from "@/screens/ReportIssueScreen";
 import OrderConfirmationScreen from "@/screens/OrderConfirmationScreen";
+import BusinessMapScreen from "@/screens/BusinessMapScreen";
 import BecomeDriverScreen from "@/screens/BecomeDriverScreen";
 import TermsScreen from "@/screens/TermsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
@@ -101,10 +103,12 @@ export type RootStackParamList = {
   Wallet: undefined;
   ReportIssue: { orderId: string; orderNumber?: string };
   OrderConfirmation: { orderId: string; regretPeriodEndsAt: string };
+  BusinessMap: undefined;
   BecomeDriver: undefined;
   BusinessHours: undefined;
   BusinessCategories: undefined;
   MyBusinesses: { openAddModal?: boolean; draft?: { name?: string; type?: string; address?: string; phone?: string } } | undefined;
+  BusinessStripeSetup: undefined;
   Terms: undefined;
   Privacy: undefined;
 };
@@ -281,6 +285,11 @@ export default function RootStackNavigator() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="BusinessMap"
+            component={BusinessMapScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="BecomeDriver"
             component={BecomeDriverScreen}
             options={{ headerShown: false }}
@@ -298,6 +307,11 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="MyBusinesses"
             component={MyBusinessesScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="BusinessStripeSetup"
+            component={BusinessStripeSetupScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen

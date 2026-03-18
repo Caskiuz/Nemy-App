@@ -1,0 +1,420 @@
+import express from "express";
+import { authenticateToken, requireRole } from "../authMiddleware";
+import { eq, desc, sql } from "drizzle-orm";
+
+const router = express.Router();
+
+// Get dashboard stats
+router.get("/dashboard", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { db } = await import("../db");
+    
+    // Get basic counts
+    const [userCount] = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
+    const [businessCount] = await db.execute(sql`SELECT COUNT(*) as count FROM businesses WHERE is_active = 1`);
+    const [orderCount] = await db.execute(sql`SELECT COUNT(*) as count FROM orders`);
+    const [driverCount] = await db.execute(sql`SELECT COUNT(*) as count FROM users WHERE role = 'delivery_driver' AND is_active = 1`);
+
+    // Get today's stats
+    const [todayOrders] = await db.execute(sql`
+      SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as revenue
+      FROM orders 
+      WHERE DATE(created_at) = CURDATE()
+    `);
+
+    // Get pending orders
+    const [pendingOrders] = await db.execute(sql`
+      SELECT COUNT(*) as count 
+      FROM orders 
+      WHERE status IN ('pending', 'confirmed', 'preparing')
+    `);
+
+    res.json({
+      success: true,
+      dashboard: {
+        totalUsers: userCount.count,
+        totalBusinesses: businessCount.count,
+        totalOrders: orderCount.count,
+        totalDrivers: driverCount.count,
+        todayOrders: todayOrders.count,
+        todayRevenue: Math.round(todayOrders.revenue || 0),
+        pendingOrders: pendingOrders.count,
+      },
+    });
+  } catch (error: any) {
+    console.error("Get admin dashboard error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all users
+router.get("/users", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    
+    const allUsers = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        phone: users.phone,
+        role: users.role,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt));
+
+    res.json({ success: true, users: allUsers });
+  } catch (error: any) {
+    console.error("Get users error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update user status
+router.patch("/users/:id/status", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({ error: "Estado requerido" });
+    }
+
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.params.id))
+      .limit(1);
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    await db
+      .update(users)
+      .set({ 
+        isActive,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, req.params.id));
+
+    res.json({ 
+      success: true, 
+      message: `Usuario ${isActive ? 'activado' : 'desactivado'}` 
+    });
+  } catch (error: any) {
+    console.error("Update user status error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all businesses
+router.get("/businesses", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { businesses, users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    
+    const allBusinesses = await db
+      .select({
+        business: businesses,
+        owner: {
+          id: users.id,
+          name: users.name,
+          phone: users.phone,
+        }
+      })
+      .from(businesses)
+      .leftJoin(users, eq(businesses.ownerId, users.id))
+      .orderBy(desc(businesses.createdAt));
+
+    res.json({ success: true, businesses: allBusinesses });
+  } catch (error: any) {
+    console.error("Get businesses error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update business status
+router.patch("/businesses/:id/status", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({ error: "Estado requerido" });
+    }
+
+    const { businesses } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    
+    const [business] = await db
+      .select()
+      .from(businesses)
+      .where(eq(businesses.id, req.params.id))
+      .limit(1);
+
+    if (!business) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    await db
+      .update(businesses)
+      .set({ 
+        isActive,
+        updatedAt: new Date()
+      })
+      .where(eq(businesses.id, req.params.id));
+
+    res.json({ 
+      success: true, 
+      message: `Negocio ${isActive ? 'activado' : 'desactivado'}` 
+    });
+  } catch (error: any) {
+    console.error("Update business status error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all orders
+router.get("/orders", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { orders, businesses, users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    
+    const raw = await db
+      .select({
+        order: orders,
+        businessName: businesses.name,
+        customerName: users.name,
+        customerPhone: users.phone,
+      })
+      .from(orders)
+      .leftJoin(businesses, eq(orders.businessId, businesses.id))
+      .leftJoin(users, eq(orders.userId, users.id))
+      .orderBy(desc(orders.createdAt))
+      .limit(100);
+
+    const flat = raw.map(r => ({
+      ...r.order,
+      businessName: r.businessName || r.order.businessName || "Negocio",
+      customerName: r.customerName || "Cliente",
+      customerPhone: r.customerPhone || "",
+    }));
+
+    res.json({ success: true, orders: flat });
+  } catch (error: any) {
+    console.error("Get orders error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get system stats
+router.get("/stats", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { db } = await import("../db");
+    
+    // Revenue stats
+    const [totalRevenue] = await db.execute(sql`
+      SELECT COALESCE(SUM(total), 0) as total
+      FROM orders 
+      WHERE status = 'delivered'
+    `);
+
+    const [monthlyRevenue] = await db.execute(sql`
+      SELECT COALESCE(SUM(total), 0) as total
+      FROM orders 
+      WHERE status = 'delivered' 
+      AND MONTH(created_at) = MONTH(CURDATE())
+      AND YEAR(created_at) = YEAR(CURDATE())
+    `);
+
+    // Order stats by status
+    const orderStats = await db.execute(sql`
+      SELECT status, COUNT(*) as count
+      FROM orders
+      GROUP BY status
+    `);
+
+    // Top businesses
+    const topBusinesses = await db.execute(sql`
+      SELECT b.name, COUNT(o.id) as orderCount, COALESCE(SUM(o.total), 0) as revenue
+      FROM businesses b
+      LEFT JOIN orders o ON b.id = o.businessId AND o.status = 'delivered'
+      WHERE b.is_active = 1
+      GROUP BY b.id, b.name
+      ORDER BY orderCount DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      stats: {
+        revenue: {
+          total: Math.round(totalRevenue.total || 0),
+          monthly: Math.round(monthlyRevenue.total || 0),
+        },
+        orders: orderStats,
+        topBusinesses: topBusinesses,
+      },
+    });
+  } catch (error: any) {
+    console.error("Get system stats error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Dashboard metrics (alias detallado)
+router.get("/dashboard/metrics", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { db } = await import("../db");
+    const [users] = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
+    const [businesses] = await db.execute(sql`SELECT COUNT(*) as count FROM businesses WHERE is_active = 1`);
+    const [orders] = await db.execute(sql`SELECT COUNT(*) as count FROM orders`);
+    const [drivers] = await db.execute(sql`SELECT COUNT(*) as count FROM users WHERE role = 'delivery_driver' AND is_active = 1`);
+    const [today] = await db.execute(sql`SELECT COUNT(*) as count, COALESCE(SUM(total),0) as revenue FROM orders WHERE DATE(created_at)=CURDATE()`);
+    const [pending] = await db.execute(sql`SELECT COUNT(*) as count FROM orders WHERE status IN ('pending','confirmed','preparing')`);
+    res.json({ success: true, totalUsers: users.count, totalBusinesses: businesses.count, totalOrders: orders.count, totalDrivers: drivers.count, todayOrders: today.count, todayRevenue: Math.round(today.revenue||0), pendingOrders: pending.count });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.get("/dashboard/active-orders", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { orders, businesses, users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const { inArray } = await import("drizzle-orm");
+    const activeOrders = await db.select({ order: orders, business: { id: businesses.id, name: businesses.name }, customer: { id: users.id, name: users.name } })
+      .from(orders).leftJoin(businesses, eq(orders.businessId, businesses.id)).leftJoin(users, eq(orders.userId, users.id))
+      .where(inArray(orders.status, ["pending","confirmed","preparing","ready","on_the_way"])).orderBy(desc(orders.createdAt)).limit(50);
+    res.json({ success: true, orders: activeOrders });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.get("/dashboard/online-drivers", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const { and } = await import("drizzle-orm");
+    const drivers = await db.select({ id: users.id, name: users.name, phone: users.phone, isActive: users.isActive })
+      .from(users).where(and(eq(users.role, "delivery_driver"), eq(users.isActive, true)));
+    res.json({ success: true, drivers });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+// Update user (full)
+router.put("/users/:id", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const { name, email, phone, role } = req.body;
+    const updates: any = { updatedAt: new Date() };
+    if (name) updates.name = name;
+    if (email !== undefined) updates.email = email;
+    if (phone) updates.phone = phone;
+    if (role) updates.role = role;
+    await db.update(users).set(updates).where(eq(users.id, req.params.id));
+    res.json({ success: true, message: "Usuario actualizado" });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+// Drivers
+router.get("/drivers", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { users } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const drivers = await db.select().from(users).where(eq(users.role, "delivery_driver")).orderBy(desc(users.createdAt));
+    res.json({ success: true, drivers });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+// Finance
+router.get("/finance", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { db } = await import("../db");
+    const transactions = await db.execute(sql`SELECT o.id, o.total as amount, o.status, o.paymentMethod as type, o.created_at as createdAt, u.name as userName, 'order' as description FROM orders o LEFT JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC LIMIT 100`);
+    res.json({ success: true, transactions });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+// Coupons
+router.get("/coupons", authenticateToken, requireRole("admin"), async (req, res) => {
+  res.json({ success: true, coupons: [] });
+});
+
+// Zones
+router.get("/zones", authenticateToken, requireRole("admin"), async (req, res) => {
+  res.json({ success: true, zones: [] });
+});
+
+// Business products (admin)
+router.get("/businesses/:id/products", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { products } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const list = await db.select().from(products).where(eq(products.businessId, req.params.id));
+    res.json({ success: true, products: list });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+// Audit logs
+router.get("/logs", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { auditLogs } = await import("@shared/schema-mysql");
+    const { db } = await import("../db");
+    const logs = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200);
+    res.json({ success: true, logs });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+// System health check
+router.get("/health", authenticateToken, requireRole("admin"), async (req, res) => {
+  try {
+    const { db } = await import("../db");
+    
+    // Test database connection
+    await db.execute(sql`SELECT 1`);
+    
+    const checks = [
+      {
+        service: "Database",
+        status: "healthy",
+        message: "Connection successful",
+      },
+      {
+        service: "Stripe",
+        status: process.env.STRIPE_SECRET_KEY ? "healthy" : "warning",
+        message: process.env.STRIPE_SECRET_KEY ? "Configured" : "Not configured",
+      },
+      {
+        service: "SMS",
+        status: process.env.TWILIO_ACCOUNT_SID ? "healthy" : "warning", 
+        message: process.env.TWILIO_ACCOUNT_SID ? "Configured" : "Not configured",
+      },
+    ];
+
+    const overallStatus = checks.every(c => c.status === "healthy") ? "healthy" : "warning";
+
+    res.json({
+      success: true,
+      health: {
+        status: overallStatus,
+        timestamp: new Date().toISOString(),
+        checks,
+      },
+    });
+  } catch (error: any) {
+    console.error("Health check error:", error);
+    res.status(500).json({
+      success: false,
+      health: {
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        error: error.message,
+      },
+    });
+  }
+});
+
+export default router;

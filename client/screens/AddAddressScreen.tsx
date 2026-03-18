@@ -1,51 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../contexts/AuthContext';
+import { Feather } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
+
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { Input } from '@/components/Input';
+import { Button } from '@/components/Button';
+import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiRequest } from '@/lib/query-client';
 import { isInCoverageArea, AUTLAN_CENTER } from '@/utils/coverage';
 import { checkDuplicateAddress, suggestSimilarAddresses, Address } from '@/utils/addressValidation';
 import { useDebounce, usePerformanceMonitor } from '@/hooks/usePerformance';
-import { Feather } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { Spacing } from '@/constants/theme';
+import { Spacing, BorderRadius, NemyColors, Shadows } from '@/constants/theme';
+import * as Location from 'expo-location';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddAddress'>;
-
-type RouteParams = {
-  address?: Partial<Address>;
-  fromCheckout?: boolean;
-};
 
 export default function AddAddressScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
-  const topPadding = Spacing.md;
-  const existingAddress = (route.params as any)?.address as Partial<Address> | undefined;
-  const fromCheckout = Boolean((route.params as Partial<RouteParams> | undefined)?.fromCheckout);
+  const { theme } = useTheme();
   const { user } = useAuth();
   usePerformanceMonitor('AddAddressScreen');
-  
-  // Fetch existing addresses
+
+  const existingAddress = (route.params as any)?.address as Partial<Address> | undefined;
+  const fromCheckout = Boolean((route.params as any)?.fromCheckout);
+
   const { data: addressesData } = useQuery<{ addresses: Address[] }>({
-    queryKey: ["/api/users", user?.id, "addresses"],
+    queryKey: ['/api/users', user?.id, 'addresses'],
     enabled: !!user?.id,
   });
   const existingAddresses = addressesData?.addresses || [];
-  
+
   const [label, setLabel] = useState(existingAddress?.label || '');
   const [street, setStreet] = useState(existingAddress?.street || '');
   const [city, setCity] = useState(existingAddress?.city || 'Autlán');
   const [state, setState] = useState(existingAddress?.state || 'Jalisco');
   const [zipCode, setZipCode] = useState(existingAddress?.zipCode || '');
   const [loading, setLoading] = useState(false);
-  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [touched, setTouched] = useState(false);
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(
     existingAddress?.latitude && existingAddress?.longitude
@@ -54,32 +63,29 @@ export default function AddAddressScreen() {
   );
   const [duplicateWarning, setDuplicateWarning] = useState<Address | null>(null);
   const [suggestions, setSuggestions] = useState<Address[]>([]);
-  
-  // Debounce street input for suggestions
+
   const debouncedStreet = useDebounce(street, 300);
 
-  // Check for duplicates when coordinates or street change
   useEffect(() => {
     if (coordinates && street && existingAddresses.length > 0) {
       const duplicate = checkDuplicateAddress(
         { latitude: coordinates.latitude, longitude: coordinates.longitude, street },
-        existingAddresses
+        existingAddresses,
       );
       setDuplicateWarning(duplicate);
     } else {
       setDuplicateWarning(null);
     }
-  }, [coordinates, street, existingAddresses]);
+  }, [coordinates?.latitude, coordinates?.longitude, street, existingAddresses.length]);
 
-  // Show suggestions when typing street (debounced)
   useEffect(() => {
     if (debouncedStreet.length >= 3 && existingAddresses.length > 0) {
-      const addressSuggestions = suggestSimilarAddresses(debouncedStreet, existingAddresses);
-      setSuggestions(addressSuggestions);
+      const similar = suggestSimilarAddresses(debouncedStreet, existingAddresses);
+      setSuggestions(similar);
     } else {
       setSuggestions([]);
     }
-  }, [debouncedStreet, existingAddresses]);
+  }, [debouncedStreet, existingAddresses.length]);
 
   const handleSuggestionSelect = useCallback((addr: Address) => {
     setStreet(addr.street);
@@ -91,16 +97,14 @@ export default function AddAddressScreen() {
   const handleSave = async () => {
     setTouched(true);
     setError(null);
-    setSuccess(null);
-    
+
     if (!label.trim() || !street.trim()) {
       setError('Por favor completa todos los campos requeridos');
       return;
     }
 
-    // On web, use default coordinates for Autlán center if no coordinates selected
     const finalCoordinates = coordinates || (Platform.OS === 'web' ? AUTLAN_CENTER : null);
-    
+
     if (!finalCoordinates) {
       setError('Por favor selecciona la ubicación en el mapa');
       return;
@@ -129,14 +133,8 @@ export default function AddAddressScreen() {
 
       if (response.ok) {
         const responseData = await response.json().catch(() => ({}));
-        const savedAddress = (responseData as any)?.address || {
-          ...(existingAddress || {}),
-          ...payload,
-          id: (responseData as any)?.id || existingAddress?.id,
-        };
-        const savedId = (savedAddress as any)?.id;
-
-        setSuccess(existingAddress?.id ? '✅ Dirección actualizada' : '✅ Dirección guardada correctamente');
+        const savedId = (responseData as any)?.address?.id || (responseData as any)?.id || existingAddress?.id;
+        setSuccess(true);
         setTimeout(() => {
           if (fromCheckout && savedId) {
             navigation.navigate('Checkout' as never, {
@@ -148,324 +146,279 @@ export default function AddAddressScreen() {
           }
         }, 500);
       } else {
-        setError('❌ No se pudo guardar la dirección. Intenta de nuevo.');
+        setError('No se pudo guardar la dirección. Intenta de nuevo.');
       }
-    } catch (error) {
-      setError('🌐 Error de conexión. Verifica tu internet.');
+    } catch {
+      setError('Error de conexión. Verifica tu internet.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingTop: topPadding, paddingBottom: insets.bottom + 120 }}
-    >
-      <View style={styles.form}>
+    <ThemedView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + Spacing.xl * 2 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Error banner */}
         {error && (
-          <View style={styles.errorBox}>
-            <Feather name="alert-circle" size={16} color="#dc3545" />
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.banner, { backgroundColor: NemyColors.error + '15', borderColor: NemyColors.error + '40' }]}>
+            <Feather name="alert-circle" size={16} color={NemyColors.error} />
+            <ThemedText type="small" style={{ color: NemyColors.error, flex: 1, marginLeft: Spacing.sm }}>
+              {error}
+            </ThemedText>
           </View>
         )}
-        
+
+        {/* Success banner */}
         {success && (
-          <View style={styles.successBox}>
-            <Feather name="check-circle" size={16} color="#28a745" />
-            <Text style={styles.successText}>{success}</Text>
+          <View style={[styles.banner, { backgroundColor: NemyColors.success + '15', borderColor: NemyColors.success + '40' }]}>
+            <Feather name="check-circle" size={16} color={NemyColors.success} />
+            <ThemedText type="small" style={{ color: NemyColors.success, flex: 1, marginLeft: Spacing.sm }}>
+              {existingAddress?.id ? 'Dirección actualizada' : 'Dirección guardada correctamente'}
+            </ThemedText>
           </View>
         )}
-        
-        <Text style={styles.label}>Calle y número *</Text>
-        <TextInput
-          style={styles.input}
-          value={street}
-          onChangeText={(text) => {
-            setStreet(text);
+
+        {/* GPS button */}
+        <Pressable
+          style={[
+            styles.gpsButton,
+            { backgroundColor: NemyColors.primary, opacity: locating ? 0.7 : 1 },
+            Shadows.sm,
+          ]}
+          onPress={async () => {
+            setLocating(true);
             setError(null);
+            try {
+              const { status } = await Location.requestForegroundPermissionsAsync();
+              if (status !== 'granted') {
+                setError('Se necesita permiso de ubicación para usar el GPS');
+                return;
+              }
+              const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+              const { latitude, longitude } = pos.coords;
+              setCoordinates({ latitude, longitude });
+              const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+              if (place) {
+                const streetParts = [place.street, place.streetNumber].filter(Boolean);
+                if (streetParts.length > 0) setStreet(streetParts.join(' '));
+                if (place.city) setCity(place.city);
+                if (place.region) setState(place.region);
+                if (place.postalCode) setZipCode(place.postalCode);
+              }
+            } catch {
+              setError('No se pudo obtener la ubicación. Intenta de nuevo.');
+            } finally {
+              setLocating(false);
+            }
           }}
-          placeholder="Ej: Calle Allende #123"
-          accessibilityLabel="Calle y número"
-          accessibilityHint="Ingresa la calle y número de tu dirección"
-          onBlur={() => setTouched(true)}
-        />
-        
-        {/* Address suggestions */}
-        {suggestions.length > 0 && (
-          <View style={styles.suggestionsBox}>
-            <Text style={styles.suggestionsTitle}>📍 Direcciones similares:</Text>
-            {suggestions.map((addr) => (
-              <TouchableOpacity
-                key={addr.id}
-                style={styles.suggestionItem}
-                onPress={() => handleSuggestionSelect(addr)}
-              >
-                <Text style={styles.suggestionLabel}>{addr.label}</Text>
-                <Text style={styles.suggestionStreet}>{addr.street}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        
-        {/* Duplicate warning */}
-        {duplicateWarning && (
-          <View style={styles.warningBox}>
-            <Feather name="alert-triangle" size={16} color="#856404" />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.warningText}>
-                ⚠️ Esta dirección es muy similar a "{duplicateWarning.label}"
-              </Text>
-              <Text style={styles.warningSubtext}>
-                {duplicateWarning.street}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        <Text style={styles.label}>Etiqueta *</Text>
-        <TextInput
-          style={styles.input}
-          value={label}
-          onChangeText={setLabel}
-          placeholder="Casa, Trabajo, etc."
-          onBlur={() => setTouched(true)}
-        />
-        {touched && !label.trim() && (
-          <Text style={styles.fieldHint}>Necesitamos una etiqueta para identificar la dirección</Text>
-        )}
-
-        {Platform.OS !== 'web' ? (
-          <TouchableOpacity
-            style={styles.mapButton}
-            onPress={() => navigation.navigate('LocationPicker', {
-              onLocationSelected: (coords, addr) => {
-                setCoordinates(coords);
-                if (!street && addr) {
-                  setStreet(addr);
-                }
-              },
-            })}
-          >
-            <Text style={styles.mapButtonText}>
-              {coordinates ? '✓ Ubicación seleccionada' : '📍 Seleccionar en mapa *'}
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.webNotice}>
-            <Text style={styles.webNoticeText}>
-              🌍 En la versión web, se usará la ubicación del centro de Autlán por defecto.
-            </Text>
-          </View>
-        )}
-
-        <Text style={styles.label}>Ciudad</Text>
-        <TextInput
-          style={styles.input}
-          value={city}
-          onChangeText={setCity}
-        />
-
-        <Text style={styles.label}>Estado</Text>
-        <TextInput
-          style={styles.input}
-          value={state}
-          onChangeText={setState}
-        />
-
-        <Text style={styles.label}>Código Postal</Text>
-        <TextInput
-          style={styles.input}
-          value={zipCode}
-          onChangeText={setZipCode}
-          placeholder="48900"
-          keyboardType="numeric"
-        />
-
-        <TouchableOpacity
-          style={[styles.button, (loading || success) && styles.buttonDisabled]}
-          onPress={handleSave}
-          disabled={loading || !!success}
-          accessibilityLabel="Guardar dirección"
-          accessibilityHint="Guarda la dirección con la información proporcionada"
+          disabled={locating}
         >
-          {loading ? (
-            <View style={styles.buttonContent}>
-              <ActivityIndicator color="#fff" size="small" />
-              <Text style={[styles.buttonText, { marginLeft: 8 }]}>Guardando...</Text>
+          {locating
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Feather name="navigation" size={18} color="#fff" />}
+          <ThemedText type="body" style={{ color: '#fff', fontWeight: '600', marginLeft: Spacing.sm }}>
+            {locating ? 'Obteniendo ubicación...' : 'Usar mi ubicación actual'}
+          </ThemedText>
+        </Pressable>
+
+        <View style={[styles.card, { backgroundColor: theme.card }, Shadows.sm]}>
+          <Input
+            label="Calle y número *"
+            leftIcon="map-pin"
+            value={street}
+            onChangeText={(t) => { setStreet(t); setError(null); }}
+            placeholder="Ej: Calle Allende #123"
+            autoCapitalize="words"
+            onBlur={() => setTouched(true)}
+          />
+
+          {/* Suggestions */}
+          {suggestions.length > 0 && (
+            <View style={[styles.suggestionsBox, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                Direcciones similares:
+              </ThemedText>
+              {suggestions.map((addr) => (
+                <Pressable
+                  key={addr.id}
+                  style={[styles.suggestionItem, { backgroundColor: theme.card, borderColor: theme.border }]}
+                  onPress={() => handleSuggestionSelect(addr)}
+                >
+                  <ThemedText type="small" style={{ color: NemyColors.primary, fontWeight: '600' }}>
+                    {addr.label}
+                  </ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                    {addr.street}
+                  </ThemedText>
+                </Pressable>
+              ))}
             </View>
-          ) : success ? (
-            <View style={styles.buttonContent}>
-              <Feather name="check" size={16} color="#fff" />
-              <Text style={[styles.buttonText, { marginLeft: 8 }]}>Guardado</Text>
-            </View>
-          ) : (
-            <Text style={styles.buttonText}>Guardar Dirección</Text>
           )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+
+          {/* Duplicate warning */}
+          {duplicateWarning && (
+            <View style={[styles.banner, { backgroundColor: NemyColors.warning + '15', borderColor: NemyColors.warning + '40' }]}>
+              <Feather name="alert-triangle" size={16} color={NemyColors.warning} />
+              <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                <ThemedText type="small" style={{ color: NemyColors.warning, fontWeight: '600' }}>
+                  Similar a "{duplicateWarning.label}"
+                </ThemedText>
+                <ThemedText type="caption" style={{ color: NemyColors.warning }}>
+                  {duplicateWarning.street}
+                </ThemedText>
+              </View>
+            </View>
+          )}
+
+          <Input
+            label="Etiqueta *"
+            leftIcon="tag"
+            value={label}
+            onChangeText={setLabel}
+            placeholder="Casa, Trabajo, etc."
+            onBlur={() => setTouched(true)}
+            error={touched && !label.trim() ? 'Necesitamos una etiqueta para identificar la dirección' : undefined}
+          />
+
+          <Input
+            label="Ciudad"
+            leftIcon="map"
+            value={city}
+            onChangeText={setCity}
+          />
+
+          <Input
+            label="Estado"
+            leftIcon="flag"
+            value={state}
+            onChangeText={setState}
+          />
+
+          <Input
+            label="Código Postal"
+            leftIcon="hash"
+            value={zipCode}
+            onChangeText={setZipCode}
+            placeholder="48900"
+            keyboardType="numeric"
+          />
+        </View>
+
+        {/* Map picker / web notice */}
+        {Platform.OS !== 'web' ? (
+          <Pressable
+            style={[
+              styles.mapButton,
+              {
+                backgroundColor: coordinates ? NemyColors.primary + '15' : theme.card,
+                borderColor: coordinates ? NemyColors.primary : theme.border,
+              },
+              Shadows.sm,
+            ]}
+            onPress={() =>
+              navigation.navigate('LocationPicker', {
+                onLocationSelected: (coords: any, addr: any) => {
+                  setCoordinates(coords);
+                  if (!street && addr) setStreet(addr);
+                },
+              })
+            }
+          >
+            <Feather
+              name={coordinates ? 'check-circle' : 'map-pin'}
+              size={20}
+              color={coordinates ? NemyColors.primary : theme.textSecondary}
+            />
+            <ThemedText
+              type="body"
+              style={{
+                marginLeft: Spacing.sm,
+                color: coordinates ? NemyColors.primary : theme.textSecondary,
+                fontWeight: '600',
+              }}
+            >
+              {coordinates ? 'Ubicación seleccionada' : 'Seleccionar en mapa *'}
+            </ThemedText>
+          </Pressable>
+        ) : (
+          <View style={[styles.banner, { backgroundColor: NemyColors.primary + '10', borderColor: NemyColors.primary + '30' }]}>
+            <Feather name="globe" size={16} color={NemyColors.primary} />
+            <ThemedText type="small" style={{ color: NemyColors.primary, flex: 1, marginLeft: Spacing.sm }}>
+              En la versión web se usará la ubicación del centro de Autlán por defecto.
+            </ThemedText>
+          </View>
+        )}
+
+        <Button
+          onPress={handleSave}
+          disabled={loading || success}
+          loading={loading}
+          style={styles.saveButton}
+        >
+          {success ? 'Guardado ✓' : existingAddress?.id ? 'Actualizar dirección' : 'Guardar dirección'}
+        </Button>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
-  form: {
-    padding: 20,
+  scrollContent: {
+    padding: Spacing.lg,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#333',
-  },
-  input: {
-    backgroundColor: '#fff',
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 16,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20,
+  card: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  suggestionsBox: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  suggestionItem: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   mapButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  mapButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  webNotice: {
-    backgroundColor: '#e3f2fd',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#bbdefb',
-  },
-  webNoticeText: {
-    fontSize: 14,
-    color: '#1976d2',
-    textAlign: 'center',
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8d7da',
-    borderColor: '#f5c6cb',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#721c24',
-    fontSize: 14,
-    marginLeft: 8,
-    flex: 1,
-  },
-  successBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#d4edda',
-    borderColor: '#c3e6cb',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  successText: {
-    color: '#155724',
-    fontSize: 14,
-    marginLeft: 8,
-    flex: 1,
-  },
-  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  suggestionsBox: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#dee2e6',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  suggestionsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#495057',
-    marginBottom: 8,
-  },
-  suggestionItem: {
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  suggestionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  suggestionStreet: {
-    fontSize: 12,
-    color: '#6c757d',
-    marginTop: 2,
-  },
-  fieldHint: {
-    fontSize: 12,
-    color: '#d9534f',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  warningBox: {
+  gpsButton: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#fff3cd',
-    borderColor: '#ffeaa7',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  warningText: {
-    color: '#856404',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  warningSubtext: {
-    color: '#856404',
-    fontSize: 12,
-    marginTop: 2,
+  saveButton: {
+    width: '100%',
   },
 });
