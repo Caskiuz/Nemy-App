@@ -7,9 +7,9 @@ const DISABLE_GPS_IN_DEV = true;
 
 // Get API base URL dynamically at runtime
 export const getApiBaseUrl = (): string => {
-  // PRODUCTION: Check expo config first (from app.config.js)
+  // Check expo config first (from app.config.js) - works in both dev and prod
   const expoBackendUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL;
-  if (expoBackendUrl && !__DEV__) {
+  if (expoBackendUrl) {
     console.log('✅ Using EXPO_PUBLIC_BACKEND_URL from config:', expoBackendUrl);
     return expoBackendUrl;
   }
