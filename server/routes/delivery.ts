@@ -304,18 +304,35 @@ router.get("/stats", authenticateToken, requireRole("delivery_driver"), async (r
     const { orders } = await import("@shared/schema-mysql");
     const { db } = await import("../db");
     
+    // Get all orders for this driver using deliveryPersonId
     const driverOrders = await db
       .select()
       .from(orders)
-      .where(eq(orders.driverId, req.user!.id));
+      .where(eq(orders.deliveryPersonId, req.user!.id));
+
+    console.log(`📊 Driver ${req.user!.id} stats:`);
+    console.log(`   Total orders: ${driverOrders.length}`);
+    console.log(`   Orders:`, driverOrders.map(o => ({
+      id: o.id,
+      status: o.status,
+      deliveryFee: o.deliveryFee,
+      createdAt: o.createdAt,
+      deliveredAt: o.deliveredAt
+    })));
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const thisWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
+    console.log(`   Today: ${today.toISOString()}`);
+    console.log(`   This week: ${thisWeek.toISOString()}`);
+    console.log(`   This month: ${thisMonth.toISOString()}`);
+
     const todayOrders = driverOrders.filter(o => {
       const orderDate = new Date(o.createdAt);
-      return orderDate.toDateString() === today.toDateString();
+      orderDate.setHours(0, 0, 0, 0);
+      return orderDate.getTime() === today.getTime();
     });
 
     const weekOrders = driverOrders.filter(o => {
@@ -328,29 +345,60 @@ router.get("/stats", authenticateToken, requireRole("delivery_driver"), async (r
       return orderDate >= thisMonth;
     });
 
-    const deliveredOrders = driverOrders.filter(o => o.status === "delivered");
+    console.log(`   Today orders: ${todayOrders.length}`);
+    console.log(`   Week orders: ${weekOrders.length}`);
+    console.log(`   Month orders: ${monthOrders.length}`);
+
+    const deliveredOrders = driverOrders.filter(o => o.status === "delivered" || o.status === "completed");
+    
+    // Calculate earnings
+    const todayEarnings = todayOrders
+      .filter(o => o.status === "delivered" || o.status === "completed")
+      .reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    
+    const weekEarnings = weekOrders
+      .filter(o => o.status === "delivered" || o.status === "completed")
+      .reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    
+    const monthEarnings = monthOrders
+      .filter(o => o.status === "delivered" || o.status === "completed")
+      .reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    
     const totalEarnings = deliveredOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+
+    console.log(`   Today earnings: $${todayEarnings / 100}`);
+    console.log(`   Week earnings: $${weekEarnings / 100}`);
+    console.log(`   Month earnings: $${monthEarnings / 100}`);
+    console.log(`   Total earnings: $${totalEarnings / 100}`);
+
+    // Calculate average delivery time (in minutes)
+    const completedWithTimes = deliveredOrders.filter(o => o.deliveredAt && o.createdAt);
+    const avgDeliveryTime = completedWithTimes.length > 0
+      ? Math.round(
+          completedWithTimes.reduce((sum, o) => {
+            const diff = new Date(o.deliveredAt!).getTime() - new Date(o.createdAt).getTime();
+            return sum + diff / (1000 * 60); // Convert to minutes
+          }, 0) / completedWithTimes.length
+        )
+      : 0;
+
+    // Calculate completion rate
+    const totalOrders = driverOrders.length;
+    const completionRate = totalOrders > 0
+      ? Math.round((deliveredOrders.length / totalOrders) * 100)
+      : 100;
 
     res.json({
       success: true,
       stats: {
-        today: {
-          orders: todayOrders.length,
-          delivered: todayOrders.filter(o => o.status === "delivered").length,
-        },
-        week: {
-          orders: weekOrders.length,
-          delivered: weekOrders.filter(o => o.status === "delivered").length,
-        },
-        month: {
-          orders: monthOrders.length,
-          delivered: monthOrders.filter(o => o.status === "delivered").length,
-        },
-        total: {
-          orders: driverOrders.length,
-          delivered: deliveredOrders.length,
-          earnings: Math.round(totalEarnings),
-        },
+        totalDeliveries: deliveredOrders.length,
+        rating: 5.0, // TODO: Implement rating system
+        completionRate,
+        avgDeliveryTime,
+        todayEarnings,
+        weekEarnings,
+        monthEarnings,
+        totalEarnings,
       },
     });
   } catch (error: any) {

@@ -17,6 +17,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { StripeConnectSetup } from '@/components/StripeConnectSetup';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -63,9 +64,15 @@ export default function PaymentMethodsScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [cardToDelete, setCardToDelete] = useState<string | null>(null);
 
+  const isDriver = user?.role === 'delivery_driver';
+
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!isDriver) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
+  }, [isDriver]);
 
   const loadData = async () => {
     try {
@@ -86,8 +93,10 @@ export default function PaymentMethodsScreen() {
   };
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    loadData();
+    if (!isDriver) {
+      setRefreshing(true);
+      loadData();
+    }
   };
 
   const handleSetDefault = async (cardId: string) => {
@@ -141,7 +150,7 @@ export default function PaymentMethodsScreen() {
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
-        <ThemedText type="h3">Métodos de Pago</ThemedText>
+        <ThemedText type="h3">{isDriver ? 'Método de Pago' : 'Métodos de Pago'}</ThemedText>
         <View style={{ width: 24 }} />
       </View>
 
@@ -150,7 +159,31 @@ export default function PaymentMethodsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={NemyColors.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Web notice */}
+        {/* Driver: Stripe Connect Setup */}
+        {isDriver ? (
+          <>
+            <View style={styles.section}>
+              <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
+                Configuración de Pagos
+              </ThemedText>
+              <StripeConnectSetup />
+            </View>
+
+            <View style={[styles.infoBanner, { backgroundColor: NemyColors.primary + '10', borderColor: NemyColors.primary + '30' }]}>
+              <Feather name="info" size={20} color={NemyColors.primary} />
+              <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                <ThemedText type="body" style={{ color: NemyColors.primary, fontWeight: '600' }}>
+                  ¿Cómo funcionan los pagos?
+                </ThemedText>
+                <ThemedText type="small" style={{ color: NemyColors.primary, marginTop: 4 }}>
+                  Cuando confirmes una entrega, tu pago se libera automáticamente y Stripe lo transfiere a tu cuenta bancaria en 1-2 días hábiles.
+                </ThemedText>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Customer: Cards and payment history */}
         {isWeb && (
           <View style={[styles.card, { backgroundColor: NemyColors.warning + '15', borderColor: NemyColors.warning + '30', borderWidth: 1 }, Shadows.sm]}>
             <View style={styles.cardHeader}>
@@ -307,6 +340,8 @@ export default function PaymentMethodsScreen() {
             </ThemedText>
           </View>
         </View>
+          </>
+        )}
       </ScrollView>
 
       <ConfirmModal

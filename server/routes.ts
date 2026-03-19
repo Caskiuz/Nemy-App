@@ -24,6 +24,7 @@ import weeklySettlementRoutes from "./weeklySettlementRoutes";
 import financialAuditRoutes from "./financialAuditRoutes";
 import favoritesRoutes from "./favoritesRoutes";
 import deliveryRoutesLegacy from "./deliveryRoutes";
+import gpsRoutes from "./gpsRoutes";
 
 const router = express.Router();
 
@@ -116,5 +117,6 @@ router.use("/weekly-settlement",     weeklySettlementRoutes);
 router.use("/audit",                 financialAuditRoutes);
 router.use("/favorites",             favoritesRoutes);
 router.use("/business-verification", businessVerificationRoutes);
+router.use("/gps",                   gpsRoutes);
 
 export default router;

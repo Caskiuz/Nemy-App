@@ -19,10 +19,10 @@ router.post('/onboard', authenticateToken, async (req, res) => {
     }
 
     // Validar permisos
-    if (accountType === 'business' && role !== 'business') {
+    if (accountType === 'business' && role !== 'business_owner') {
       return res.status(403).json({ error: 'Only business users can create business accounts' });
     }
-    if (accountType === 'driver' && role !== 'driver') {
+    if (accountType === 'driver' && role !== 'delivery_driver') {
       return res.status(403).json({ error: 'Only drivers can create driver accounts' });
     }
 

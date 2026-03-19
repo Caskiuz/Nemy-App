@@ -567,11 +567,11 @@ export default function ProfileScreen() {
           )}
           {user?.role === "delivery_driver" && (
             <SettingsItem
-              icon="dollar-sign"
-              label="Mis Ganancias"
+              icon="credit-card"
+              label="Método de Pago"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                navigation.navigate('DeliveryEarnings');
+                navigation.navigate('PaymentMethods');
               }}
             />
           )}

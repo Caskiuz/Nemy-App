@@ -124,6 +124,17 @@ export const orders = mysqlTable("orders", {
   cashCollected: boolean("cash_collected").default(false), // Si el repartidor ya cobró el efectivo
   cashSettled: boolean("cash_settled").default(false), // Si ya liquidó con negocio/plataforma
   cashSettledAt: timestamp("cash_settled_at"), // Cuando liquidó
+  // Prueba de entrega
+  deliveryProofPhoto: text("delivery_proof_photo"), // URL de foto de entrega
+  deliveryProofPhotoTimestamp: timestamp("delivery_proof_photo_timestamp"),
+  deliveryRoute: text("delivery_route"), // JSON con ruta completa del repartidor
+  deliveryDistance: int("delivery_distance"), // Distancia real recorrida en metros
+  // Validación GPS
+  deliveryGpsAccuracy: int("delivery_gps_accuracy"), // Precisión del GPS en metros
+  deliveryGpsValidated: boolean("delivery_gps_validated").default(false), // Si se validó la ubicación
+  // Compartir tracking
+  trackingToken: varchar("tracking_token", { length: 255 }), // Token para compartir tracking
+  trackingTokenExpires: timestamp("tracking_token_expires"),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 });
 
@@ -407,6 +418,11 @@ export const deliveryDrivers = mysqlTable("delivery_drivers", {
   isBlocked: boolean("is_blocked").notNull().default(false),
   blockedReason: text("blocked_reason"),
   blockedUntil: timestamp("blocked_until"),
+  // GPS tracking y ruta
+  routeHistory: text("route_history"), // JSON con historial de rutas
+  totalDistanceTraveled: int("total_distance_traveled").default(0), // metros totales
+  averageSpeed: int("average_speed").default(0), // km/h promedio
+  gpsAccuracyAverage: int("gps_accuracy_average").default(0), // precisión promedio en metros
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -594,3 +610,59 @@ export const favorites = mysqlTable("favorites", {
 });
 
 export type Favorite = typeof favorites.$inferSelect;
+
+// Delivery Heatmap - Mapa de calor de entregas
+export const deliveryHeatmap = mysqlTable("delivery_heatmap", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+  orderCount: int("order_count").notNull().default(1),
+  totalRevenue: int("total_revenue").notNull().default(0), // en centavos
+  averageDeliveryTime: int("average_delivery_time").default(0), // en segundos
+  lastOrderAt: timestamp("last_order_at"),
+  gridCell: varchar("grid_cell", { length: 50 }), // Para agrupar por celda de grid
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(
+    sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`,
+  ),
+});
+
+export type DeliveryHeatmap = typeof deliveryHeatmap.$inferSelect;
+
+// Proximity Alerts - Alertas de proximidad
+export const proximityAlerts = mysqlTable("proximity_alerts", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  orderId: varchar("order_id", { length: 255 }).notNull(),
+  driverId: varchar("driver_id", { length: 255 }).notNull(),
+  alertType: varchar("alert_type", { length: 50 }).notNull(), // approaching, nearby, arrived
+  distance: int("distance").notNull(), // metros
+  destinationType: varchar("destination_type", { length: 50 }).notNull(), // business, customer
+  notificationSent: boolean("notification_sent").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type ProximityAlert = typeof proximityAlerts.$inferSelect;
+
+// Delivery Proofs - Pruebas de entrega con foto
+export const deliveryProofs = mysqlTable("delivery_proofs", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .default(sql`(UUID())`),
+  orderId: varchar("order_id", { length: 255 }).notNull().unique(),
+  driverId: varchar("driver_id", { length: 255 }).notNull(),
+  photoUrl: text("photo_url").notNull(),
+  photoBase64: text("photo_base64"), // Backup en base64
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+  accuracy: int("accuracy"), // Precisión GPS en metros
+  route: text("route"), // JSON con breadcrumbs de la ruta
+  routeDistance: int("route_distance"), // Distancia total en metros
+  timestamp: timestamp("timestamp").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type DeliveryProof = typeof deliveryProofs.$inferSelect;

@@ -169,27 +169,75 @@ export default function DriverMyDeliveriesScreen() {
   const confirmDelivery = async () => {
     if (pendingOrderId) {
       const previousOrders = orders;
-      const location = await gpsService.getLocationForDelivery();
-      const body = location ? { latitude: location.latitude, longitude: location.longitude } : {};
       
-      setActionOrderId(pendingOrderId);
-      setOrders((prev: any[]) =>
-        prev.map((order) =>
-          order.id === pendingOrderId ? { ...order, status: "delivered" } : order,
-        ),
-      );
-
       try {
-        await apiRequest('POST', `/api/orders/${pendingOrderId}/complete-delivery`, body);
-        loadOrders();
+        setActionOrderId(pendingOrderId);
+        
+        // Intentar obtener ubicación
+        const location = await gpsService.getLocationForDelivery();
+        
+        if (!location) {
+          Alert.alert(
+            "GPS Requerido",
+            "No se pudo obtener tu ubicación. Asegúrate de tener el GPS activado.",
+            [
+              { text: "Cancelar", style: "cancel" },
+              { 
+                text: "Reintentar", 
+                onPress: async () => {
+                  const retryLocation = await gpsService.getCurrentLocation();
+                  if (retryLocation) {
+                    await completeDeliveryWithLocation(pendingOrderId, retryLocation, previousOrders);
+                  } else {
+                    Alert.alert("Error", "No se pudo obtener la ubicación. Verifica tus permisos de GPS.");
+                  }
+                }
+              }
+            ]
+          );
+          setActionOrderId(null);
+          setShowConfirmModal(false);
+          setPendingOrderId(null);
+          return;
+        }
+        
+        await completeDeliveryWithLocation(pendingOrderId, location, previousOrders);
       } catch (error) {
-        console.error('Error confirming delivery:', error);
+        console.error('Error in confirmDelivery:', error);
         setOrders(previousOrders);
+        setActionOrderId(null);
       }
     }
     setShowConfirmModal(false);
     setPendingOrderId(null);
-    setActionOrderId(null);
+  };
+  
+  const completeDeliveryWithLocation = async (
+    orderId: string, 
+    location: { latitude: number; longitude: number },
+    previousOrders: any[]
+  ) => {
+    setOrders((prev: any[]) =>
+      prev.map((order) =>
+        order.id === orderId ? { ...order, status: "delivered" } : order,
+      ),
+    );
+
+    try {
+      await apiRequest('POST', `/api/orders/${orderId}/complete-delivery`, {
+        latitude: location.latitude,
+        longitude: location.longitude
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("¡Entregado!", "El pedido ha sido marcado como entregado.");
+      loadOrders();
+    } catch (error: any) {
+      console.error('Error confirming delivery:', error);
+      Alert.alert("Error", error.message || "No se pudo confirmar la entrega");
+      setOrders(previousOrders);
+    } finally {
+      setActionOrderId(null);
+    }
   };
 
   const cancelDelivery = () => {
