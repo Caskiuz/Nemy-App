@@ -84,4 +84,5 @@ app.listen(PORT, () => {
 
   import('./businessHoursCron').then(({ startBusinessHoursCron }) => startBusinessHoursCron()).catch(console.error);
   import('./weeklySettlementCron').then(({ WeeklySettlementCron }) => WeeklySettlementCron.start()).catch(console.error);
+  import('./autoConfirmDeliveryCron').then(({ startAutoConfirmCron }) => startAutoConfirmCron()).catch(console.error);
 });

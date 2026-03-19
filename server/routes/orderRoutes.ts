@@ -259,10 +259,9 @@ router.post(
   authenticateToken,
   requireRole("delivery_driver"),
   validateDriverOrderOwnership,
-  validateOrderCompletion,
   async (req, res) => {
     try {
-      const { orders, wallets, transactions, businesses } = await import("@shared/schema-mysql");
+      const { orders } = await import("@shared/schema-mysql");
       const { db } = await import("../db");
       const { eq } = await import("drizzle-orm");
       const { calculateDistance } = await import("../utils/distance");
@@ -312,7 +311,7 @@ router.post(
         });
       }
 
-      // Mark as delivered
+      // Mark as delivered (waiting for customer confirmation)
       await db
         .update(orders)
         .set({ 
@@ -321,6 +320,48 @@ router.post(
           driverArrivedAt: new Date() 
         })
         .where(eq(orders.id, orderId));
+
+      res.json({
+        success: true,
+        message: "Pedido marcado como entregado. Esperando confirmación del cliente.",
+      });
+    } catch (error: any) {
+      console.error("Complete delivery error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Customer confirms receipt and releases funds
+router.post(
+  "/:id/confirm-receipt",
+  authenticateToken,
+  validateCustomerOrderOwnership,
+  validateOrderCompletion,
+  async (req, res) => {
+    try {
+      const { orders, wallets, transactions, businesses } = await import("@shared/schema-mysql");
+      const { db } = await import("../db");
+      const { eq } = await import("drizzle-orm");
+      const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+      const [order] = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .limit(1);
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (order.status !== "delivered") {
+        return res.status(400).json({ error: "El pedido debe estar entregado primero" });
+      }
+
+      if (order.confirmedByCustomer) {
+        return res.status(400).json({ error: "Ya confirmaste este pedido" });
+      }
 
       // Calculate commissions using centralized service
       const { financialService } = await import("../unifiedFinancialService");
@@ -331,10 +372,12 @@ router.post(
         order.nemyCommission || undefined
       );
 
-      // Update order with commission breakdown
+      // Update order with commission breakdown and confirmation
       await db
         .update(orders)
         .set({
+          confirmedByCustomer: true,
+          confirmedByCustomerAt: new Date(),
           platformFee: commissions.platform,
           businessEarnings: commissions.business,
           deliveryEarnings: commissions.driver,
@@ -432,7 +475,7 @@ router.post(
 
       res.json({
         success: true,
-        message: "Pedido completado y fondos liberados",
+        message: "Pedido confirmado y fondos liberados",
         distribution: {
           platform: commissions.platform / 100,
           business: commissions.business / 100,
@@ -440,7 +483,7 @@ router.post(
         },
       });
     } catch (error: any) {
-      console.error("Complete delivery error:", error);
+      console.error("Confirm receipt error:", error);
       res.status(500).json({ error: error.message });
     }
   }

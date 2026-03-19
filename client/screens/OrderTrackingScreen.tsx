@@ -658,7 +658,7 @@ export default function OrderTrackingScreen() {
             onPress={async () => {
               try {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const response = await apiRequest("POST", `/api/stripe/confirm-delivery/${order.id}`);
+                const response = await apiRequest("POST", `/api/orders/${order.id}/confirm-receipt`);
                 const data = await response.json();
                 if (data.success) {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

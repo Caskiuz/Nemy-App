@@ -4,7 +4,7 @@ import { authenticateToken, requireRole } from "./authMiddleware";
 // ─── Route modules ────────────────────────────────────────────────────────────
 import authRoutes from "./routes/auth";
 import businessRoutes from "./routes/business";
-import orderRoutes from "./routes/orders";
+import orderRoutes from "./routes/orderRoutes";
 import userRoutes from "./routes/users";
 import deliveryRoutes from "./routes/delivery";
 import paymentRoutes from "./routes/payments";

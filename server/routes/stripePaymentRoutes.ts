@@ -7,8 +7,8 @@ import { getStripe } from "../stripeClient";
 
 const router = express.Router();
 
-// Publishable key for Stripe SDK
-router.get("/publishable-key", authenticateToken, async (_req, res) => {
+// Publishable key for Stripe SDK (public endpoint)
+router.get("/publishable-key", async (_req, res) => {
   try {
     if (!process.env.STRIPE_PUBLISHABLE_KEY) {
       return res.status(503).json({ error: "Stripe not configured" });
