@@ -1,9 +1,9 @@
 const https = require('https');
 
-const BACKEND_URL = 'https://nemy-app.replit.app';
+const BACKEND_URL = 'https://nemy-backend.onrender.com';
 
 console.log('========================================');
-console.log('  NEMY - Verificación Backend Replit');
+console.log('  NEMY - Verificación Backend Render');
 console.log('========================================\n');
 
 // Test 1: Health Check
@@ -48,17 +48,17 @@ testEndpoint('/api/health', 'GET')
     console.log('========================================\n');
     
     console.log('Siguiente paso:');
-    console.log('1. Ejecutar: build-apk-replit.bat');
+    console.log('1. Ejecutar: build-apk-render.bat');
     console.log('2. Instalar APK en dispositivo Android');
     console.log('3. Probar login y funcionalidades\n');
   })
   .catch(error => {
     console.error('\n❌ Error en verificación:', error.message);
     console.log('\nPosibles soluciones:');
-    console.log('1. Verificar que Replit esté corriendo');
-    console.log('2. Revisar variables de entorno en Replit');
+    console.log('1. Verificar que Render esté corriendo');
+    console.log('2. Revisar variables de entorno en Render');
     console.log('3. Verificar conexión a base de datos Aiven');
-    console.log('4. Revisar logs en Replit Console\n');
+    console.log('4. Revisar logs en Render Console\n');
     process.exit(1);
   });
 
@@ -110,7 +110,7 @@ function checkCORS() {
     const options = {
       method: 'OPTIONS',
       headers: {
-        'Origin': 'https://nemy-app.replit.app',
+        'Origin': 'https://nemy-backend.onrender.com',
         'Access-Control-Request-Method': 'GET'
       }
     };
