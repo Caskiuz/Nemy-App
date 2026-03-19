@@ -90,6 +90,17 @@ transfer-*.js
 # ============================================
 *.md
 !README.md
+
+# Block ALL documentation files
+GPS_*.md
+AIVEN_*.md
+RENDER_*.md
+DEPLOY_*.md
+MIGRATION_*.md
+INSTALL_*.md
+GUIDE_*.md
+SUMMARY_*.md
+FEATURES_*.md
 ADMIN-*.md
 ANALISIS-*.md
 AUDIT-*.md
@@ -134,6 +145,22 @@ WITHDRAWAL-*.md
 WORLD_*.md
 design_guidelines.md
 replit.md
+
+# Block ALL SQL files
+*.sql
+!setup-db-local.sql
+
+# Block ALL installation scripts
+install-*.sh
+install-*.bat
+setup-*.sh
+setup-*.bat
+
+# Block ALL environment variable files
+*_ENV_*.txt
+*_VARS.txt
+RENDER_*.txt
+AIVEN_*.txt
 
 # ============================================
 # Scripts & Batch Files
